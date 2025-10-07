@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="1040" viewBox="0 0 480 1040" font-family="Inter, system-ui, sans-serif">
+    <defs>
+        <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M2,2 L10,6 L2,10 z" fill="#2d3748" />
+        </marker>
+    </defs>
+    <rect width="100%" height="100%" fill="white" />
+  <line x1="240.0" y1="120.0" x2="240.0" y2="280.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow)" />
+  <text x="240.0" y="190.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="central">Get money</text>
+  <line x1="240.0" y1="280.0" x2="240.0" y2="440.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow)" />
+  <line x1="240.0" y1="440.0" x2="240.0" y2="600.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow)" stroke-dasharray="8 6" />
+  <text x="240.0" y="510.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="central">One</text>
+  <line x1="240.0" y1="440.0" x2="240.0" y2="760.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow)" stroke-dasharray="8 6" />
+  <text x="240.0" y="590.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="central">Two</text>
+  <line x1="240.0" y1="440.0" x2="240.0" y2="920.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow)" stroke-dasharray="8 6" />
+  <text x="240.0" y="670.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="central">Three</text>
+  <rect x="170.0" y="570.0" width="140.0" height="60.0" rx="8" ry="8" fill="#ffffff" stroke="#4a5568" stroke-width="2" />
+  <text x="240.0" y="600.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Laptop</text>
+  <rect x="170.0" y="730.0" width="140.0" height="60.0" rx="8" ry="8" fill="#ffffff" stroke="#4a5568" stroke-width="2" />
+  <text x="240.0" y="760.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">iPhone</text>
+  <rect x="170.0" y="890.0" width="140.0" height="60.0" rx="8" ry="8" fill="#ffffff" stroke="#4a5568" stroke-width="2" />
+  <text x="240.0" y="920.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Car</text>
+  <polygon points="240.0,410.0 310.0,440.0 240.0,470.0 170.0,440.0" fill="#ffffff" stroke="#4a5568" stroke-width="2" />
+  <text x="240.0" y="440.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Let me think</text>
+  <rect x="170.0" y="90.0" width="140.0" height="60.0" rx="8" ry="8" fill="#ffffff" stroke="#4a5568" stroke-width="2" />
+  <text x="240.0" y="120.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Christmas</text>
+  <rect x="170.0" y="250.0" width="140.0" height="60.0" rx="30" ry="30" fill="#ffffff" stroke="#4a5568" stroke-width="2" />
+  <text x="240.0" y="280.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Go shopping</text>
+</svg>

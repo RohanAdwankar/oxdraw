@@ -1,0 +1,170 @@
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f7fafc;
+  color: #1a202c;
+}
+
+body {
+  display: flex;
+}
+
+#root {
+  flex: 1;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-height: 100%;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: #1a202c;
+  color: #f7fafc;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+}
+
+.toolbar .status {
+  font-size: 0.95rem;
+}
+
+.toolbar .actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.toolbar button {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: #38b2ac;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.toolbar button:disabled {
+  background: #4a5568;
+  cursor: not-allowed;
+  opacity: 0.65;
+  box-shadow: none;
+  transform: none;
+}
+
+.toolbar button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(56, 178, 172, 0.35);
+}
+
+.workspace {
+  flex: 1;
+  display: flex;
+  position: relative;
+  background: linear-gradient(180deg, #edf2f7 0%, #e2e8f0 100%);
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.placeholder {
+  margin: auto;
+  padding: 1rem 1.5rem;
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 32px rgba(148, 163, 184, 0.35);
+  color: #4a5568;
+  font-size: 1rem;
+}
+
+.diagram {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  background: white;
+  border-radius: 1rem 1rem 0 0;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+  cursor: grab;
+}
+
+.diagram:active {
+  cursor: grabbing;
+}
+
+.edge {
+  pointer-events: none;
+}
+
+.edge .handle {
+  pointer-events: all;
+  fill: white;
+  stroke: #4a5568;
+  stroke-width: 1.5;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.edge .handle.active {
+  opacity: 1;
+}
+
+.edge:hover .handle,
+.edge:focus-within .handle {
+  opacity: 1;
+}
+
+.edge-label {
+  font-size: 0.8rem;
+  fill: #2d3748;
+  pointer-events: none;
+  user-select: none;
+}
+
+.node rect,
+.node ellipse,
+.node polygon {
+  fill: white;
+  stroke: #2d3748;
+  stroke-width: 2;
+  filter: drop-shadow(0 6px 18px rgba(15, 23, 42, 0.08));
+  transition: stroke 0.2s ease, filter 0.2s ease;
+}
+
+.node:hover rect,
+.node:hover ellipse,
+.node:hover polygon {
+  stroke: #38b2ac;
+  filter: drop-shadow(0 16px 30px rgba(59, 130, 246, 0.2));
+}
+
+.node text {
+  fill: #1a202c;
+  font-size: 0.95rem;
+  font-weight: 600;
+  pointer-events: none;
+  user-select: none;
+}
+
+.error {
+  padding: 0.75rem 1.5rem;
+  background: #fed7d7;
+  color: #822727;
+  border-top: 1px solid rgba(185, 28, 28, 0.35);
+}
