@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write as FmtWrite;
 use std::fs;
 use std::io::{self, Read, Write};
@@ -7,15 +7,15 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow, bail};
-use axum::extract::State;
+use axum::extract::{Path as AxumPath, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, put};
+use axum::routing::{delete, get, put};
 use axum::{Json, Router};
 use clap::{ArgAction, Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tower::ServiceExt;
 use tower::service_fn;
 use tower_http::cors::CorsLayer;
@@ -288,12 +288,16 @@ async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> {
         layout_path: overrides_path,
         background: args.background_color.clone(),
         overrides: RwLock::new(overrides),
+        source_lock: Mutex::new(()),
     });
 
     let mut app = Router::new()
         .route("/api/diagram", get(get_diagram))
         .route("/api/diagram/svg", get(get_svg))
         .route("/api/diagram/layout", put(put_layout))
+        .route("/api/diagram/source", get(get_source).put(put_source))
+        .route("/api/diagram/nodes/:id", delete(delete_node))
+        .route("/api/diagram/edges/:id", delete(delete_edge))
         .with_state(state);
 
     if let Some(root) = ui_root {
@@ -494,6 +498,7 @@ struct DiagramPayload {
     render_size: CanvasSize,
     nodes: Vec<NodePayload>,
     edges: Vec<EdgePayload>,
+    source: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -555,11 +560,22 @@ struct LayoutUpdate {
     edges: HashMap<String, Option<EdgeOverride>>,
 }
 
+#[derive(Debug, Deserialize)]
+struct SourceUpdateRequest {
+    source: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SourcePayload {
+    source: String,
+}
+
 struct ServeState {
     source_path: PathBuf,
     layout_path: PathBuf,
     background: String,
     overrides: RwLock<LayoutOverrides>,
+    source_lock: Mutex<()>,
 }
 
 impl LayoutOverrides {
@@ -604,14 +620,20 @@ impl LayoutOverrides {
             .with_context(|| format!("failed to write overrides '{}'", path.display()))?;
         Ok(())
     }
+
+    fn prune(&mut self, nodes: &HashSet<String>, edges: &HashSet<String>) {
+        self.nodes.retain(|id, _| nodes.contains(id));
+        self.edges.retain(|id, _| edges.contains(id));
+    }
 }
 
 impl ServeState {
-    async fn read_diagram(&self) -> Result<Diagram> {
+    async fn read_diagram(&self) -> Result<(String, Diagram)> {
         let contents = tokio::fs::read_to_string(&self.source_path)
             .await
             .with_context(|| format!("failed to read '{}'", self.source_path.display()))?;
-        Diagram::parse(&contents)
+        let diagram = Diagram::parse(&contents)?;
+        Ok((contents, diagram))
     }
 
     async fn current_overrides(&self) -> LayoutOverrides {
@@ -644,6 +666,75 @@ impl ServeState {
         }
 
         overrides.save(&self.layout_path)
+    }
+
+    async fn prune_overrides_for(&self, diagram: &Diagram) -> Result<()> {
+        let node_ids: HashSet<String> = diagram.nodes.keys().cloned().collect();
+        let edge_ids: HashSet<String> = diagram
+            .edges
+            .iter()
+            .map(|edge| edge_identifier(edge))
+            .collect();
+
+        let mut overrides = self.overrides.write().await;
+        overrides.prune(&node_ids, &edge_ids);
+        overrides.save(&self.layout_path)
+    }
+
+    async fn replace_source(&self, contents: &str) -> Result<()> {
+        let diagram = Diagram::parse(contents)?;
+        {
+            let _guard = self.source_lock.lock().await;
+            tokio::fs::write(&self.source_path, contents.as_bytes())
+                .await
+                .with_context(|| format!("failed to write '{}'", self.source_path.display()))?;
+        }
+        self.prune_overrides_for(&diagram).await
+    }
+
+    async fn remove_node(&self, node_id: &str) -> Result<bool> {
+        let diagram = {
+            let _guard = self.source_lock.lock().await;
+            let source = tokio::fs::read_to_string(&self.source_path)
+                .await
+                .with_context(|| format!("failed to read '{}'", self.source_path.display()))?;
+            let mut diagram = Diagram::parse(&source)?;
+            if diagram.nodes.len() == 1 && diagram.nodes.contains_key(node_id) {
+                bail!("diagram must contain at least one node");
+            }
+            if !diagram.remove_node(node_id) {
+                return Ok(false);
+            }
+            let rewritten = diagram.to_definition();
+            tokio::fs::write(&self.source_path, rewritten.as_bytes())
+                .await
+                .with_context(|| format!("failed to write '{}'", self.source_path.display()))?;
+            diagram
+        };
+
+        self.prune_overrides_for(&diagram).await?;
+        Ok(true)
+    }
+
+    async fn remove_edge(&self, edge_id: &str) -> Result<bool> {
+        let diagram = {
+            let _guard = self.source_lock.lock().await;
+            let source = tokio::fs::read_to_string(&self.source_path)
+                .await
+                .with_context(|| format!("failed to read '{}'", self.source_path.display()))?;
+            let mut diagram = Diagram::parse(&source)?;
+            if !diagram.remove_edge_by_identifier(edge_id) {
+                return Ok(false);
+            }
+            let rewritten = diagram.to_definition();
+            tokio::fs::write(&self.source_path, rewritten.as_bytes())
+                .await
+                .with_context(|| format!("failed to write '{}'", self.source_path.display()))?;
+            diagram
+        };
+
+        self.prune_overrides_for(&diagram).await?;
+        Ok(true)
     }
 }
 
@@ -920,6 +1011,59 @@ impl Diagram {
 
         Ok(routes)
     }
+
+    fn remove_node(&mut self, node_id: &str) -> bool {
+        let existed = self.nodes.remove(node_id).is_some();
+        if existed {
+            self.order.retain(|id| id != node_id);
+            self.edges
+                .retain(|edge| edge.from != node_id && edge.to != node_id);
+        }
+        existed
+    }
+
+    fn remove_edge_by_identifier(&mut self, edge_id: &str) -> bool {
+        let before = self.edges.len();
+        self.edges.retain(|edge| edge_identifier(edge) != edge_id);
+        before != self.edges.len()
+    }
+
+    fn to_definition(&self) -> String {
+        let mut lines = Vec::new();
+        lines.push(format!("graph {}", self.direction.as_token()));
+
+        for id in &self.order {
+            if let Some(node) = self.nodes.get(id) {
+                lines.push(Self::format_node_line(id, node));
+            }
+        }
+
+        for edge in &self.edges {
+            lines.push(Self::format_edge_line(edge));
+        }
+
+        let mut output = lines.join("\n");
+        output.push('\n');
+        output
+    }
+
+    fn format_node_line(id: &str, node: &Node) -> String {
+        node.shape.format_spec(id, &node.label)
+    }
+
+    fn format_edge_line(edge: &Edge) -> String {
+        if let Some(label) = &edge.label {
+            format!(
+                "{} {}|{}| {}",
+                edge.from,
+                edge.kind.arrow_token(),
+                label,
+                edge.to
+            )
+        } else {
+            format!("{} {} {}", edge.from, edge.kind.arrow_token(), edge.to)
+        }
+    }
 }
 
 fn parse_graph_header(line: &str) -> Result<Direction> {
@@ -1163,6 +1307,17 @@ fn align_geometry(
     })
 }
 
+impl Direction {
+    fn as_token(&self) -> &'static str {
+        match self {
+            Direction::TopDown => "TD",
+            Direction::LeftRight => "LR",
+            Direction::BottomTop => "BT",
+            Direction::RightLeft => "RL",
+        }
+    }
+}
+
 impl EdgeKind {
     fn arrow_token(&self) -> &'static str {
         match self {
@@ -1188,6 +1343,21 @@ impl NodeShape {
             NodeShape::Diamond => "diamond",
         }
     }
+
+    fn format_spec(&self, id: &str, label: &str) -> String {
+        match self {
+            NodeShape::Rectangle => {
+                if label == id {
+                    id.to_string()
+                } else {
+                    format!("{id}[{label}]")
+                }
+            }
+            NodeShape::Stadium => format!("{id}({label})"),
+            NodeShape::Circle => format!("{id}(({label}))"),
+            NodeShape::Diamond => format!("{id}{{{label}}}"),
+        }
+    }
 }
 
 fn escape_xml(input: &str) -> String {
@@ -1208,7 +1378,7 @@ fn escape_xml(input: &str) -> String {
 async fn get_diagram(
     State(state): State<Arc<ServeState>>,
 ) -> Result<Json<DiagramPayload>, (StatusCode, String)> {
-    let diagram = state.read_diagram().await.map_err(internal_error)?;
+    let (source, diagram) = state.read_diagram().await.map_err(internal_error)?;
     let overrides = state.current_overrides().await;
 
     let layout = diagram.layout(Some(&overrides)).map_err(internal_error)?;
@@ -1283,13 +1453,14 @@ async fn get_diagram(
         },
         nodes,
         edges,
+        source,
     };
 
     Ok(Json(payload))
 }
 
 async fn get_svg(State(state): State<Arc<ServeState>>) -> Result<Response, (StatusCode, String)> {
-    let diagram = state.read_diagram().await.map_err(internal_error)?;
+    let (_, diagram) = state.read_diagram().await.map_err(internal_error)?;
     let overrides = state.current_overrides().await;
     let override_ref = if overrides.is_empty() {
         None
@@ -1315,6 +1486,53 @@ async fn put_layout(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     state.apply_update(update).await.map_err(internal_error)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn get_source(
+    State(state): State<Arc<ServeState>>,
+) -> Result<Json<SourcePayload>, (StatusCode, String)> {
+    let (source, _) = state.read_diagram().await.map_err(internal_error)?;
+    Ok(Json(SourcePayload { source }))
+}
+
+async fn put_source(
+    State(state): State<Arc<ServeState>>,
+    Json(payload): Json<SourceUpdateRequest>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    state
+        .replace_source(&payload.source)
+        .await
+        .map_err(internal_error)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn delete_node(
+    State(state): State<Arc<ServeState>>,
+    AxumPath(node_id): AxumPath<String>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    match state.remove_node(&node_id).await {
+        Ok(true) => Ok(StatusCode::NO_CONTENT),
+        Ok(false) => Err((StatusCode::NOT_FOUND, format!("node '{node_id}' not found"))),
+        Err(err) => {
+            let message = err.to_string();
+            if message.contains("at least one node") {
+                Err((StatusCode::BAD_REQUEST, message))
+            } else {
+                Err(internal_error(err))
+            }
+        }
+    }
+}
+
+async fn delete_edge(
+    State(state): State<Arc<ServeState>>,
+    AxumPath(edge_id): AxumPath<String>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    match state.remove_edge(&edge_id).await {
+        Ok(true) => Ok(StatusCode::NO_CONTENT),
+        Ok(false) => Err((StatusCode::NOT_FOUND, format!("edge '{edge_id}' not found"))),
+        Err(err) => Err(internal_error(err)),
+    }
 }
 
 fn internal_error(err: anyhow::Error) -> (StatusCode, String) {

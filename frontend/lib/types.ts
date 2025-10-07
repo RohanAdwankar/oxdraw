@@ -38,6 +38,7 @@ export interface DiagramData {
   renderSize: Size;
   nodes: NodeData[];
   edges: EdgeData[];
+  source: string;
 }
 
 export interface LayoutUpdate {

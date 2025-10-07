@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type CSSProperties } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { DiagramData, EdgeData, Point } from "../lib/types";
 
@@ -10,10 +10,21 @@ const LAYOUT_MARGIN = 80;
 const HANDLE_RADIUS = 6;
 const EPSILON = 0.5;
 
+const SHAPE_COLORS: Record<DiagramData["nodes"][number]["shape"], string> = {
+  rectangle: "#FDE68A", // pastel amber
+  stadium: "#C4F1F9", // pastel cyan
+  circle: "#E9D8FD", // pastel purple
+  diamond: "#FBCFE8", // pastel pink
+};
+
 interface DiagramCanvasProps {
   diagram: DiagramData;
   onNodeMove: (id: string, position: Point | null) => void;
   onEdgeMove: (id: string, points: Point[] | null) => void;
+  selectedNodeId: string | null;
+  selectedEdgeId: string | null;
+  onSelectNode: (id: string | null) => void;
+  onSelectEdge: (id: string | null) => void;
 }
 
 interface NodeDragState {
@@ -53,7 +64,15 @@ function isClose(a: Point, b: Point): boolean {
   return Math.abs(a.x - b.x) < EPSILON && Math.abs(a.y - b.y) < EPSILON;
 }
 
-export default function DiagramCanvas({ diagram, onNodeMove, onEdgeMove }: DiagramCanvasProps) {
+export default function DiagramCanvas({
+  diagram,
+  onNodeMove,
+  onEdgeMove,
+  selectedNodeId,
+  selectedEdgeId,
+  onSelectNode,
+  onSelectEdge,
+}: DiagramCanvasProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [dragState, setDragState] = useState<DragState>(null);
   const [draftNodes, setDraftNodes] = useState<DraftNodes>({});
@@ -148,8 +167,16 @@ export default function DiagramCanvas({ diagram, onNodeMove, onEdgeMove }: Diagr
     };
   };
 
+  const handleCanvasPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (event.target === event.currentTarget) {
+      onSelectNode(null);
+      onSelectEdge(null);
+    }
+  };
+
   const handleNodePointerDown = (id: string, event: ReactPointerEvent<SVGGElement>) => {
     event.preventDefault();
+    event.stopPropagation();
     const diagramPoint = clientToDiagram(event);
     if (!diagramPoint) {
       return;
@@ -165,6 +192,8 @@ export default function DiagramCanvas({ diagram, onNodeMove, onEdgeMove }: Diagr
     setDragState({ type: "node", id, offset, current, moved: false });
     setDraftNodes((prev: DraftNodes) => ({ ...prev, [id]: current }));
     event.currentTarget.setPointerCapture(event.pointerId);
+    onSelectNode(id);
+    onSelectEdge(null);
   };
 
   const handleHandlePointerDown = (
@@ -175,6 +204,7 @@ export default function DiagramCanvas({ diagram, onNodeMove, onEdgeMove }: Diagr
     event: ReactPointerEvent<SVGCircleElement>
   ) => {
     event.preventDefault();
+    event.stopPropagation();
     const basePoints = hasOverride
       ? availablePoints.map((point: Point) => ({ ...point }))
       : [availablePoints[index] ?? availablePoints[0]];
@@ -188,6 +218,17 @@ export default function DiagramCanvas({ diagram, onNodeMove, onEdgeMove }: Diagr
     });
     setDraftEdges((prev: DraftEdges) => ({ ...prev, [edgeId]: basePoints }));
     event.currentTarget.setPointerCapture(event.pointerId);
+    onSelectEdge(edgeId);
+    onSelectNode(null);
+  };
+
+  const handleEdgePointerDown = (
+    edgeId: string,
+    event: ReactPointerEvent<SVGElement>
+  ) => {
+    event.stopPropagation();
+    onSelectEdge(edgeId);
+    onSelectNode(null);
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -271,6 +312,7 @@ export default function DiagramCanvas({ diagram, onNodeMove, onEdgeMove }: Diagr
       ref={svgRef}
       className="diagram"
       viewBox={`0 0 ${bounds.width} ${bounds.height}`}
+      onPointerDown={handleCanvasPointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
@@ -283,9 +325,16 @@ export default function DiagramCanvas({ diagram, onNodeMove, onEdgeMove }: Diagr
         if (!from || !to) {
           return null;
         }
+        const edgeSelected = selectedEdgeId === edge.id;
 
         return (
-          <g key={edge.id} className="edge">
+          <g
+            key={edge.id}
+            className={edgeSelected ? "edge selected" : "edge"}
+            onPointerDown={(event: ReactPointerEvent<SVGGElement>) =>
+              handleEdgePointerDown(edge.id, event)
+            }
+          >
             {screenRoute.length === 2 ? (
               <line
                 x1={screenRoute[0].x}
@@ -296,6 +345,9 @@ export default function DiagramCanvas({ diagram, onNodeMove, onEdgeMove }: Diagr
                 strokeWidth={2}
                 markerEnd="url(#arrow)"
                 strokeDasharray={edge.kind === "dashed" ? "8 6" : undefined}
+                onPointerDown={(event: ReactPointerEvent<SVGLineElement>) =>
+                  handleEdgePointerDown(edge.id, event)
+                }
               />
             ) : (
               <polyline
@@ -305,6 +357,9 @@ export default function DiagramCanvas({ diagram, onNodeMove, onEdgeMove }: Diagr
                 strokeWidth={2}
                 markerEnd="url(#arrow)"
                 strokeDasharray={edge.kind === "dashed" ? "8 6" : undefined}
+                onPointerDown={(event: ReactPointerEvent<SVGPolylineElement>) =>
+                  handleEdgePointerDown(edge.id, event)
+                }
               />
             )}
             {edge.label && (
@@ -343,11 +398,15 @@ export default function DiagramCanvas({ diagram, onNodeMove, onEdgeMove }: Diagr
         if (!node) {
           return null;
         }
+    const nodeColor = SHAPE_COLORS[node.shape] ?? "#ffffff";
+    const nodeStyle = { "--node-fill": nodeColor } as CSSProperties;
+        const nodeSelected = selectedNodeId === id;
         return (
           <g
             key={id}
-            className="node"
+            className={nodeSelected ? "node selected" : "node"}
             transform={`translate(${screen.x}, ${screen.y})`}
+            style={nodeStyle}
             onPointerDown={(event: ReactPointerEvent<SVGGElement>) => handleNodePointerDown(id, event)}
             onDoubleClick={() => handleNodeDoubleClick(id)}
           >

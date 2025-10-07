@@ -39,6 +39,7 @@ interface RawDiagram {
   render_size: RawSize;
   nodes: RawNode[];
   edges: RawEdge[];
+  source: string;
 }
 
 function mapPoint(point: RawPoint): Point {
@@ -93,6 +94,7 @@ export async function fetchDiagram(): Promise<DiagramData> {
     },
     nodes: payload.nodes.map(mapNode),
     edges: payload.edges.map(mapEdge),
+    source: payload.source,
   };
 }
 
@@ -108,5 +110,48 @@ export async function updateLayout(update: LayoutUpdate): Promise<void> {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || `Failed to update layout: ${response.status}`);
+  }
+}
+
+export async function updateSource(source: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/diagram/source`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ source }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to update source: ${response.status}`);
+  }
+}
+
+export async function deleteNode(nodeId: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/api/diagram/nodes/${encodeURIComponent(nodeId)}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to delete node: ${response.status}`);
+  }
+}
+
+export async function deleteEdge(edgeId: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/api/diagram/edges/${encodeURIComponent(edgeId)}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to delete edge: ${response.status}`);
   }
 }
