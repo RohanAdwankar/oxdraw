@@ -1,3 +1,6 @@
+
+https://github.com/user-attachments/assets/4967abab-794e-4449-9b7c-a4d8fa1f22cd
+
 ## Vision
 
 Oxdraw is a toolchain for declarative diagram authoring. Charts are written in [Mermaid](https://mermaid.js.org/) syntax, while an upcoming web studio will let users fine-tune positions and connector paths. Whenever a diagram is tweaked visually, the structural changes are persisted back to the source file as declarative code so that everything remains deterministic and versionable.
