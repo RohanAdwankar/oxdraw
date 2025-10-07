@@ -66,6 +66,8 @@ Then start the editor against a specific diagram:
 
 This boots the Axum HTTP server on <http://127.0.0.1:5151>, serves the compiled UI from `web/dist/`, and streams all layout changes back into `flowchart1.oxdraw.json`. Stop the session with `Ctrl+C`. Set the `OXDRAW_WEB_DIST` environment variable if you keep the built assets elsewhere.
 
+Pass `--serve-host 0.0.0.0` or `--serve-port 6000` to change the bind address when collaborating across devices.
+
 Passing `--background-color transparent` asks for a transparent background (currently SVG-only). Omit `--output` to default to `<input>.svg` or `out.svg` when reading from stdin.
 Use `--quiet` to suppress the default success message when writing to a file.
 

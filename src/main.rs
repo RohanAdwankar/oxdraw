@@ -54,6 +54,14 @@ struct RenderArgs {
     )]
     edit: bool,
 
+    /// Override the host binding when using --edit.
+    #[arg(long = "serve-host", requires = "edit")]
+    serve_host: Option<String>,
+
+    /// Override the port binding when using --edit.
+    #[arg(long = "serve-port", requires = "edit")]
+    serve_port: Option<u16>,
+
     /// Background color for the rendered diagram (svg only at the moment).
     #[arg(short = 'b', long = "background-color", default_value = "white")]
     background_color: String,
@@ -186,10 +194,16 @@ async fn run_edit(cli: RenderArgs) -> Result<()> {
 
     let ui_root = locate_ui_dist()?;
 
+    let host = cli
+        .serve_host
+        .clone()
+        .unwrap_or_else(|| "127.0.0.1".to_string());
+    let port = cli.serve_port.unwrap_or(5151);
+
     let serve_args = ServeArgs {
         input: canonical_input.clone(),
-        host: "127.0.0.1".to_string(),
-        port: 5151,
+        host: host.clone(),
+        port,
         background_color: cli.background_color.clone(),
     };
 
@@ -197,7 +211,7 @@ async fn run_edit(cli: RenderArgs) -> Result<()> {
     println!("Loaded web UI from {}", ui_root.display());
     println!(
         "Visit http://{}:{} in your browser to begin editing",
-        serve_args.host, serve_args.port
+        host, port
     );
 
     run_serve(serve_args, Some(ui_root)).await
