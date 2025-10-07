@@ -233,12 +233,12 @@ fn locate_ui_dist() -> Result<PathBuf> {
     let mut candidates = Vec::new();
 
     if let Ok(cwd) = std::env::current_dir() {
-        candidates.push(cwd.join("web/dist"));
+        candidates.push(cwd.join("frontend/out"));
     }
 
     if let Ok(exe) = std::env::current_exe() {
         for ancestor in exe.ancestors() {
-            candidates.push(PathBuf::from(ancestor).join("web/dist"));
+            candidates.push(PathBuf::from(ancestor).join("frontend/out"));
         }
     }
 
@@ -249,7 +249,7 @@ fn locate_ui_dist() -> Result<PathBuf> {
     }
 
     bail!(
-        "unable to find built web UI assets; run 'npm install' and 'npm run build' in the web/ directory or set OXDRAW_WEB_DIST"
+        "unable to find built web UI assets; run 'npm install' and 'npm run build' in the frontend/ directory or set OXDRAW_WEB_DIST"
     );
 }
 

@@ -1,34 +1,40 @@
 :root {
-  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #171717;
 }
 
-* {
-  box-sizing: border-box;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 html,
 body {
-  margin: 0;
-  padding: 0;
   height: 100%;
-  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #f7fafc;
-  color: #1a202c;
 }
 
 body {
-  display: flex;
+  margin: 0;
 }
 
-#root {
-  flex: 1;
+#root,
+body > div:first-of-type {
+  height: 100%;
 }
 
 .app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  max-height: 100%;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #edf2f7 0%, #e2e8f0 100%);
 }
 
 .toolbar {

@@ -1,7 +1,9 @@
+'use client';
+
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchDiagram, updateLayout } from "./api";
-import DiagramCanvas from "./DiagramCanvas";
-import { DiagramData, LayoutUpdate, Point } from "./types";
+import DiagramCanvas from "../components/DiagramCanvas";
+import { fetchDiagram, updateLayout } from "../lib/api";
+import { DiagramData, LayoutUpdate, Point } from "../lib/types";
 
 function hasOverrides(diagram: DiagramData | null): boolean {
   if (!diagram) {
@@ -13,7 +15,7 @@ function hasOverrides(diagram: DiagramData | null): boolean {
   );
 }
 
-export default function App() {
+export default function Home() {
   const [diagram, setDiagram] = useState<DiagramData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    loadDiagram();
+    void loadDiagram();
   }, [loadDiagram]);
 
   const applyUpdate = useCallback(
@@ -122,7 +124,7 @@ export default function App() {
           {statusMessage}
         </div>
         <div className="actions">
-          <button onClick={loadDiagram} disabled={loading || saving}>
+          <button onClick={() => void loadDiagram()} disabled={loading || saving}>
             Refresh
           </button>
           <button
@@ -136,11 +138,7 @@ export default function App() {
       </header>
       <main className="workspace">
         {diagram && !loading ? (
-          <DiagramCanvas
-            diagram={diagram}
-            onNodeMove={handleNodeMove}
-            onEdgeMove={handleEdgeMove}
-          />
+          <DiagramCanvas diagram={diagram} onNodeMove={handleNodeMove} onEdgeMove={handleEdgeMove} />
         ) : (
           <div className="placeholder">{loading ? "Loading…" : "No diagram"}</div>
         )}

@@ -49,10 +49,10 @@ cat mermaid-cli/test-positive/flowchart1.mmd | ./target/release/oxdraw --output 
 
 ### Launch the interactive editor
 
-Build the web bundle once (rerun after UI changes):
+Build the Next.js bundle once (rerun after UI changes):
 
 ```bash
-cd web
+cd frontend
 npm install
 npm run build
 cd ..
@@ -64,7 +64,7 @@ Then start the editor against a specific diagram:
 ./target/release/oxdraw --input mermaid-cli/test-positive/flowchart1.mmd --edit
 ```
 
-This boots the Axum HTTP server on <http://127.0.0.1:5151>, serves the compiled UI from `web/dist/`, and streams all layout changes back into `flowchart1.oxdraw.json`. Stop the session with `Ctrl+C`. Set the `OXDRAW_WEB_DIST` environment variable if you keep the built assets elsewhere.
+This boots the Axum HTTP server on <http://127.0.0.1:5151>, serves the exported Next.js UI from `frontend/out/`, and streams all layout changes back into `flowchart1.oxdraw.json`. Stop the session with `Ctrl+C`. Set the `OXDRAW_WEB_DIST` environment variable if you keep the built assets elsewhere.
 
 Pass `--serve-host 0.0.0.0` or `--serve-port 6000` to change the bind address when collaborating across devices.
 

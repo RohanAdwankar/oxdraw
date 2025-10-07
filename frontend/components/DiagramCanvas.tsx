@@ -1,6 +1,8 @@
+'use client';
+
 import { useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { DiagramData, EdgeData, Point } from "./types";
+import { DiagramData, EdgeData, Point } from "../lib/types";
 
 const NODE_WIDTH = 140;
 const NODE_HEIGHT = 60;
@@ -335,7 +337,7 @@ export default function DiagramCanvas({ diagram, onNodeMove, onEdgeMove }: Diagr
         );
       })}
 
-  {nodeEntries.map(([id, position]) => {
+      {nodeEntries.map(([id, position]) => {
         const screen = toScreen(position);
         const node = diagram.nodes.find((item) => item.id === id);
         if (!node) {

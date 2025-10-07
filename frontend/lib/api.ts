@@ -1,6 +1,6 @@
 import { DiagramData, EdgeData, LayoutUpdate, NodeData, Point } from "./types";
 
-const API_BASE = import.meta.env.VITE_OXDRAW_API ?? "http://127.0.0.1:5151";
+const API_BASE = process.env.NEXT_PUBLIC_OXDRAW_API ?? "http://127.0.0.1:5151";
 
 interface RawPoint {
   x: number;
@@ -70,10 +70,15 @@ function mapEdge(raw: RawEdge): EdgeData {
 }
 
 export async function fetchDiagram(): Promise<DiagramData> {
-  const response = await fetch(`${API_BASE}/api/diagram`);
+  const response = await fetch(`${API_BASE}/api/diagram`, {
+    method: "GET",
+    cache: "no-store",
+  });
+
   if (!response.ok) {
     throw new Error(`Failed to load diagram: ${response.status}`);
   }
+
   const payload = (await response.json()) as RawDiagram;
   return {
     sourcePath: payload.source_path,
