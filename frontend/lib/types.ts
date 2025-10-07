@@ -1,5 +1,6 @@
 export type NodeShape = "rectangle" | "stadium" | "circle" | "diamond";
 export type EdgeKind = "solid" | "dashed";
+export type EdgeArrowDirection = "forward" | "backward" | "both" | "none";
 
 export interface Point {
   x: number;
@@ -18,6 +19,9 @@ export interface NodeData {
   autoPosition: Point;
   renderedPosition: Point;
   overridePosition?: Point;
+  fillColor?: string;
+  strokeColor?: string;
+  textColor?: string;
 }
 
 export interface EdgeData {
@@ -29,6 +33,8 @@ export interface EdgeData {
   autoPoints: Point[];
   renderedPoints: Point[];
   overridePoints?: Point[];
+  color?: string;
+  arrowDirection?: EdgeArrowDirection;
 }
 
 export interface DiagramData {
@@ -44,4 +50,21 @@ export interface DiagramData {
 export interface LayoutUpdate {
   nodes?: Record<string, Point | null>;
   edges?: Record<string, { points?: Point[] | null }>;
+}
+
+export interface NodeStyleUpdate {
+  fill?: string | null;
+  stroke?: string | null;
+  text?: string | null;
+}
+
+export interface EdgeStyleUpdate {
+  line?: EdgeKind | null;
+  color?: string | null;
+  arrow?: EdgeArrowDirection | null;
+}
+
+export interface StyleUpdate {
+  nodeStyles?: Record<string, NodeStyleUpdate | null | undefined>;
+  edgeStyles?: Record<string, EdgeStyleUpdate | null | undefined>;
 }

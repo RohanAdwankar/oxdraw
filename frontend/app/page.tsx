@@ -2,8 +2,24 @@
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DiagramCanvas from "../components/DiagramCanvas";
-import { deleteEdge, deleteNode, fetchDiagram, updateLayout, updateSource } from "../lib/api";
-import { DiagramData, LayoutUpdate, Point } from "../lib/types";
+import {
+  deleteEdge,
+  deleteNode,
+  fetchDiagram,
+  updateLayout,
+  updateSource,
+  updateStyle,
+} from "../lib/api";
+import {
+  DiagramData,
+  EdgeArrowDirection,
+  EdgeKind,
+  LayoutUpdate,
+  EdgeStyleUpdate,
+  NodeStyleUpdate,
+  NodeData,
+  Point,
+} from "../lib/types";
 
 function hasOverrides(diagram: DiagramData | null): boolean {
   if (!diagram) {
@@ -14,6 +30,43 @@ function hasOverrides(diagram: DiagramData | null): boolean {
     diagram.edges.some((edge) => edge.overridePoints && edge.overridePoints.length > 0)
   );
 }
+
+const DEFAULT_NODE_COLORS: Record<NodeData["shape"], string> = {
+  rectangle: "#FDE68A",
+  stadium: "#C4F1F9",
+  circle: "#E9D8FD",
+  diamond: "#FBCFE8",
+};
+
+const DEFAULT_EDGE_COLOR = "#2d3748";
+const DEFAULT_NODE_TEXT = "#1a202c";
+
+const LINE_STYLE_OPTIONS: Array<{ value: EdgeKind; label: string }> = [
+  { value: "solid", label: "Solid" },
+  { value: "dashed", label: "Dashed" },
+];
+
+const ARROW_DIRECTION_OPTIONS: Array<{ value: EdgeArrowDirection; label: string }> = [
+  { value: "forward", label: "Forward" },
+  { value: "backward", label: "Backward" },
+  { value: "both", label: "Both" },
+  { value: "none", label: "None" },
+];
+
+const HEX_COLOR_RE = /^#([0-9a-f]{6})$/i;
+
+const resolveColor = (value: string | null | undefined, fallback: string): string => {
+  const base = value ?? fallback;
+  if (HEX_COLOR_RE.test(base)) {
+    return base.toLowerCase();
+  }
+  if (HEX_COLOR_RE.test(fallback)) {
+    return fallback.toLowerCase();
+  }
+  return "#000000";
+};
+
+const normalizeColorInput = (value: string): string => value.trim().toLowerCase();
 
 export default function Home() {
   const [diagram, setDiagram] = useState<DiagramData | null>(null);
@@ -29,6 +82,20 @@ export default function Home() {
   const [dragging, setDragging] = useState(false);
   const saveTimer = useRef<number | null>(null);
   const lastSubmittedSource = useRef<string | null>(null);
+
+  const selectedNode = useMemo(() => {
+    if (!diagram || !selectedNodeId) {
+      return null;
+    }
+    return diagram.nodes.find((node) => node.id === selectedNodeId) ?? null;
+  }, [diagram, selectedNodeId]);
+
+  const selectedEdge = useMemo(() => {
+    if (!diagram || !selectedEdgeId) {
+      return null;
+    }
+    return diagram.edges.find((edge) => edge.id === selectedEdgeId) ?? null;
+  }, [diagram, selectedEdgeId]);
 
   const loadDiagram = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -86,6 +153,180 @@ export default function Home() {
     [loadDiagram]
   );
 
+  const submitStyleUpdate = useCallback(
+    async (update: {
+      nodeStyles?: Record<string, NodeStyleUpdate | null>;
+      edgeStyles?: Record<string, EdgeStyleUpdate | null>;
+    }) => {
+      const hasNodeStyles = update.nodeStyles && Object.keys(update.nodeStyles).length > 0;
+      const hasEdgeStyles = update.edgeStyles && Object.keys(update.edgeStyles).length > 0;
+      if (!hasNodeStyles && !hasEdgeStyles) {
+        return;
+      }
+
+      try {
+        setSaving(true);
+        setError(null);
+        await updateStyle({
+          nodeStyles: update.nodeStyles,
+          edgeStyles: update.edgeStyles,
+        });
+        await loadDiagram({ silent: true });
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [loadDiagram]
+  );
+
+  const handleNodeFillChange = useCallback(
+    (value: string) => {
+      if (!selectedNode) {
+        return;
+      }
+      const normalized = normalizeColorInput(value);
+      const fallback = DEFAULT_NODE_COLORS[selectedNode.shape];
+      const currentFill = resolveColor(selectedNode.fillColor, fallback);
+      if (currentFill === normalized) {
+        return;
+      }
+      void submitStyleUpdate({
+        nodeStyles: {
+          [selectedNode.id]: {
+            fill: normalized,
+          },
+        },
+      });
+    },
+    [selectedNode, submitStyleUpdate]
+  );
+
+  const handleNodeStrokeChange = useCallback(
+    (value: string) => {
+      if (!selectedNode) {
+        return;
+      }
+      const normalized = normalizeColorInput(value);
+      const currentStroke = resolveColor(selectedNode.strokeColor, DEFAULT_EDGE_COLOR);
+      if (currentStroke === normalized) {
+        return;
+      }
+      void submitStyleUpdate({
+        nodeStyles: {
+          [selectedNode.id]: {
+            stroke: normalized,
+          },
+        },
+      });
+    },
+    [selectedNode, submitStyleUpdate]
+  );
+
+  const handleNodeTextColorChange = useCallback(
+    (value: string) => {
+      if (!selectedNode) {
+        return;
+      }
+      const normalized = normalizeColorInput(value);
+      const currentText = resolveColor(selectedNode.textColor, DEFAULT_NODE_TEXT);
+      if (currentText === normalized) {
+        return;
+      }
+      void submitStyleUpdate({
+        nodeStyles: {
+          [selectedNode.id]: {
+            text: normalized,
+          },
+        },
+      });
+    },
+    [selectedNode, submitStyleUpdate]
+  );
+
+  const handleNodeStyleReset = useCallback(() => {
+    if (!selectedNode) {
+      return;
+    }
+    void submitStyleUpdate({
+      nodeStyles: {
+        [selectedNode.id]: null,
+      },
+    });
+  }, [selectedNode, submitStyleUpdate]);
+
+  const handleEdgeColorChange = useCallback(
+    (value: string) => {
+      if (!selectedEdge) {
+        return;
+      }
+      const normalized = normalizeColorInput(value);
+      const currentColor = resolveColor(selectedEdge.color, DEFAULT_EDGE_COLOR);
+      if (currentColor === normalized) {
+        return;
+      }
+      void submitStyleUpdate({
+        edgeStyles: {
+          [selectedEdge.id]: {
+            color: normalized,
+          },
+        },
+      });
+    },
+    [selectedEdge, submitStyleUpdate]
+  );
+
+  const handleEdgeLineStyleChange = useCallback(
+    (value: EdgeKind) => {
+      if (!selectedEdge) {
+        return;
+      }
+      if (selectedEdge.kind === value) {
+        return;
+      }
+      void submitStyleUpdate({
+        edgeStyles: {
+          [selectedEdge.id]: {
+            line: value,
+          },
+        },
+      });
+    },
+    [selectedEdge, submitStyleUpdate]
+  );
+
+  const handleEdgeArrowChange = useCallback(
+    (value: EdgeArrowDirection) => {
+      if (!selectedEdge) {
+        return;
+      }
+      const currentArrow = selectedEdge.arrowDirection ?? "forward";
+      if (currentArrow === value) {
+        return;
+      }
+      void submitStyleUpdate({
+        edgeStyles: {
+          [selectedEdge.id]: {
+            arrow: value,
+          },
+        },
+      });
+    },
+    [selectedEdge, submitStyleUpdate]
+  );
+
+  const handleEdgeStyleReset = useCallback(() => {
+    if (!selectedEdge) {
+      return;
+    }
+    void submitStyleUpdate({
+      edgeStyles: {
+        [selectedEdge.id]: null,
+      },
+    });
+  }, [selectedEdge, submitStyleUpdate]);
+
   const handleNodeMove = useCallback(
     (id: string, position: Point | null) => {
       void applyUpdate({
@@ -132,30 +373,53 @@ export default function Home() {
     }
   }, []);
 
-  const handleDeleteSelection = useCallback(async () => {
-    if (saving || sourceSaving) {
-      return;
-    }
-    if (!selectedNodeId && !selectedEdgeId) {
-      return;
-    }
-    try {
-      setSaving(true);
-      setError(null);
-      if (selectedNodeId) {
-        await deleteNode(selectedNodeId);
-        setSelectedNodeId(null);
-      } else if (selectedEdgeId) {
-        await deleteEdge(selectedEdgeId);
-        setSelectedEdgeId(null);
+  const deleteTarget = useCallback(
+    async (target: { type: "node" | "edge"; id: string }) => {
+      if (saving || sourceSaving) {
+        return;
       }
-      await loadDiagram({ silent: true });
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSaving(false);
+      try {
+        setSaving(true);
+        setError(null);
+        if (target.type === "node") {
+          await deleteNode(target.id);
+          setSelectedNodeId((current) => (current === target.id ? null : current));
+          setSelectedEdgeId(null);
+        } else {
+          await deleteEdge(target.id);
+          setSelectedEdgeId((current) => (current === target.id ? null : current));
+        }
+        await loadDiagram({ silent: true });
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [deleteEdge, deleteNode, loadDiagram, saving, sourceSaving]
+  );
+
+  const handleDeleteSelection = useCallback(async () => {
+    if (selectedNodeId) {
+      await deleteTarget({ type: "node", id: selectedNodeId });
+    } else if (selectedEdgeId) {
+      await deleteTarget({ type: "edge", id: selectedEdgeId });
     }
-  }, [deleteEdge, deleteNode, loadDiagram, saving, selectedEdgeId, selectedNodeId, sourceSaving]);
+  }, [deleteTarget, selectedEdgeId, selectedNodeId]);
+
+  const handleDeleteNodeDirect = useCallback(
+    async (id: string) => {
+      await deleteTarget({ type: "node", id });
+    },
+    [deleteTarget]
+  );
+
+  const handleDeleteEdgeDirect = useCallback(
+    async (id: string) => {
+      await deleteTarget({ type: "edge", id });
+    },
+    [deleteTarget]
+  );
 
   const handleResetOverrides = useCallback(() => {
     if (!diagram) {
@@ -279,6 +543,40 @@ export default function Home() {
 
   const hasSelection = selectedNodeId !== null || selectedEdgeId !== null;
 
+  const nodeFillValue = useMemo(() => {
+    if (!selectedNode) {
+      return DEFAULT_NODE_COLORS.rectangle.toLowerCase();
+    }
+    return resolveColor(selectedNode.fillColor, DEFAULT_NODE_COLORS[selectedNode.shape]);
+  }, [selectedNode]);
+
+  const nodeStrokeValue = useMemo(() => {
+    if (!selectedNode) {
+      return DEFAULT_EDGE_COLOR.toLowerCase();
+    }
+    return resolveColor(selectedNode.strokeColor, DEFAULT_EDGE_COLOR);
+  }, [selectedNode]);
+
+  const nodeTextValue = useMemo(() => {
+    if (!selectedNode) {
+      return DEFAULT_NODE_TEXT.toLowerCase();
+    }
+    return resolveColor(selectedNode.textColor, DEFAULT_NODE_TEXT);
+  }, [selectedNode]);
+
+  const edgeColorValue = useMemo(() => {
+    if (!selectedEdge) {
+      return DEFAULT_EDGE_COLOR.toLowerCase();
+    }
+    return resolveColor(selectedEdge.color, DEFAULT_EDGE_COLOR);
+  }, [selectedEdge]);
+
+  const edgeLineValue = selectedEdge?.kind ?? "solid";
+  const edgeArrowValue = selectedEdge?.arrowDirection ?? "forward";
+
+  const nodeControlsDisabled = !selectedNode || saving;
+  const edgeControlsDisabled = !selectedEdge || saving;
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Delete" && event.key !== "Backspace") {
@@ -331,6 +629,123 @@ export default function Home() {
       <main className="workspace">
         {diagram && !loading ? (
           <>
+            <aside className="style-panel">
+              <div className="panel-header">
+                <span className="panel-title">Style</span>
+                <span className="panel-caption">
+                  {selectedNode
+                    ? `Node: ${selectedNode.label || selectedNode.id}`
+                    : selectedEdge
+                      ? `Edge: ${selectedEdge.label || `${selectedEdge.from}→${selectedEdge.to}`}`
+                      : "Select an element"}
+                </span>
+              </div>
+              <div className="panel-body">
+                <section className="style-section">
+                  <header className="section-heading">
+                    <h3>Node</h3>
+                    <span className={selectedNode ? "section-caption" : "section-caption muted"}>
+                      {selectedNode ? selectedNode.label || selectedNode.id : "No node selected"}
+                    </span>
+                  </header>
+                  <div className="style-controls" aria-disabled={nodeControlsDisabled}>
+                    <label className="style-control">
+                      <span>Fill</span>
+                      <input
+                        type="color"
+                        value={nodeFillValue}
+                        onChange={(event) => handleNodeFillChange(event.target.value)}
+                        disabled={nodeControlsDisabled}
+                      />
+                    </label>
+                    <label className="style-control">
+                      <span>Stroke</span>
+                      <input
+                        type="color"
+                        value={nodeStrokeValue}
+                        onChange={(event) => handleNodeStrokeChange(event.target.value)}
+                        disabled={nodeControlsDisabled}
+                      />
+                    </label>
+                    <label className="style-control">
+                      <span>Text</span>
+                      <input
+                        type="color"
+                        value={nodeTextValue}
+                        onChange={(event) => handleNodeTextColorChange(event.target.value)}
+                        disabled={nodeControlsDisabled}
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    className="style-reset"
+                    onClick={() => void handleNodeStyleReset()}
+                    disabled={nodeControlsDisabled}
+                  >
+                    Reset node style
+                  </button>
+                </section>
+
+                <section className="style-section">
+                  <header className="section-heading">
+                    <h3>Edge</h3>
+                    <span className={selectedEdge ? "section-caption" : "section-caption muted"}>
+                      {selectedEdge
+                        ? selectedEdge.label || `${selectedEdge.from}→${selectedEdge.to}`
+                        : "No edge selected"}
+                    </span>
+                  </header>
+                  <div className="style-controls" aria-disabled={edgeControlsDisabled}>
+                    <label className="style-control">
+                      <span>Color</span>
+                      <input
+                        type="color"
+                        value={edgeColorValue}
+                        onChange={(event) => handleEdgeColorChange(event.target.value)}
+                        disabled={edgeControlsDisabled}
+                      />
+                    </label>
+                    <label className="style-control">
+                      <span>Line</span>
+                      <select
+                        value={edgeLineValue}
+                        onChange={(event) => handleEdgeLineStyleChange(event.target.value as EdgeKind)}
+                        disabled={edgeControlsDisabled}
+                      >
+                        {LINE_STYLE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="style-control">
+                      <span>Arrows</span>
+                      <select
+                        value={edgeArrowValue}
+                        onChange={(event) => handleEdgeArrowChange(event.target.value as EdgeArrowDirection)}
+                        disabled={edgeControlsDisabled}
+                      >
+                        {ARROW_DIRECTION_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    className="style-reset"
+                    onClick={() => void handleEdgeStyleReset()}
+                    disabled={edgeControlsDisabled}
+                  >
+                    Reset edge style
+                  </button>
+                </section>
+              </div>
+            </aside>
             <DiagramCanvas
               diagram={diagram}
               onNodeMove={handleNodeMove}
@@ -340,6 +755,8 @@ export default function Home() {
               onSelectNode={handleSelectNode}
               onSelectEdge={handleSelectEdge}
               onDragStateChange={setDragging}
+              onDeleteNode={handleDeleteNodeDirect}
+              onDeleteEdge={handleDeleteEdgeDirect}
             />
             <aside className="source-panel">
               <div className="panel-header">

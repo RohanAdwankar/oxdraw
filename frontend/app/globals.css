@@ -91,6 +91,13 @@ body > div:first-of-type {
   gap: 0;
 }
 
+.diagram-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+
 .placeholder {
   margin: auto;
   padding: 1rem 1.5rem;
@@ -154,7 +161,7 @@ body > div:first-of-type {
 .node ellipse,
 .node polygon {
   fill: var(--node-fill, #ffffff);
-  stroke: #2d3748;
+  stroke: var(--node-stroke, #2d3748);
   stroke-width: 2;
   filter: drop-shadow(0 6px 18px rgba(15, 23, 42, 0.08));
   transition: stroke 0.2s ease, filter 0.2s ease;
@@ -175,7 +182,7 @@ body > div:first-of-type {
 }
 
 .node text {
-  fill: #1a202c;
+  fill: var(--node-text, #1a202c);
   font-size: 0.95rem;
   font-weight: 600;
   pointer-events: none;
@@ -191,6 +198,164 @@ body > div:first-of-type {
   backdrop-filter: blur(6px);
   border-left: 1px solid rgba(15, 23, 42, 0.08);
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+}
+
+.style-panel {
+  width: 280px;
+  max-width: 30%;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  border-right: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+}
+
+.style-panel .panel-header {
+  padding: 0.9rem 1.1rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.style-panel .panel-title {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.style-panel .panel-caption {
+  font-size: 0.85rem;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.style-panel .panel-caption span {
+  display: block;
+}
+
+.style-panel .panel-body {
+  padding: 1rem 1.1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow-y: auto;
+}
+
+.style-section {
+  background: rgba(248, 250, 252, 0.8);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 0.9rem;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.section-heading h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0f172a;
+}
+
+.section-caption {
+  font-size: 0.8rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.section-caption.muted {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.style-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.8rem;
+}
+
+.style-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.style-control span {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.style-control input[type="color"] {
+  width: 100%;
+  height: 2.4rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  padding: 0;
+}
+
+.style-control select {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: #ffffff;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.9rem;
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.style-control input[type="color"]:disabled,
+.style-control select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.style-reset {
+  align-self: flex-start;
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.75rem;
+  border: none;
+  background: rgba(56, 178, 172, 0.18);
+  color: #0f766e;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.style-reset:disabled {
+  background: rgba(203, 213, 225, 0.6);
+  color: #4a5568;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.style-reset:not(:disabled):hover {
+  background: rgba(45, 212, 191, 0.35);
+  transform: translateY(-1px);
+}
+
+.style-reset:not(:disabled):active {
+  transform: translateY(0);
 }
 
 .source-panel .panel-header {
@@ -275,4 +440,37 @@ body > div:first-of-type {
   background: #fed7d7;
   color: #822727;
   border-top: 1px solid rgba(185, 28, 28, 0.35);
+}
+
+.context-menu {
+  position: absolute;
+  min-width: 140px;
+  background: rgba(15, 23, 42, 0.95);
+  color: #f8fafc;
+  border-radius: 0.5rem;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.35);
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  z-index: 20;
+}
+
+.context-menu button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.context-menu button:hover,
+.context-menu button:focus-visible {
+  background: rgba(248, 250, 252, 0.15);
+  outline: none;
 }

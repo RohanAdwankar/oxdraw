@@ -1,8 +1,24 @@
 'use client';
 
-import { useMemo, useRef, useState, type CSSProperties } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
-import { DiagramData, EdgeData, Point } from "../lib/types";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import type {
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
+import {
+  DiagramData,
+  EdgeArrowDirection,
+  EdgeData,
+  EdgeKind,
+  Point,
+} from "../lib/types";
 
 const NODE_WIDTH = 140;
 const NODE_HEIGHT = 60;
@@ -17,6 +33,10 @@ const SHAPE_COLORS: Record<DiagramData["nodes"][number]["shape"], string> = {
   diamond: "#FBCFE8", // pastel pink
 };
 
+const DEFAULT_NODE_STROKE = "#2d3748";
+const DEFAULT_NODE_TEXT = "#1a202c";
+const DEFAULT_EDGE_COLOR = "#2d3748";
+
 interface DiagramCanvasProps {
   diagram: DiagramData;
   onNodeMove: (id: string, position: Point | null) => void;
@@ -26,6 +46,8 @@ interface DiagramCanvasProps {
   onSelectNode: (id: string | null) => void;
   onSelectEdge: (id: string | null) => void;
   onDragStateChange?: (dragging: boolean) => void;
+  onDeleteNode: (id: string) => Promise<void> | void;
+  onDeleteEdge: (id: string) => Promise<void> | void;
 }
 
 interface NodeDragState {
@@ -55,6 +77,15 @@ interface EdgeView {
   route: Point[];
   handlePoints: Point[];
   hasOverride: boolean;
+  color: string;
+  arrowDirection: EdgeArrowDirection;
+}
+
+interface ContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  target: { type: "node" | "edge"; id: string } | null;
 }
 
 function midpoint(a: Point, b: Point): Point {
@@ -74,11 +105,91 @@ export default function DiagramCanvas({
   onSelectNode,
   onSelectEdge,
   onDragStateChange,
+  onDeleteNode,
+  onDeleteEdge,
 }: DiagramCanvasProps) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [dragState, setDragState] = useState<DragState>(null);
   const [draftNodes, setDraftNodes] = useState<DraftNodes>({});
   const [draftEdges, setDraftEdges] = useState<DraftEdges>({});
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
+    visible: false,
+    x: 0,
+    y: 0,
+    target: null,
+  });
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu((prev) =>
+      prev.visible ? { visible: false, x: 0, y: 0, target: null } : prev
+    );
+  }, []);
+
+  const openContextMenu = useCallback(
+    (event: ReactMouseEvent, target: { type: "node" | "edge"; id: string }) => {
+      event.preventDefault();
+      const wrapper = wrapperRef.current;
+      if (!wrapper) {
+        return;
+      }
+      const rect = wrapper.getBoundingClientRect();
+      setContextMenu({
+        visible: true,
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+        target,
+      });
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!contextMenu.visible) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const wrapper = wrapperRef.current;
+      if (!wrapper) {
+        return;
+      }
+      if (!wrapper.contains(event.target as Node)) {
+        closeContextMenu();
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeContextMenu();
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [contextMenu.visible, closeContextMenu]);
+
+  useEffect(() => {
+    closeContextMenu();
+  }, [diagram, closeContextMenu]);
+
+  const handleContextMenuDelete = useCallback(() => {
+    setContextMenu((prev) => {
+      if (prev.target) {
+        if (prev.target.type === "node") {
+          void onDeleteNode(prev.target.id);
+        } else {
+          void onDeleteEdge(prev.target.id);
+        }
+      }
+      return { visible: false, x: 0, y: 0, target: null };
+    });
+  }, [onDeleteEdge, onDeleteNode]);
 
   const finalPositions = useMemo(() => {
     const map = new Map<string, Point>();
@@ -130,12 +241,16 @@ export default function DiagramCanvas({
         const hasOverride = overridePoints.length > 0;
         const route = [from, ...overridePoints, to];
         const handlePoints = hasOverride ? overridePoints : [midpoint(from, to)];
+        const color = edge.color ?? DEFAULT_EDGE_COLOR;
+        const arrowDirection = edge.arrowDirection ?? "forward";
 
         return {
           edge,
           route,
           handlePoints,
           hasOverride,
+          color,
+          arrowDirection,
         };
       })
       .filter((value): value is EdgeView => value !== null);
@@ -170,15 +285,22 @@ export default function DiagramCanvas({
   };
 
   const handleCanvasPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    closeContextMenu();
     if (event.target === event.currentTarget) {
       onSelectNode(null);
       onSelectEdge(null);
     }
   };
 
+  const handleCanvasContextMenu = (event: ReactMouseEvent<SVGSVGElement>) => {
+    event.preventDefault();
+    closeContextMenu();
+  };
+
   const handleNodePointerDown = (id: string, event: ReactPointerEvent<SVGGElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    closeContextMenu();
     const diagramPoint = clientToDiagram(event);
     if (!diagramPoint) {
       return;
@@ -199,6 +321,12 @@ export default function DiagramCanvas({
     onSelectEdge(null);
   };
 
+  const handleNodeContextMenu = (id: string, event: ReactMouseEvent<SVGGElement>) => {
+    openContextMenu(event, { type: "node", id });
+    onSelectNode(id);
+    onSelectEdge(null);
+  };
+
   const handleHandlePointerDown = (
     edgeId: string,
     index: number,
@@ -208,6 +336,7 @@ export default function DiagramCanvas({
   ) => {
     event.preventDefault();
     event.stopPropagation();
+    closeContextMenu();
     const basePoints = hasOverride
       ? availablePoints.map((point: Point) => ({ ...point }))
       : [availablePoints[index] ?? availablePoints[0]];
@@ -231,6 +360,13 @@ export default function DiagramCanvas({
     event: ReactPointerEvent<SVGElement>
   ) => {
     event.stopPropagation();
+    closeContextMenu();
+    onSelectEdge(edgeId);
+    onSelectNode(null);
+  };
+
+  const handleEdgeContextMenu = (edgeId: string, event: ReactMouseEvent<SVGElement>) => {
+    openContextMenu(event, { type: "edge", id: edgeId });
     onSelectEdge(edgeId);
     onSelectNode(null);
   };
@@ -339,149 +475,222 @@ export default function DiagramCanvas({
   };
 
   return (
-    <svg
-      ref={svgRef}
-      className="diagram"
-      viewBox={`0 0 ${bounds.width} ${bounds.height}`}
-      onPointerDown={handleCanvasPointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
-    >
-      {edges.map((view: EdgeView) => {
-        const { edge, route, handlePoints, hasOverride } = view;
-        const screenRoute = route.map(toScreen);
-        const pathPoints = screenRoute.map((point: Point) => `${point.x},${point.y}`).join(" ");
-        const from = finalPositions.get(edge.from);
-        const to = finalPositions.get(edge.to);
-        if (!from || !to) {
-          return null;
-        }
-        const edgeSelected = selectedEdgeId === edge.id;
+    <div ref={wrapperRef} className="diagram-wrapper">
+      <svg
+        ref={svgRef}
+        className="diagram"
+        viewBox={`0 0 ${bounds.width} ${bounds.height}`}
+        onPointerDown={handleCanvasPointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onContextMenu={handleCanvasContextMenu}
+      >
+        {edges.map((view: EdgeView) => {
+          const { edge, route, handlePoints, hasOverride, color, arrowDirection } = view;
+          const screenRoute = route.map(toScreen);
+          const pathPoints = screenRoute.map((point: Point) => `${point.x},${point.y}`).join(" ");
+          const from = finalPositions.get(edge.from);
+          const to = finalPositions.get(edge.to);
+          if (!from || !to) {
+            return null;
+          }
 
-        return (
-          <g
-            key={edge.id}
-            className={edgeSelected ? "edge selected" : "edge"}
-            onPointerDown={(event: ReactPointerEvent<SVGGElement>) =>
-              handleEdgePointerDown(edge.id, event)
-            }
-          >
-            {screenRoute.length === 2 ? (
-              <line
-                x1={screenRoute[0].x}
-                y1={screenRoute[0].y}
-                x2={screenRoute[1].x}
-                y2={screenRoute[1].y}
-                stroke="#2d3748"
-                strokeWidth={2}
-                markerEnd="url(#arrow)"
-                strokeDasharray={edge.kind === "dashed" ? "8 6" : undefined}
-                onPointerDown={(event: ReactPointerEvent<SVGLineElement>) =>
-                  handleEdgePointerDown(edge.id, event)
-                }
-              />
-            ) : (
-              <polyline
-                points={pathPoints}
-                fill="none"
-                stroke="#2d3748"
-                strokeWidth={2}
-                markerEnd="url(#arrow)"
-                strokeDasharray={edge.kind === "dashed" ? "8 6" : undefined}
-                onPointerDown={(event: ReactPointerEvent<SVGPolylineElement>) =>
-                  handleEdgePointerDown(edge.id, event)
-                }
-              />
-            )}
-            {edge.label && (
-              <text
-                className="edge-label"
-                x={screenRoute[Math.floor(screenRoute.length / 2)].x}
-                y={screenRoute[Math.floor(screenRoute.length / 2)].y - 10}
-                textAnchor="middle"
-              >
-                {edge.label}
-              </text>
-            )}
-            {handlePoints.map((point: Point, index: number) => {
-              const screen = toScreen(point);
-              return (
-                <circle
-                  key={`${edge.id}-handle-${index}`}
-                  className={hasOverride ? "handle active" : "handle"}
-                  cx={screen.x}
-                  cy={screen.y}
-                  r={HANDLE_RADIUS}
-                  onPointerDown={(event: ReactPointerEvent<SVGCircleElement>) =>
-                    handleHandlePointerDown(edge.id, index, handlePoints, hasOverride, event)
+          const edgeSelected = selectedEdgeId === edge.id;
+          const markerStart =
+            arrowDirection === "backward" || arrowDirection === "both"
+              ? "url(#arrow-start)"
+              : undefined;
+          const markerEnd =
+            arrowDirection === "forward" || arrowDirection === "both"
+              ? "url(#arrow-end)"
+              : undefined;
+
+          return (
+            <g
+              key={edge.id}
+              className={edgeSelected ? "edge selected" : "edge"}
+              onPointerDown={(event: ReactPointerEvent<SVGGElement>) =>
+                handleEdgePointerDown(edge.id, event)
+              }
+              onContextMenu={(event: ReactMouseEvent<SVGGElement>) =>
+                handleEdgeContextMenu(edge.id, event)
+              }
+            >
+              {screenRoute.length === 2 ? (
+                <line
+                  x1={screenRoute[0].x}
+                  y1={screenRoute[0].y}
+                  x2={screenRoute[1].x}
+                  y2={screenRoute[1].y}
+                  stroke={color}
+                  strokeWidth={2}
+                  markerStart={markerStart}
+                  markerEnd={markerEnd}
+                  strokeDasharray={edge.kind === "dashed" ? "8 6" : undefined}
+                  onPointerDown={(event: ReactPointerEvent<SVGLineElement>) =>
+                    handleEdgePointerDown(edge.id, event)
                   }
-                  onDoubleClick={() => handleHandleDoubleClick(edge.id)}
+                  onContextMenu={(event: ReactMouseEvent<SVGLineElement>) =>
+                    handleEdgeContextMenu(edge.id, event)
+                  }
                 />
-              );
-            })}
-          </g>
-        );
-      })}
+              ) : (
+                <polyline
+                  points={pathPoints}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth={2}
+                  markerStart={markerStart}
+                  markerEnd={markerEnd}
+                  strokeDasharray={edge.kind === "dashed" ? "8 6" : undefined}
+                  onPointerDown={(event: ReactPointerEvent<SVGPolylineElement>) =>
+                    handleEdgePointerDown(edge.id, event)
+                  }
+                  onContextMenu={(event: ReactMouseEvent<SVGPolylineElement>) =>
+                    handleEdgeContextMenu(edge.id, event)
+                  }
+                />
+              )}
+              {edge.label && (
+                <text
+                  className="edge-label"
+                  x={screenRoute[Math.floor(screenRoute.length / 2)].x}
+                  y={screenRoute[Math.floor(screenRoute.length / 2)].y - 10}
+                  textAnchor="middle"
+                >
+                  {edge.label}
+                </text>
+              )}
+              {handlePoints.map((point: Point, index: number) => {
+                const screen = toScreen(point);
+                return (
+                  <circle
+                    key={`${edge.id}-handle-${index}`}
+                    className={hasOverride ? "handle active" : "handle"}
+                    cx={screen.x}
+                    cy={screen.y}
+                    r={HANDLE_RADIUS}
+                    onPointerDown={(event: ReactPointerEvent<SVGCircleElement>) =>
+                      handleHandlePointerDown(edge.id, index, handlePoints, hasOverride, event)
+                    }
+                    onDoubleClick={() => handleHandleDoubleClick(edge.id)}
+                  />
+                );
+              })}
+            </g>
+          );
+        })}
 
-      {nodeEntries.map(([id, position]) => {
-        const screen = toScreen(position);
-        const node = diagram.nodes.find((item) => item.id === id);
-        if (!node) {
-          return null;
-        }
-    const nodeColor = SHAPE_COLORS[node.shape] ?? "#ffffff";
-    const nodeStyle = { "--node-fill": nodeColor } as CSSProperties;
-        const nodeSelected = selectedNodeId === id;
-        return (
-          <g
-            key={id}
-            className={nodeSelected ? "node selected" : "node"}
-            transform={`translate(${screen.x}, ${screen.y})`}
-            style={nodeStyle}
-            onPointerDown={(event: ReactPointerEvent<SVGGElement>) => handleNodePointerDown(id, event)}
-            onDoubleClick={() => handleNodeDoubleClick(id)}
+        {nodeEntries.map(([id, position]) => {
+          const screen = toScreen(position);
+          const node = diagram.nodes.find((item) => item.id === id);
+          if (!node) {
+            return null;
+          }
+
+          const defaultFill = SHAPE_COLORS[node.shape] ?? "#ffffff";
+          const fillColor = node.fillColor ?? defaultFill;
+          const strokeColor = node.strokeColor ?? DEFAULT_NODE_STROKE;
+          const textColor = node.textColor ?? DEFAULT_NODE_TEXT;
+          const nodeStyle = {
+            "--node-fill": fillColor,
+            "--node-stroke": strokeColor,
+            "--node-text": textColor,
+          } as CSSProperties;
+          const nodeSelected = selectedNodeId === id;
+
+          return (
+            <g
+              key={id}
+              className={nodeSelected ? "node selected" : "node"}
+              transform={`translate(${screen.x}, ${screen.y})`}
+              style={nodeStyle}
+              onPointerDown={(event: ReactPointerEvent<SVGGElement>) =>
+                handleNodePointerDown(id, event)
+              }
+              onContextMenu={(event: ReactMouseEvent<SVGGElement>) =>
+                handleNodeContextMenu(id, event)
+              }
+              onDoubleClick={() => handleNodeDoubleClick(id)}
+            >
+              {node.shape === "rectangle" && (
+                <rect
+                  x={-NODE_WIDTH / 2}
+                  y={-NODE_HEIGHT / 2}
+                  width={NODE_WIDTH}
+                  height={NODE_HEIGHT}
+                  rx={8}
+                  ry={8}
+                />
+              )}
+              {node.shape === "stadium" && (
+                <rect
+                  x={-NODE_WIDTH / 2}
+                  y={-NODE_HEIGHT / 2}
+                  width={NODE_WIDTH}
+                  height={NODE_HEIGHT}
+                  rx={30}
+                  ry={30}
+                />
+              )}
+              {node.shape === "circle" && (
+                <ellipse cx={0} cy={0} rx={NODE_WIDTH / 2} ry={NODE_HEIGHT / 2} />
+              )}
+              {node.shape === "diamond" && (
+                <polygon
+                  points={`0,${-NODE_HEIGHT / 2} ${NODE_WIDTH / 2},0 0,${NODE_HEIGHT / 2} ${-NODE_WIDTH / 2},0`}
+                />
+              )}
+              <text textAnchor="middle" dominantBaseline="middle">
+                {node.label}
+              </text>
+            </g>
+          );
+        })}
+
+        <defs>
+          <marker
+            id="arrow-end"
+            markerWidth="12"
+            markerHeight="12"
+            refX="10"
+            refY="6"
+            orient="auto"
+            markerUnits="strokeWidth"
           >
-            {node.shape === "rectangle" && (
-              <rect
-                x={-NODE_WIDTH / 2}
-                y={-NODE_HEIGHT / 2}
-                width={NODE_WIDTH}
-                height={NODE_HEIGHT}
-                rx={8}
-                ry={8}
-              />
-            )}
-            {node.shape === "stadium" && (
-              <rect
-                x={-NODE_WIDTH / 2}
-                y={-NODE_HEIGHT / 2}
-                width={NODE_WIDTH}
-                height={NODE_HEIGHT}
-                rx={30}
-                ry={30}
-              />
-            )}
-            {node.shape === "circle" && (
-              <ellipse cx={0} cy={0} rx={NODE_WIDTH / 2} ry={NODE_HEIGHT / 2} />
-            )}
-            {node.shape === "diamond" && (
-              <polygon
-                points={`0,${-NODE_HEIGHT / 2} ${NODE_WIDTH / 2},0 0,${NODE_HEIGHT / 2} ${-NODE_WIDTH / 2},0`}
-              />
-            )}
-            <text textAnchor="middle" dominantBaseline="middle">
-              {node.label}
-            </text>
-          </g>
-        );
-      })}
-
-      <defs>
-        <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-          <path d="M2,2 L10,6 L2,10 z" fill="#2d3748" />
-        </marker>
-      </defs>
-    </svg>
+            <path d="M2,2 L10,6 L2,10 z" fill="context-stroke" />
+          </marker>
+          <marker
+            id="arrow-start"
+            markerWidth="12"
+            markerHeight="12"
+            refX="2"
+            refY="6"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <path d="M10,2 L2,6 L10,10 z" fill="context-stroke" />
+          </marker>
+        </defs>
+      </svg>
+      {contextMenu.visible && contextMenu.target ? (
+        <div
+          className="context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          role="menu"
+        >
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              handleContextMenuDelete();
+            }}
+          >
+            Delete {contextMenu.target.type}
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }

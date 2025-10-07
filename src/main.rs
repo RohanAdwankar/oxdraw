@@ -137,12 +137,36 @@ struct LayoutOverrides {
     nodes: HashMap<String, Point>,
     #[serde(default)]
     edges: HashMap<String, EdgeOverride>,
+    #[serde(default)]
+    node_styles: HashMap<String, NodeStyleOverride>,
+    #[serde(default)]
+    edge_styles: HashMap<String, EdgeStyleOverride>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct EdgeOverride {
     #[serde(default)]
     points: Vec<Point>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct NodeStyleOverride {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fill: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stroke: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct EdgeStyleOverride {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    line: Option<EdgeKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    arrow: Option<EdgeArrowDirection>,
 }
 
 #[tokio::main]
@@ -299,7 +323,8 @@ async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> {
     let mut app = Router::new()
         .route("/api/diagram", get(get_diagram))
         .route("/api/diagram/svg", get(get_svg))
-        .route("/api/diagram/layout", put(put_layout))
+    .route("/api/diagram/layout", put(put_layout))
+    .route("/api/diagram/style", put(put_style))
         .route("/api/diagram/source", get(get_source).put(put_source))
         .route("/api/diagram/nodes/:id", delete(delete_node))
         .route("/api/diagram/edges/:id", delete(delete_edge))
@@ -489,10 +514,20 @@ struct Edge {
     kind: EdgeKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 enum EdgeKind {
     Solid,
     Dashed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum EdgeArrowDirection {
+    Forward,
+    Backward,
+    Both,
+    None,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -514,6 +549,12 @@ struct NodePayload {
     auto_position: Point,
     rendered_position: Point,
     position: Option<Point>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fill_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stroke_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text_color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -526,6 +567,10 @@ struct EdgePayload {
     auto_points: Vec<Point>,
     rendered_points: Vec<Point>,
     points: Option<Vec<Point>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    arrow_direction: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -570,6 +615,34 @@ struct SourceUpdateRequest {
     source: String,
 }
 
+#[derive(Debug, Deserialize, Default)]
+struct StyleUpdate {
+    #[serde(default)]
+    node_styles: HashMap<String, Option<NodeStylePatch>>,
+    #[serde(default)]
+    edge_styles: HashMap<String, Option<EdgeStylePatch>>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct NodeStylePatch {
+    #[serde(default)]
+    fill: Option<Option<String>>,
+    #[serde(default)]
+    stroke: Option<Option<String>>,
+    #[serde(default)]
+    text: Option<Option<String>>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct EdgeStylePatch {
+    #[serde(default)]
+    line: Option<Option<EdgeKind>>,
+    #[serde(default)]
+    color: Option<Option<String>>,
+    #[serde(default)]
+    arrow: Option<Option<EdgeArrowDirection>>,
+}
+
 #[derive(Debug, Serialize)]
 struct SourcePayload {
     source: String,
@@ -584,12 +657,54 @@ struct ServeState {
 
 impl LayoutOverrides {
     fn is_empty(&self) -> bool {
-        self.nodes.is_empty() && self.edges.is_empty()
+        self.nodes.is_empty()
+            && self.edges.is_empty()
+            && self.node_styles.is_empty()
+            && self.edge_styles.is_empty()
     }
 
     fn prune(&mut self, nodes: &HashSet<String>, edges: &HashSet<String>) {
         self.nodes.retain(|id, _| nodes.contains(id));
         self.edges.retain(|id, _| edges.contains(id));
+        self.node_styles.retain(|id, _| nodes.contains(id));
+        self.edge_styles.retain(|id, _| edges.contains(id));
+    }
+}
+
+impl NodeStyleOverride {
+    fn is_empty(&self) -> bool {
+        self.fill.is_none() && self.stroke.is_none() && self.text.is_none()
+    }
+}
+
+impl EdgeStyleOverride {
+    fn is_empty(&self) -> bool {
+        self.line.is_none() && self.color.is_none() && self.arrow.is_none()
+    }
+}
+
+impl Default for EdgeArrowDirection {
+    fn default() -> Self {
+        EdgeArrowDirection::Forward
+    }
+}
+
+impl EdgeArrowDirection {
+    fn marker_start(self) -> bool {
+        matches!(self, EdgeArrowDirection::Backward | EdgeArrowDirection::Both)
+    }
+
+    fn marker_end(self) -> bool {
+        matches!(self, EdgeArrowDirection::Forward | EdgeArrowDirection::Both)
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            EdgeArrowDirection::Forward => "forward",
+            EdgeArrowDirection::Backward => "backward",
+            EdgeArrowDirection::Both => "both",
+            EdgeArrowDirection::None => "none",
+        }
     }
 }
 
@@ -729,6 +844,76 @@ impl ServeState {
                     }
                     _ => {
                         overrides.edges.remove(&id);
+                    }
+                }
+            }
+
+            overrides.clone()
+        };
+
+        self.rewrite_file_with_overrides(&snapshot).await
+    }
+
+    async fn apply_style_update(&self, update: StyleUpdate) -> Result<()> {
+        let snapshot = {
+            let mut overrides = self.overrides.write().await;
+
+            for (id, value) in update.node_styles {
+                match value {
+                    Some(patch) => {
+                        let mut current = overrides
+                            .node_styles
+                            .remove(&id)
+                            .unwrap_or_default();
+
+                        if let Some(fill) = patch.fill {
+                            current.fill = fill;
+                        }
+                        if let Some(stroke) = patch.stroke {
+                            current.stroke = stroke;
+                        }
+                        if let Some(text) = patch.text {
+                            current.text = text;
+                        }
+
+                        if current.is_empty() {
+                            overrides.node_styles.remove(&id);
+                        } else {
+                            overrides.node_styles.insert(id, current);
+                        }
+                    }
+                    None => {
+                        overrides.node_styles.remove(&id);
+                    }
+                }
+            }
+
+            for (id, value) in update.edge_styles {
+                match value {
+                    Some(patch) => {
+                        let mut current = overrides
+                            .edge_styles
+                            .remove(&id)
+                            .unwrap_or_default();
+
+                        if let Some(line) = patch.line {
+                            current.line = line;
+                        }
+                        if let Some(color) = patch.color {
+                            current.color = color;
+                        }
+                        if let Some(arrow) = patch.arrow {
+                            current.arrow = arrow;
+                        }
+
+                        if current.is_empty() {
+                            overrides.edge_styles.remove(&id);
+                        } else {
+                            overrides.edge_styles.insert(id, current);
+                        }
+                    }
+                    None => {
+                        overrides.edge_styles.remove(&id);
                     }
                 }
             }
@@ -902,9 +1087,12 @@ impl Diagram {
             r##"<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="{:.0}" height="{:.0}" viewBox="0 0 {:.0} {:.0}" font-family="Inter, system-ui, sans-serif">
   <defs>
-    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
-      <path d="M2,2 L10,6 L2,10 z" fill="#2d3748" />
-    </marker>
+        <marker id="arrow-end" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M2,2 L10,6 L2,10 z" fill="context-stroke" />
+        </marker>
+        <marker id="arrow-start" markerWidth="12" markerHeight="12" refX="2" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M10,2 L2,6 L10,10 z" fill="context-stroke" />
+        </marker>
   </defs>
   <rect width="100%" height="100%" fill="{}" />
 "##,
@@ -923,8 +1111,38 @@ impl Diagram {
                 .cloned()
                 .ok_or_else(|| anyhow!("missing geometry for edge '{id}'"))?;
 
-            let dash = if edge.kind == EdgeKind::Dashed {
+            let mut stroke_color = "#2d3748".to_string();
+            let mut effective_kind = edge.kind;
+            let mut arrow_direction = EdgeArrowDirection::Forward;
+
+            if let Some(overrides) = overrides {
+                if let Some(style) = overrides.edge_styles.get(&id) {
+                    if let Some(line) = style.line {
+                        effective_kind = line;
+                    }
+                    if let Some(color) = &style.color {
+                        stroke_color = color.clone();
+                    }
+                    if let Some(direction) = style.arrow {
+                        arrow_direction = direction;
+                    }
+                }
+            }
+
+            let dash_attr = if effective_kind == EdgeKind::Dashed {
                 " stroke-dasharray=\"8 6\""
+            } else {
+                ""
+            };
+
+            let marker_start_attr = if arrow_direction.marker_start() {
+                " marker-start=\"url(#arrow-start)\""
+            } else {
+                ""
+            };
+
+            let marker_end_attr = if arrow_direction.marker_end() {
+                " marker-end=\"url(#arrow-end)\""
             } else {
                 ""
             };
@@ -934,8 +1152,8 @@ impl Diagram {
                 let b = route[1];
                 write!(
                     svg,
-                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"#2d3748\" stroke-width=\"2\" marker-end=\"url(#arrow)\"{} />\n",
-                    a.x, a.y, b.x, b.y, dash
+                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\"{}{}{} />\n",
+                    a.x, a.y, b.x, b.y, stroke_color, marker_start_attr, marker_end_attr, dash_attr
                 )?;
             } else {
                 let points = route
@@ -945,8 +1163,8 @@ impl Diagram {
                     .join(" ");
                 write!(
                     svg,
-                    "  <polyline points=\"{}\" fill=\"none\" stroke=\"#2d3748\" stroke-width=\"2\" marker-end=\"url(#arrow)\"{} />\n",
-                    points, dash
+                    "  <polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\"{}{}{} />\n",
+                    points, stroke_color, marker_start_attr, marker_end_attr, dash_attr
                 )?;
             }
 
@@ -969,37 +1187,61 @@ impl Diagram {
                 .copied()
                 .ok_or_else(|| anyhow!("missing geometry for node '{id}'"))?;
 
+            let mut fill_color = "#ffffff".to_string();
+            let mut stroke_color = "#4a5568".to_string();
+            let mut text_color = "#1a202c".to_string();
+
+            if let Some(overrides) = overrides {
+                if let Some(style) = overrides.node_styles.get(id) {
+                    if let Some(fill) = &style.fill {
+                        fill_color = fill.clone();
+                    }
+                    if let Some(stroke) = &style.stroke {
+                        stroke_color = stroke.clone();
+                    }
+                    if let Some(text) = &style.text {
+                        text_color = text.clone();
+                    }
+                }
+            }
+
             match node.shape {
                 NodeShape::Rectangle => write!(
                     svg,
-                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"#ffffff\" stroke=\"#4a5568\" stroke-width=\"2\" />\n",
+                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
                     position.x - NODE_WIDTH / 2.0,
                     position.y - NODE_HEIGHT / 2.0,
                     NODE_WIDTH,
-                    NODE_HEIGHT
+                    NODE_HEIGHT,
+                    fill_color,
+                    stroke_color
                 )?,
                 NodeShape::Stadium => write!(
                     svg,
-                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" fill=\"#ffffff\" stroke=\"#4a5568\" stroke-width=\"2\" />\n",
+                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
                     position.x - NODE_WIDTH / 2.0,
                     position.y - NODE_HEIGHT / 2.0,
                     NODE_WIDTH,
-                    NODE_HEIGHT
+                    NODE_HEIGHT,
+                    fill_color,
+                    stroke_color
                 )?,
                 NodeShape::Circle => write!(
                     svg,
-                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"#ffffff\" stroke=\"#4a5568\" stroke-width=\"2\" />\n",
+                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
                     position.x,
                     position.y,
                     NODE_WIDTH / 2.0,
-                    NODE_HEIGHT / 2.0
+                    NODE_HEIGHT / 2.0,
+                    fill_color,
+                    stroke_color
                 )?,
                 NodeShape::Diamond => {
                     let half_w = NODE_WIDTH / 2.0;
                     let half_h = NODE_HEIGHT / 2.0;
                     write!(
                         svg,
-                        "  <polygon points=\"{:.1},{:.1} {:.1},{:.1} {:.1},{:.1} {:.1},{:.1}\" fill=\"#ffffff\" stroke=\"#4a5568\" stroke-width=\"2\" />\n",
+                        "  <polygon points=\"{:.1},{:.1} {:.1},{:.1} {:.1},{:.1} {:.1},{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
                         position.x,
                         position.y - half_h,
                         position.x + half_w,
@@ -1007,16 +1249,19 @@ impl Diagram {
                         position.x,
                         position.y + half_h,
                         position.x - half_w,
-                        position.y
+                        position.y,
+                        fill_color,
+                        stroke_color
                     )?;
                 }
             }
 
             write!(
                 svg,
-                "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"#1a202c\" font-size=\"14\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+                "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
                 position.x,
                 position.y,
+                text_color,
                 escape_xml(&node.label)
             )?;
         }
@@ -1511,6 +1756,10 @@ async fn get_diagram(
             .copied()
             .ok_or_else(|| internal_error(anyhow!("final layout missing node '{id}'")))?;
         let override_position = overrides.nodes.get(id).copied();
+        let style = overrides.node_styles.get(id);
+        let fill_color = style.and_then(|s| s.fill.clone());
+        let stroke_color = style.and_then(|s| s.stroke.clone());
+        let text_color = style.and_then(|s| s.text.clone());
 
         nodes.push(NodePayload {
             id: id.clone(),
@@ -1519,6 +1768,9 @@ async fn get_diagram(
             auto_position,
             rendered_position: final_position,
             position: override_position,
+            fill_color,
+            stroke_color,
+            text_color,
         });
     }
 
@@ -1539,16 +1791,28 @@ async fn get_diagram(
             .edges
             .get(&identifier)
             .map(|edge_override| edge_override.points.clone());
+        let style = overrides.edge_styles.get(&identifier);
+        let line_kind = style
+            .and_then(|s| s.line)
+            .unwrap_or(edge.kind)
+            .as_str()
+            .to_string();
+        let color = style.and_then(|s| s.color.clone());
+        let arrow_direction = style
+            .and_then(|s| s.arrow)
+            .map(|direction| direction.as_str().to_string());
 
         edges.push(EdgePayload {
             id: identifier,
             from: edge.from.clone(),
             to: edge.to.clone(),
             label: edge.label.clone(),
-            kind: edge.kind.as_str().to_string(),
+            kind: line_kind,
             auto_points,
             rendered_points: final_points,
             points: manual_points,
+            color,
+            arrow_direction,
         });
     }
 
@@ -1594,6 +1858,17 @@ async fn put_layout(
     Json(update): Json<LayoutUpdate>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     state.apply_update(update).await.map_err(internal_error)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn put_style(
+    State(state): State<Arc<ServeState>>,
+    Json(update): Json<StyleUpdate>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    state
+        .apply_style_update(update)
+        .await
+        .map_err(internal_error)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
