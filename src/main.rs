@@ -26,6 +26,8 @@ const NODE_HEIGHT: f32 = 60.0;
 const NODE_SPACING: f32 = 160.0;
 const START_OFFSET: f32 = 120.0;
 const LAYOUT_MARGIN: f32 = 80.0;
+const LAYOUT_BLOCK_START: &str = "%% OXDRAW LAYOUT START";
+const LAYOUT_BLOCK_END: &str = "%% OXDRAW LAYOUT END";
 
 #[derive(Debug, Parser)]
 #[command(
@@ -262,17 +264,20 @@ fn run_render(cli: RenderArgs) -> Result<()> {
         bail!("PNG output is not yet supported. Please target SVG for now.");
     }
 
-    let definition = load_definition(&input_source)?;
-    let diagram = Diagram::parse(&definition)?;
-    let overrides = match &input_source {
-        InputSource::File(path) => Some(LayoutOverrides::load(&overrides_path(path))?),
-        InputSource::Stdin => None,
+    let definition_raw = load_definition(&input_source)?;
+    let (definition_body, overrides) = match &input_source {
+        InputSource::File(path) => read_definition_and_overrides(path)?,
+        InputSource::Stdin => (definition_raw.clone(), LayoutOverrides::default()),
     };
 
-    let svg = diagram.render_svg(
-        &cli.background_color,
-        overrides.as_ref().filter(|o| !o.is_empty()),
-    )?;
+    let diagram = Diagram::parse(&definition_body)?;
+    let override_ref = if overrides.is_empty() {
+        None
+    } else {
+        Some(&overrides)
+    };
+
+    let svg = diagram.render_svg(&cli.background_color, override_ref)?;
 
     write_output(output_dest, svg.as_bytes(), cli.quiet)?;
 
@@ -280,12 +285,12 @@ fn run_render(cli: RenderArgs) -> Result<()> {
 }
 
 async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> {
-    let overrides_path = overrides_path(&args.input);
-    let overrides = LayoutOverrides::load(&overrides_path)?;
+    let initial_source = fs::read_to_string(&args.input)
+        .with_context(|| format!("failed to read '{}'", args.input.display()))?;
+    let (_, overrides) = split_source_and_overrides(&initial_source)?;
 
     let state = Arc::new(ServeState {
         source_path: args.input.clone(),
-        layout_path: overrides_path,
         background: args.background_color.clone(),
         overrides: RwLock::new(overrides),
         source_lock: Mutex::new(()),
@@ -572,7 +577,6 @@ struct SourcePayload {
 
 struct ServeState {
     source_path: PathBuf,
-    layout_path: PathBuf,
     background: String,
     overrides: RwLock<LayoutOverrides>,
     source_lock: Mutex<()>,
@@ -583,48 +587,110 @@ impl LayoutOverrides {
         self.nodes.is_empty() && self.edges.is_empty()
     }
 
-    fn load(path: &Path) -> Result<Self> {
-        if path.exists() {
-            let contents = fs::read_to_string(path)
-                .with_context(|| format!("failed to read overrides '{}'", path.display()))?;
-            let overrides: Self = serde_json::from_str(&contents)
-                .with_context(|| format!("failed to parse overrides '{}'", path.display()))?;
-            Ok(overrides)
-        } else {
-            Ok(Self::default())
-        }
-    }
-
-    fn save(&self, path: &Path) -> Result<()> {
-        if self.is_empty() {
-            if path.exists() {
-                fs::remove_file(path)
-                    .with_context(|| format!("failed to remove overrides '{}'", path.display()))?;
-            }
-            return Ok(());
-        }
-
-        if let Some(parent) = path.parent() {
-            if !parent.exists() && !parent.as_os_str().is_empty() {
-                fs::create_dir_all(parent).with_context(|| {
-                    format!(
-                        "failed to create directory for overrides '{}'",
-                        parent.display()
-                    )
-                })?;
-            }
-        }
-
-        let payload = serde_json::to_string_pretty(self)?;
-        fs::write(path, payload)
-            .with_context(|| format!("failed to write overrides '{}'", path.display()))?;
-        Ok(())
-    }
-
     fn prune(&mut self, nodes: &HashSet<String>, edges: &HashSet<String>) {
         self.nodes.retain(|id, _| nodes.contains(id));
         self.edges.retain(|id, _| edges.contains(id));
     }
+}
+
+fn split_source_and_overrides(source: &str) -> Result<(String, LayoutOverrides)> {
+    let mut definition_lines = Vec::new();
+    let mut layout_lines = Vec::new();
+    let mut in_block = false;
+    let mut found_block = false;
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.eq_ignore_ascii_case(LAYOUT_BLOCK_START) {
+            if in_block {
+                bail!("nested '{}' sections are not supported", LAYOUT_BLOCK_START);
+            }
+            in_block = true;
+            found_block = true;
+            continue;
+        }
+        if trimmed.eq_ignore_ascii_case(LAYOUT_BLOCK_END) {
+            if !in_block {
+                bail!(
+                    "encountered '{}' without a matching start",
+                    LAYOUT_BLOCK_END
+                );
+            }
+            in_block = false;
+            continue;
+        }
+
+        if in_block {
+            if trimmed.is_empty() {
+                continue;
+            }
+            let mut segment = line.trim_start();
+            if let Some(rest) = segment.strip_prefix("%%") {
+                segment = rest.trim_start();
+            }
+            layout_lines.push(segment.to_string());
+        } else {
+            definition_lines.push(line);
+        }
+    }
+
+    if in_block {
+        bail!(
+            "layout metadata block was not terminated with '{}'",
+            LAYOUT_BLOCK_END
+        );
+    }
+
+    let mut definition = definition_lines.join("\n");
+    if source.ends_with('\n') {
+        definition.push('\n');
+    }
+
+    let overrides = if found_block {
+        let json = layout_lines.join("\n");
+        if json.trim().is_empty() {
+            LayoutOverrides::default()
+        } else {
+            serde_json::from_str(&json)
+                .with_context(|| "failed to parse embedded oxdraw layout block")?
+        }
+    } else {
+        LayoutOverrides::default()
+    };
+
+    Ok((definition, overrides))
+}
+
+fn merge_source_and_overrides(definition: &str, overrides: &LayoutOverrides) -> Result<String> {
+    let trimmed = definition.trim_end_matches('\n');
+    let mut output = trimmed.to_string();
+    output.push('\n');
+
+    if overrides.is_empty() {
+        return Ok(output);
+    }
+
+    output.push('\n');
+    output.push_str(LAYOUT_BLOCK_START);
+    output.push('\n');
+
+    let json = serde_json::to_string_pretty(overrides)?;
+    for line in json.lines() {
+        output.push_str("%% ");
+        output.push_str(line);
+        output.push('\n');
+    }
+
+    output.push_str(LAYOUT_BLOCK_END);
+    output.push('\n');
+
+    Ok(output)
+}
+
+fn read_definition_and_overrides(path: &Path) -> Result<(String, LayoutOverrides)> {
+    let contents =
+        fs::read_to_string(path).with_context(|| format!("failed to read '{}'", path.display()))?;
+    split_source_and_overrides(&contents)
 }
 
 impl ServeState {
@@ -632,8 +698,9 @@ impl ServeState {
         let contents = tokio::fs::read_to_string(&self.source_path)
             .await
             .with_context(|| format!("failed to read '{}'", self.source_path.display()))?;
-        let diagram = Diagram::parse(&contents)?;
-        Ok((contents, diagram))
+        let (definition, _) = split_source_and_overrides(&contents)?;
+        let diagram = Diagram::parse(&definition)?;
+        Ok((definition, diagram))
     }
 
     async fn current_overrides(&self) -> LayoutOverrides {
@@ -641,31 +708,35 @@ impl ServeState {
     }
 
     async fn apply_update(&self, update: LayoutUpdate) -> Result<()> {
-        let mut overrides = self.overrides.write().await;
+        let snapshot = {
+            let mut overrides = self.overrides.write().await;
 
-        for (id, value) in update.nodes {
-            match value {
-                Some(point) => {
-                    overrides.nodes.insert(id, point);
-                }
-                None => {
-                    overrides.nodes.remove(&id);
+            for (id, value) in update.nodes {
+                match value {
+                    Some(point) => {
+                        overrides.nodes.insert(id, point);
+                    }
+                    None => {
+                        overrides.nodes.remove(&id);
+                    }
                 }
             }
-        }
 
-        for (id, value) in update.edges {
-            match value {
-                Some(edge_override) if !edge_override.points.is_empty() => {
-                    overrides.edges.insert(id, edge_override);
-                }
-                _ => {
-                    overrides.edges.remove(&id);
+            for (id, value) in update.edges {
+                match value {
+                    Some(edge_override) if !edge_override.points.is_empty() => {
+                        overrides.edges.insert(id, edge_override);
+                    }
+                    _ => {
+                        overrides.edges.remove(&id);
+                    }
                 }
             }
-        }
 
-        overrides.save(&self.layout_path)
+            overrides.clone()
+        };
+
+        self.rewrite_file_with_overrides(&snapshot).await
     }
 
     async fn prune_overrides_for(&self, diagram: &Diagram) -> Result<()> {
@@ -676,20 +747,68 @@ impl ServeState {
             .map(|edge| edge_identifier(edge))
             .collect();
 
-        let mut overrides = self.overrides.write().await;
-        overrides.prune(&node_ids, &edge_ids);
-        overrides.save(&self.layout_path)
+        let snapshot = {
+            let mut overrides = self.overrides.write().await;
+            overrides.prune(&node_ids, &edge_ids);
+            overrides.clone()
+        };
+
+        let definition = diagram.to_definition();
+        self.write_definition_with_overrides(&definition, &snapshot)
+            .await
     }
 
     async fn replace_source(&self, contents: &str) -> Result<()> {
-        let diagram = Diagram::parse(contents)?;
-        {
-            let _guard = self.source_lock.lock().await;
-            tokio::fs::write(&self.source_path, contents.as_bytes())
-                .await
-                .with_context(|| format!("failed to write '{}'", self.source_path.display()))?;
-        }
-        self.prune_overrides_for(&diagram).await
+        let has_block = contents
+            .lines()
+            .any(|line| line.trim().eq_ignore_ascii_case(LAYOUT_BLOCK_START));
+        let (definition, parsed_overrides) = split_source_and_overrides(contents)?;
+        let diagram = Diagram::parse(&definition)?;
+
+        let node_ids: HashSet<String> = diagram.nodes.keys().cloned().collect();
+        let edge_ids: HashSet<String> = diagram
+            .edges
+            .iter()
+            .map(|edge| edge_identifier(edge))
+            .collect();
+
+        let snapshot = {
+            let mut overrides = self.overrides.write().await;
+            if has_block {
+                *overrides = parsed_overrides;
+            }
+            overrides.prune(&node_ids, &edge_ids);
+            overrides.clone()
+        };
+
+        self.write_definition_with_overrides(&definition, &snapshot)
+            .await
+    }
+
+    async fn rewrite_file_with_overrides(&self, overrides: &LayoutOverrides) -> Result<()> {
+        let _guard = self.source_lock.lock().await;
+        let contents = tokio::fs::read_to_string(&self.source_path)
+            .await
+            .with_context(|| format!("failed to read '{}'", self.source_path.display()))?;
+        let (definition, _) = split_source_and_overrides(&contents)?;
+        let merged = merge_source_and_overrides(&definition, overrides)?;
+        tokio::fs::write(&self.source_path, merged.as_bytes())
+            .await
+            .with_context(|| format!("failed to write '{}'", self.source_path.display()))?;
+        Ok(())
+    }
+
+    async fn write_definition_with_overrides(
+        &self,
+        definition: &str,
+        overrides: &LayoutOverrides,
+    ) -> Result<()> {
+        let merged = merge_source_and_overrides(definition, overrides)?;
+        let _guard = self.source_lock.lock().await;
+        tokio::fs::write(&self.source_path, merged.as_bytes())
+            .await
+            .with_context(|| format!("failed to write '{}'", self.source_path.display()))?;
+        Ok(())
     }
 
     async fn remove_node(&self, node_id: &str) -> Result<bool> {
@@ -1215,16 +1334,6 @@ impl NodeSpec {
             shape,
         })
     }
-}
-
-fn overrides_path(input: &Path) -> PathBuf {
-    let mut file_name = input
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .map(|stem| stem.to_string())
-        .unwrap_or_else(|| "diagram".to_string());
-    file_name.push_str(".oxdraw.json");
-    input.with_file_name(file_name)
 }
 
 fn edge_identifier(edge: &Edge) -> String {

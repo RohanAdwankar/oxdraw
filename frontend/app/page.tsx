@@ -26,6 +26,7 @@ export default function Home() {
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const saveTimer = useRef<number | null>(null);
   const lastSubmittedSource = useRef<string | null>(null);
 
@@ -200,7 +201,11 @@ export default function Home() {
   }, [diagram, error, loading, saving, sourceSaving]);
 
   useEffect(() => {
-    if (!diagram) {
+    if (!diagram || dragging) {
+      if (saveTimer.current !== null) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
       return;
     }
 
@@ -247,7 +252,7 @@ export default function Home() {
         saveTimer.current = null;
       }
     };
-  }, [diagram, sourceDraft, source, sourceError, loadDiagram]);
+  }, [diagram, dragging, sourceDraft, source, sourceError, loadDiagram]);
 
   const sourceStatus = useMemo(() => {
     if (sourceError) {
@@ -334,6 +339,7 @@ export default function Home() {
               selectedEdgeId={selectedEdgeId}
               onSelectNode={handleSelectNode}
               onSelectEdge={handleSelectEdge}
+              onDragStateChange={setDragging}
             />
             <aside className="source-panel">
               <div className="panel-header">

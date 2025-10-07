@@ -25,6 +25,7 @@ interface DiagramCanvasProps {
   selectedEdgeId: string | null;
   onSelectNode: (id: string | null) => void;
   onSelectEdge: (id: string | null) => void;
+  onDragStateChange?: (dragging: boolean) => void;
 }
 
 interface NodeDragState {
@@ -72,6 +73,7 @@ export default function DiagramCanvas({
   selectedEdgeId,
   onSelectNode,
   onSelectEdge,
+  onDragStateChange,
 }: DiagramCanvasProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [dragState, setDragState] = useState<DragState>(null);
@@ -189,6 +191,7 @@ export default function DiagramCanvas({
       x: diagramPoint.x - current.x,
       y: diagramPoint.y - current.y,
     };
+    onDragStateChange?.(true);
     setDragState({ type: "node", id, offset, current, moved: false });
     setDraftNodes((prev: DraftNodes) => ({ ...prev, [id]: current }));
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -208,6 +211,7 @@ export default function DiagramCanvas({
     const basePoints = hasOverride
       ? availablePoints.map((point: Point) => ({ ...point }))
       : [availablePoints[index] ?? availablePoints[0]];
+    onDragStateChange?.(true);
     setDragState({
       type: "edge",
       id: edgeId,
@@ -261,39 +265,66 @@ export default function DiagramCanvas({
       return;
     }
 
-    if (dragState.type === "node") {
-      const node = diagram.nodes.find((item) => item.id === dragState.id);
-      const current = dragState.current;
-      const auto = node?.autoPosition;
-      const result = auto && current && isClose(current, auto) ? null : current;
-      onNodeMove(dragState.id, dragState.moved ? result : null);
+    const currentDrag = dragState;
+    onDragStateChange?.(false);
+
+    if (currentDrag.type === "node") {
+      if (currentDrag.moved) {
+        const node = diagram.nodes.find((item) => item.id === currentDrag.id);
+        const current = currentDrag.current;
+        const auto = node?.autoPosition;
+        const result = auto && current && isClose(current, auto) ? null : current;
+        onNodeMove(currentDrag.id, result);
+      }
       setDraftNodes((prev: DraftNodes) => {
         const next = { ...prev };
-        delete next[dragState.id];
+        delete next[currentDrag.id];
         return next;
       });
-    } else if (dragState.type === "edge") {
-      const finalPoints = dragState.points;
-      if (!dragState.moved && !dragState.hasOverride) {
-        setDraftEdges((prev: DraftEdges) => {
-          const next = { ...prev };
-          delete next[dragState.id];
-          return next;
-        });
-      } else {
-        const normalized = finalPoints.map((point: Point) => ({ ...point }));
+    } else if (currentDrag.type === "edge") {
+      if (currentDrag.moved) {
+        const normalized = currentDrag.points.map((point: Point) => ({ ...point }));
         const shouldClear = normalized.length === 0;
-        onEdgeMove(dragState.id, shouldClear ? null : normalized);
-        setDraftEdges((prev: DraftEdges) => {
-          const next = { ...prev };
-          delete next[dragState.id];
-          return next;
-        });
+        onEdgeMove(currentDrag.id, shouldClear ? null : normalized);
       }
+      setDraftEdges((prev: DraftEdges) => {
+        const next = { ...prev };
+        delete next[currentDrag.id];
+        return next;
+      });
     }
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    setDragState(null);
+  };
+
+  const handlePointerCancel = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (!dragState) {
+      return;
+    }
+
+    const currentDrag = dragState;
+    onDragStateChange?.(false);
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    if (currentDrag.type === "node") {
+      setDraftNodes((prev: DraftNodes) => {
+        const next = { ...prev };
+        delete next[currentDrag.id];
+        return next;
+      });
+    } else if (currentDrag.type === "edge") {
+      setDraftEdges((prev: DraftEdges) => {
+        const next = { ...prev };
+        delete next[currentDrag.id];
+        return next;
+      });
     }
 
     setDragState(null);
@@ -315,6 +346,7 @@ export default function DiagramCanvas({
       onPointerDown={handleCanvasPointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
     >
       {edges.map((view: EdgeView) => {
         const { edge, route, handlePoints, hasOverride } = view;
