@@ -151,7 +151,7 @@ body > div:first-of-type {
 }
 
 .edge-label {
-  font-size: 0.8rem;
+  font-size: 13px;
   fill: #2d3748;
   pointer-events: none;
   user-select: none;

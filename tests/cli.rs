@@ -8,7 +8,7 @@ use tempfile::tempdir;
 #[test]
 fn generates_svg_from_mmd_file() -> Result<(), Box<dyn std::error::Error>> {
     let fixture =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("mermaid-cli/test-positive/flowchart1.mmd");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("mermaid-cli/test-positive/flowchart2.mmd");
     assert!(fixture.exists(), "fixture mermaid diagram should exist");
 
     let tmp = tempdir()?;

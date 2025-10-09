@@ -1187,8 +1187,8 @@ impl Diagram {
                 .copied()
                 .ok_or_else(|| anyhow!("missing geometry for node '{id}'"))?;
 
-            let mut fill_color = "#ffffff".to_string();
-            let mut stroke_color = "#4a5568".to_string();
+            let mut fill_color = node.shape.default_fill_color().to_string();
+            let mut stroke_color = "#2d3748".to_string();
             let mut text_color = "#1a202c".to_string();
 
             if let Some(overrides) = overrides {
@@ -1695,6 +1695,15 @@ impl NodeShape {
             NodeShape::Stadium => "stadium",
             NodeShape::Circle => "circle",
             NodeShape::Diamond => "diamond",
+        }
+    }
+
+    fn default_fill_color(&self) -> &'static str {
+        match self {
+            NodeShape::Rectangle => "#fde68a",
+            NodeShape::Stadium => "#c4f1f9",
+            NodeShape::Circle => "#e9d8fd",
+            NodeShape::Diamond => "#fbcfe8",
         }
     }
 

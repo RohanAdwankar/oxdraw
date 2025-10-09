@@ -96,6 +96,19 @@ function isClose(a: Point, b: Point): boolean {
   return Math.abs(a.x - b.x) < EPSILON && Math.abs(a.y - b.y) < EPSILON;
 }
 
+function centroid(points: readonly Point[]): Point {
+  if (points.length === 0) {
+    return { x: 0, y: 0 };
+  }
+  let sumX = 0;
+  let sumY = 0;
+  for (const point of points) {
+    sumX += point.x;
+    sumY += point.y;
+  }
+  return { x: sumX / points.length, y: sumY / points.length };
+}
+
 export default function DiagramCanvas({
   diagram,
   onNodeMove,
@@ -496,6 +509,9 @@ export default function DiagramCanvas({
             return null;
           }
 
+          const labelPoint = centroid(route);
+          const labelScreen = toScreen(labelPoint);
+
           const edgeSelected = selectedEdgeId === edge.id;
           const markerStart =
             arrowDirection === "backward" || arrowDirection === "both"
@@ -553,12 +569,7 @@ export default function DiagramCanvas({
                 />
               )}
               {edge.label && (
-                <text
-                  className="edge-label"
-                  x={screenRoute[Math.floor(screenRoute.length / 2)].x}
-                  y={screenRoute[Math.floor(screenRoute.length / 2)].y - 10}
-                  textAnchor="middle"
-                >
+                <text className="edge-label" x={labelScreen.x} y={labelScreen.y - 10} textAnchor="middle">
                   {edge.label}
                 </text>
               )}
