@@ -474,3 +474,14 @@ body > div:first-of-type {
   background: rgba(248, 250, 252, 0.15);
   outline: none;
 }
+
+.alignment-guide {
+  stroke: rgba(56, 178, 172, 0.85);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 6;
+  pointer-events: none;
+}
+
+.alignment-guide-center {
+  stroke: rgba(244, 114, 182, 0.85);
+}

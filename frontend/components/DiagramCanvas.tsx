@@ -25,6 +25,8 @@ const NODE_HEIGHT = 60;
 const LAYOUT_MARGIN = 80;
 const HANDLE_RADIUS = 6;
 const EPSILON = 0.5;
+const GRID_SIZE = 10;
+const ALIGN_THRESHOLD = 8;
 
 const SHAPE_COLORS: Record<DiagramData["nodes"][number]["shape"], string> = {
   rectangle: "#FDE68A", // pastel amber
@@ -72,6 +74,49 @@ type DragState = NodeDragState | EdgeDragState | null;
 type DraftNodes = Record<string, Point>;
 type DraftEdges = Record<string, Point[]>;
 
+interface NodeBox {
+  left: number;
+  right: number;
+  centerX: number;
+  top: number;
+  bottom: number;
+  centerY: number;
+}
+
+interface VerticalGuide {
+  axis: "vertical";
+  x: number;
+  y1: number;
+  y2: number;
+  kind: "edge" | "center";
+  sourceId: string;
+  targetId: string;
+}
+
+interface HorizontalGuide {
+  axis: "horizontal";
+  y: number;
+  x1: number;
+  x2: number;
+  kind: "edge" | "center";
+  sourceId: string;
+  targetId: string;
+}
+
+interface AlignmentGuides {
+  vertical?: VerticalGuide;
+  horizontal?: HorizontalGuide;
+}
+
+interface AlignmentResult {
+  position: Point;
+  guides: AlignmentGuides;
+  appliedX: boolean;
+  appliedY: boolean;
+}
+
+const EMPTY_GUIDES: AlignmentGuides = {};
+
 interface EdgeView {
   edge: EdgeData;
   route: Point[];
@@ -109,6 +154,277 @@ function centroid(points: readonly Point[]): Point {
   return { x: sumX / points.length, y: sumY / points.length };
 }
 
+function snapToGrid(value: number): number {
+  if (GRID_SIZE <= 0) {
+    return value;
+  }
+  return Math.round(value / GRID_SIZE) * GRID_SIZE;
+}
+
+function createNodeBox(position: Point): NodeBox {
+  return {
+    left: position.x - NODE_WIDTH / 2,
+    right: position.x + NODE_WIDTH / 2,
+    centerX: position.x,
+    top: position.y - NODE_HEIGHT / 2,
+    bottom: position.y + NODE_HEIGHT / 2,
+    centerY: position.y,
+  };
+}
+
+function computeNodeAlignment(
+  nodeId: string,
+  proposed: Point,
+  nodes: readonly [string, Point][],
+  threshold: number
+): AlignmentResult {
+  const movingBox = createNodeBox(proposed);
+  let bestVertical: {
+    diff: number;
+    value: number;
+    guide: VerticalGuide;
+  } | null = null;
+  let bestHorizontal: {
+    diff: number;
+    value: number;
+    guide: HorizontalGuide;
+  } | null = null;
+
+  for (const [otherId, point] of nodes) {
+    if (otherId === nodeId) {
+      continue;
+    }
+    const otherBox = createNodeBox(point);
+
+    const verticalCandidates = [
+      {
+        diff: otherBox.left - movingBox.left,
+        value: () => proposed.x + (otherBox.left - movingBox.left),
+        kind: "edge" as const,
+        line: otherBox.left,
+      },
+      {
+        diff: otherBox.right - movingBox.left,
+        value: () => proposed.x + (otherBox.right - movingBox.left),
+        kind: "edge" as const,
+        line: otherBox.right,
+      },
+      {
+        diff: otherBox.left - movingBox.right,
+        value: () => proposed.x + (otherBox.left - movingBox.right),
+        kind: "edge" as const,
+        line: otherBox.left,
+      },
+      {
+        diff: otherBox.right - movingBox.right,
+        value: () => proposed.x + (otherBox.right - movingBox.right),
+        kind: "edge" as const,
+        line: otherBox.right,
+      },
+      {
+        diff: otherBox.centerX - movingBox.centerX,
+        value: () => proposed.x + (otherBox.centerX - movingBox.centerX),
+        kind: "center" as const,
+        line: otherBox.centerX,
+      },
+    ];
+
+    for (const candidate of verticalCandidates) {
+      const absDiff = Math.abs(candidate.diff);
+      if (absDiff > threshold) {
+        continue;
+      }
+      if (bestVertical && Math.abs(bestVertical.diff) <= absDiff) {
+        continue;
+      }
+      const alignedX = candidate.value();
+      const alignedBox = createNodeBox({ x: alignedX, y: proposed.y });
+      bestVertical = {
+        diff: candidate.diff,
+        value: alignedX,
+        guide: {
+          axis: "vertical",
+          x: candidate.kind === "center" ? alignedBox.centerX : candidate.line,
+          y1: Math.min(alignedBox.top, otherBox.top),
+          y2: Math.max(alignedBox.bottom, otherBox.bottom),
+          kind: candidate.kind,
+          sourceId: nodeId,
+          targetId: otherId,
+        },
+      };
+    }
+
+    const horizontalCandidates = [
+      {
+        diff: otherBox.top - movingBox.top,
+        value: () => proposed.y + (otherBox.top - movingBox.top),
+        kind: "edge" as const,
+        line: otherBox.top,
+      },
+      {
+        diff: otherBox.bottom - movingBox.top,
+        value: () => proposed.y + (otherBox.bottom - movingBox.top),
+        kind: "edge" as const,
+        line: otherBox.bottom,
+      },
+      {
+        diff: otherBox.top - movingBox.bottom,
+        value: () => proposed.y + (otherBox.top - movingBox.bottom),
+        kind: "edge" as const,
+        line: otherBox.top,
+      },
+      {
+        diff: otherBox.bottom - movingBox.bottom,
+        value: () => proposed.y + (otherBox.bottom - movingBox.bottom),
+        kind: "edge" as const,
+        line: otherBox.bottom,
+      },
+      {
+        diff: otherBox.centerY - movingBox.centerY,
+        value: () => proposed.y + (otherBox.centerY - movingBox.centerY),
+        kind: "center" as const,
+        line: otherBox.centerY,
+      },
+    ];
+
+    for (const candidate of horizontalCandidates) {
+      const absDiff = Math.abs(candidate.diff);
+      if (absDiff > threshold) {
+        continue;
+      }
+      if (bestHorizontal && Math.abs(bestHorizontal.diff) <= absDiff) {
+        continue;
+      }
+      const alignedY = candidate.value();
+      const alignedBox = createNodeBox({ x: proposed.x, y: alignedY });
+      bestHorizontal = {
+        diff: candidate.diff,
+        value: alignedY,
+        guide: {
+          axis: "horizontal",
+          y: candidate.kind === "center" ? alignedBox.centerY : candidate.line,
+          x1: Math.min(alignedBox.left, otherBox.left),
+          x2: Math.max(alignedBox.right, otherBox.right),
+          kind: candidate.kind,
+          sourceId: nodeId,
+          targetId: otherId,
+        },
+      };
+    }
+  }
+
+  const guides: AlignmentGuides = {};
+  let appliedX = false;
+  let appliedY = false;
+
+  let finalX = proposed.x;
+  if (bestVertical) {
+    finalX = bestVertical.value;
+    guides.vertical = bestVertical.guide;
+    appliedX = true;
+  }
+
+  let finalY = proposed.y;
+  if (bestHorizontal) {
+    finalY = bestHorizontal.value;
+    guides.horizontal = bestHorizontal.guide;
+    appliedY = true;
+  }
+
+  if (!guides.vertical) {
+    delete guides.vertical;
+  }
+  if (!guides.horizontal) {
+    delete guides.horizontal;
+  }
+
+  const finalPosition = { x: finalX, y: finalY };
+  const finalBox = createNodeBox(finalPosition);
+
+  const verticalGuide = guides.vertical;
+  if (verticalGuide) {
+    const targetPoint = nodes.find((entry) => entry[0] === verticalGuide.targetId)?.[1];
+    if (targetPoint) {
+      const targetBox = createNodeBox(targetPoint);
+      guides.vertical = {
+        ...verticalGuide,
+        x:
+          verticalGuide.kind === "center"
+            ? finalBox.centerX
+            : verticalGuide.x,
+        y1: Math.min(finalBox.top, targetBox.top),
+        y2: Math.max(finalBox.bottom, targetBox.bottom),
+      };
+    }
+  }
+
+  const horizontalGuide = guides.horizontal;
+  if (horizontalGuide) {
+    const targetPoint = nodes.find((entry) => entry[0] === horizontalGuide.targetId)?.[1];
+    if (targetPoint) {
+      const targetBox = createNodeBox(targetPoint);
+      guides.horizontal = {
+        ...horizontalGuide,
+        y:
+          horizontalGuide.kind === "center"
+            ? finalBox.centerY
+            : horizontalGuide.y,
+        x1: Math.min(finalBox.left, targetBox.left),
+        x2: Math.max(finalBox.right, targetBox.right),
+      };
+    }
+  }
+
+  const normalizedGuides = guides.vertical || guides.horizontal ? guides : EMPTY_GUIDES;
+
+  return {
+    position: finalPosition,
+    guides: normalizedGuides,
+    appliedX,
+    appliedY,
+  };
+}
+
+function guidesEqual(a: AlignmentGuides, b: AlignmentGuides): boolean {
+  const aVertical = a.vertical;
+  const bVertical = b.vertical;
+  if (!!aVertical !== !!bVertical) {
+    return false;
+  }
+  if (
+    aVertical &&
+    bVertical &&
+    (aVertical.x !== bVertical.x ||
+      aVertical.y1 !== bVertical.y1 ||
+      aVertical.y2 !== bVertical.y2 ||
+      aVertical.kind !== bVertical.kind ||
+      aVertical.sourceId !== bVertical.sourceId ||
+      aVertical.targetId !== bVertical.targetId)
+  ) {
+    return false;
+  }
+
+  const aHorizontal = a.horizontal;
+  const bHorizontal = b.horizontal;
+  if (!!aHorizontal !== !!bHorizontal) {
+    return false;
+  }
+  if (
+    aHorizontal &&
+    bHorizontal &&
+    (aHorizontal.y !== bHorizontal.y ||
+      aHorizontal.x1 !== bHorizontal.x1 ||
+      aHorizontal.x2 !== bHorizontal.x2 ||
+      aHorizontal.kind !== bHorizontal.kind ||
+      aHorizontal.sourceId !== bHorizontal.sourceId ||
+      aHorizontal.targetId !== bHorizontal.targetId)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 export default function DiagramCanvas({
   diagram,
   onNodeMove,
@@ -126,6 +442,7 @@ export default function DiagramCanvas({
   const [dragState, setDragState] = useState<DragState>(null);
   const [draftNodes, setDraftNodes] = useState<DraftNodes>({});
   const [draftEdges, setDraftEdges] = useState<DraftEdges>({});
+  const [alignmentGuides, setAlignmentGuides] = useState<AlignmentGuides>({});
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
     x: 0,
@@ -278,6 +595,9 @@ export default function DiagramCanvas({
     y: point.y + bounds.offsetY,
   });
 
+  const verticalGuide = alignmentGuides.vertical;
+  const horizontalGuide = alignmentGuides.horizontal;
+
   const clientToDiagram = (event: ReactPointerEvent): Point | null => {
     const svg = svgRef.current;
     if (!svg) {
@@ -394,13 +714,22 @@ export default function DiagramCanvas({
     }
 
     if (dragState.type === "node") {
-      const next = {
+      const proposed = {
         x: diagramPoint.x - dragState.offset.x,
         y: diagramPoint.y - dragState.offset.y,
       };
-      setDragState({ ...dragState, current: next, moved: true });
-      setDraftNodes((prev: DraftNodes) => ({ ...prev, [dragState.id]: next }));
+      const alignment = computeNodeAlignment(dragState.id, proposed, nodeEntries, ALIGN_THRESHOLD);
+      const snappedPosition = {
+        x: alignment.appliedX ? alignment.position.x : snapToGrid(alignment.position.x),
+        y: alignment.appliedY ? alignment.position.y : snapToGrid(alignment.position.y),
+      };
+      setAlignmentGuides((prev) =>
+        guidesEqual(prev, alignment.guides) ? prev : alignment.guides
+      );
+      setDragState({ ...dragState, current: snappedPosition, moved: true });
+      setDraftNodes((prev: DraftNodes) => ({ ...prev, [dragState.id]: snappedPosition }));
     } else if (dragState.type === "edge") {
+      setAlignmentGuides((prev) => (guidesEqual(prev, EMPTY_GUIDES) ? prev : EMPTY_GUIDES));
       const nextPoints = dragState.points.map((point: Point, idx: number) =>
         idx === dragState.index ? diagramPoint : point
       );
@@ -416,6 +745,7 @@ export default function DiagramCanvas({
 
     const currentDrag = dragState;
     onDragStateChange?.(false);
+    setAlignmentGuides((prev) => (guidesEqual(prev, EMPTY_GUIDES) ? prev : EMPTY_GUIDES));
 
     if (currentDrag.type === "node") {
       if (currentDrag.moved) {
@@ -457,6 +787,7 @@ export default function DiagramCanvas({
 
     const currentDrag = dragState;
     onDragStateChange?.(false);
+    setAlignmentGuides((prev) => (guidesEqual(prev, EMPTY_GUIDES) ? prev : EMPTY_GUIDES));
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -486,6 +817,111 @@ export default function DiagramCanvas({
   const handleNodeDoubleClick = (id: string) => {
     onNodeMove(id, null);
   };
+
+  useEffect(() => {
+    if (!selectedNodeId) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!selectedNodeId) {
+        return;
+      }
+      if (dragState) {
+        return;
+      }
+      const { key } = event;
+      if (key !== "ArrowUp" && key !== "ArrowDown" && key !== "ArrowLeft" && key !== "ArrowRight") {
+        return;
+      }
+
+      const active = document.activeElement as HTMLElement | null;
+      if (
+        active &&
+        (active.tagName === "TEXTAREA" ||
+          active.tagName === "INPUT" ||
+          active.isContentEditable)
+      ) {
+        return;
+      }
+
+      const current = finalPositions.get(selectedNodeId);
+      if (!current) {
+        return;
+      }
+
+      const step = event.shiftKey ? GRID_SIZE : 1;
+      let deltaX = 0;
+      let deltaY = 0;
+      switch (key) {
+        case "ArrowUp":
+          deltaY = -step;
+          break;
+        case "ArrowDown":
+          deltaY = step;
+          break;
+        case "ArrowLeft":
+          deltaX = -step;
+          break;
+        case "ArrowRight":
+          deltaX = step;
+          break;
+        default:
+          break;
+      }
+
+      if (deltaX === 0 && deltaY === 0) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const next = {
+        x: current.x + deltaX,
+        y: current.y + deltaY,
+      };
+      const adjusted = event.shiftKey
+        ? {
+            x: snapToGrid(next.x),
+            y: snapToGrid(next.y),
+          }
+        : next;
+
+      setDraftNodes((prev: DraftNodes) => ({ ...prev, [selectedNodeId]: adjusted }));
+      setAlignmentGuides((prev) => (guidesEqual(prev, EMPTY_GUIDES) ? prev : EMPTY_GUIDES));
+      onNodeMove(selectedNodeId, adjusted);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedNodeId, dragState, finalPositions, onNodeMove]);
+
+  useEffect(() => {
+    if (dragState && dragState.type === "node") {
+      return;
+    }
+    setDraftNodes((prev: DraftNodes) => {
+      if (Object.keys(prev).length === 0) {
+        return prev;
+      }
+      let mutated = false;
+      const nextDraft: DraftNodes = { ...prev };
+      for (const [id, point] of Object.entries(prev)) {
+        const node = diagram.nodes.find((item) => item.id === id);
+        if (!node) {
+          delete nextDraft[id];
+          mutated = true;
+          continue;
+        }
+        const resolved = node.overridePosition ?? node.renderedPosition ?? node.autoPosition;
+        if (resolved && isClose(resolved, point)) {
+          delete nextDraft[id];
+          mutated = true;
+        }
+      }
+      return mutated ? nextDraft : prev;
+    });
+  }, [diagram.nodes, dragState]);
 
   return (
     <div ref={wrapperRef} className="diagram-wrapper">
@@ -659,6 +1095,39 @@ export default function DiagramCanvas({
             </g>
           );
         })}
+
+        {verticalGuide
+          ? (() => {
+              const start = toScreen({ x: verticalGuide.x, y: verticalGuide.y1 });
+              const end = toScreen({ x: verticalGuide.x, y: verticalGuide.y2 });
+              return (
+                <line
+                  key="vertical-guide"
+                  className={`alignment-guide alignment-guide-vertical alignment-guide-${verticalGuide.kind}`}
+                  x1={start.x}
+                  y1={start.y}
+                  x2={end.x}
+                  y2={end.y}
+                />
+              );
+            })()
+          : null}
+        {horizontalGuide
+          ? (() => {
+              const start = toScreen({ x: horizontalGuide.x1, y: horizontalGuide.y });
+              const end = toScreen({ x: horizontalGuide.x2, y: horizontalGuide.y });
+              return (
+                <line
+                  key="horizontal-guide"
+                  className={`alignment-guide alignment-guide-horizontal alignment-guide-${horizontalGuide.kind}`}
+                  x1={start.x}
+                  y1={start.y}
+                  x2={end.x}
+                  y2={end.y}
+                />
+              );
+            })()
+          : null}
 
         <defs>
           <marker

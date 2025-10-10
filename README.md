@@ -24,7 +24,6 @@ The CLI is the foundation for the full experience, so we are building it first u
 
 - The current parser recognises a small slice of Mermaid flowchart syntax: directional `graph` headers (`TD`, `BT`, `LR`, `RL`), rectangular/stadium/circle/diamond node declarations, and labelled edges (`-->`, `-.->`).
 - Layout is a simple linear pass (no automatic graph balancing or routing); diagrams are arranged along the primary axis declared by the header.
-- Markdown sources and artefact generation from the original mermaid-cli are not implemented yet.
 - PNG/PDF output remains a TODO for the local renderer; only SVGs are produced right now.
 
 ## Usage
@@ -90,5 +89,3 @@ Add new fixtures under `mermaid-cli/test-positive/` and extend `tests/` as funct
 
 - Add PNG/PDF export by mirroring the mermaid-cli raster flow.
 - Expand test coverage to every positive/negative fixture included with mermaid-cli.
-- Implement Markdown-aware rendering and artefact management.
-- Begin the React-based editor that can read/write oxdraw-enhanced Mermaid documents.

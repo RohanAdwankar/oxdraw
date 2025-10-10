@@ -18,3 +18,9 @@ npm run build
 During development run the CLI server separately (for example `cargo run -- serve --input <file>`), then point the frontend at it by setting `NEXT_PUBLIC_OXDRAW_API=http://127.0.0.1:5151` before `npm run dev`.
 
 The `npm run build` step produces a static bundle in `frontend/out/`. The Oxdraw CLI automatically serves those assets when you launch `oxdraw --edit`.
+
+### Editor interactions
+
+- Nodes snap to a 10px grid while dragging and align to nearby node edges or centers when they fall within an 8px threshold.
+- Alignment guides appear as teal (edge) or pink (center) lines as you approach a valid snap target.
+- Use the arrow keys for fine adjustments (1px per press); hold Shift to move in grid-sized increments while keeping the snap grid.
