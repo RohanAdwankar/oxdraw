@@ -323,8 +323,8 @@ async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> {
     let mut app = Router::new()
         .route("/api/diagram", get(get_diagram))
         .route("/api/diagram/svg", get(get_svg))
-    .route("/api/diagram/layout", put(put_layout))
-    .route("/api/diagram/style", put(put_style))
+        .route("/api/diagram/layout", put(put_layout))
+        .route("/api/diagram/style", put(put_style))
         .route("/api/diagram/source", get(get_source).put(put_source))
         .route("/api/diagram/nodes/:id", delete(delete_node))
         .route("/api/diagram/edges/:id", delete(delete_edge))
@@ -693,7 +693,10 @@ impl Default for EdgeArrowDirection {
 
 impl EdgeArrowDirection {
     fn marker_start(self) -> bool {
-        matches!(self, EdgeArrowDirection::Backward | EdgeArrowDirection::Both)
+        matches!(
+            self,
+            EdgeArrowDirection::Backward | EdgeArrowDirection::Both
+        )
     }
 
     fn marker_end(self) -> bool {
@@ -817,7 +820,7 @@ impl ServeState {
             .with_context(|| format!("failed to read '{}'", self.source_path.display()))?;
         let (definition, _) = split_source_and_overrides(&contents)?;
         let diagram = Diagram::parse(&definition)?;
-        Ok((definition, diagram))
+        Ok((contents, diagram))
     }
 
     async fn current_overrides(&self) -> LayoutOverrides {
@@ -863,10 +866,7 @@ impl ServeState {
             for (id, value) in update.node_styles {
                 match value {
                     Some(patch) => {
-                        let mut current = overrides
-                            .node_styles
-                            .remove(&id)
-                            .unwrap_or_default();
+                        let mut current = overrides.node_styles.remove(&id).unwrap_or_default();
 
                         if let Some(fill) = patch.fill {
                             current.fill = fill;
@@ -893,10 +893,7 @@ impl ServeState {
             for (id, value) in update.edge_styles {
                 match value {
                     Some(patch) => {
-                        let mut current = overrides
-                            .edge_styles
-                            .remove(&id)
-                            .unwrap_or_default();
+                        let mut current = overrides.edge_styles.remove(&id).unwrap_or_default();
 
                         if let Some(line) = patch.line {
                             current.line = line;
@@ -1308,19 +1305,11 @@ impl Diagram {
             };
         }
 
-        let mut levels: HashMap<String, usize> = self
-            .nodes
-            .keys()
-            .cloned()
-            .map(|id| (id, 0_usize))
-            .collect();
+        let mut levels: HashMap<String, usize> =
+            self.nodes.keys().cloned().map(|id| (id, 0_usize)).collect();
 
-        let mut indegree: HashMap<String, usize> = self
-            .nodes
-            .keys()
-            .cloned()
-            .map(|id| (id, 0_usize))
-            .collect();
+        let mut indegree: HashMap<String, usize> =
+            self.nodes.keys().cloned().map(|id| (id, 0_usize)).collect();
 
         for edge in &self.edges {
             *indegree.entry(edge.to.clone()).or_insert(0) += 1;
@@ -2080,8 +2069,8 @@ C -.->|Three| F[Car]
         let diagram = Diagram::parse(source).expect("diagram parses");
         let layout = diagram.layout(None).expect("layout succeeds");
         assert_eq!(diagram.nodes.len(), layout.final_positions.len());
-        let geometry = align_geometry(&layout.final_positions, &layout.final_routes)
-            .expect("geometry aligns");
+        let geometry =
+            align_geometry(&layout.final_positions, &layout.final_routes).expect("geometry aligns");
         assert!(geometry.width > 0.0);
         assert!(geometry.height > 0.0);
     }

@@ -105,11 +105,11 @@ export default function Home() {
           setLoading(true);
         }
         setError(null);
-        const data = await fetchDiagram();
-        setDiagram(data);
-        setSource(data.source);
-        setSourceDraft(data.source);
-        lastSubmittedSource.current = data.source;
+  const data = await fetchDiagram();
+  setDiagram(data);
+  setSource(data.source);
+  setSourceDraft(data.source);
+  lastSubmittedSource.current = data.source;
         setSourceError(null);
         setSourceSaving(false);
         setSelectedNodeId((current) =>
@@ -607,9 +607,6 @@ export default function Home() {
           {statusMessage}
         </div>
         <div className="actions">
-          <button onClick={() => void loadDiagram().catch(() => undefined)} disabled={loading || saving}>
-            Refresh
-          </button>
           <button
             onClick={handleResetOverrides}
             disabled={!hasOverrides(diagram) || saving || sourceSaving}
