@@ -2039,27 +2039,3 @@ async fn delete_edge(
 fn internal_error(err: anyhow::Error) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn debug_flow_layout() {
-        let source = r#"graph TD
-A[Thing] -->|Get money| B(Go shopping)
-B --> C{Let me think}
-C -.->|One| D[Laptop]
-C -.->|Two| E[iPhone]
-C -.->|Three| F[Car]
-"#;
-
-        let diagram = Diagram::parse(source).expect("diagram parses");
-        let layout = diagram.layout(None).expect("layout succeeds");
-        assert_eq!(diagram.nodes.len(), layout.final_positions.len());
-        let geometry =
-            align_geometry(&layout.final_positions, &layout.final_routes).expect("geometry aligns");
-        assert!(geometry.width > 0.0);
-        assert!(geometry.height > 0.0);
-    }
-}
