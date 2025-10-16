@@ -1,5 +1,5 @@
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fmt::Write as FmtWrite;
 use std::fs;
 use std::io::{self, Read, Write};
@@ -1295,52 +1295,166 @@ impl Diagram {
     }
 
     fn compute_auto_layout(&self) -> AutoLayout {
-        let mut positions = HashMap::new();
-        let count = self.order.len() as f32;
+        if self.order.is_empty() {
+            let size = CanvasSize {
+                width: START_OFFSET * 2.0 + NODE_WIDTH,
+                height: START_OFFSET * 2.0 + NODE_HEIGHT,
+            };
+            return AutoLayout {
+                positions: HashMap::new(),
+                size,
+            };
+        }
 
-        let size = match self.direction {
-            Direction::TopDown | Direction::BottomTop => {
-                let height = START_OFFSET * 2.0 + NODE_SPACING * (count.max(1.0) - 1.0);
-                let width = 480.0_f32.max(NODE_WIDTH * 2.0);
-                CanvasSize {
-                    width,
-                    height: height.max(START_OFFSET * 2.0),
+        let mut levels: HashMap<String, usize> = self
+            .nodes
+            .keys()
+            .cloned()
+            .map(|id| (id, 0_usize))
+            .collect();
+
+        let mut indegree: HashMap<String, usize> = self
+            .nodes
+            .keys()
+            .cloned()
+            .map(|id| (id, 0_usize))
+            .collect();
+
+        for edge in &self.edges {
+            *indegree.entry(edge.to.clone()).or_insert(0) += 1;
+        }
+
+        let mut queue: VecDeque<String> = VecDeque::new();
+        for id in &self.order {
+            if indegree.get(id).copied().unwrap_or(0) == 0 {
+                queue.push_back(id.clone());
+            }
+        }
+
+        let mut visited: HashSet<String> = HashSet::new();
+
+        while let Some(node_id) = queue.pop_front() {
+            visited.insert(node_id.clone());
+            let node_level = *levels.get(&node_id).unwrap_or(&0);
+
+            for edge in self.edges.iter().filter(|edge| edge.from == node_id) {
+                let target_id = edge.to.clone();
+                let entry = levels.entry(target_id.clone()).or_insert(0);
+                if *entry < node_level + 1 {
+                    *entry = node_level + 1;
+                }
+
+                if let Some(degree) = indegree.get_mut(&target_id) {
+                    if *degree > 0 {
+                        *degree -= 1;
+                        if *degree == 0 {
+                            queue.push_back(target_id.clone());
+                        }
+                    }
                 }
             }
-            Direction::LeftRight | Direction::RightLeft => {
-                let width = START_OFFSET * 2.0 + NODE_SPACING * (count.max(1.0) - 1.0);
-                let height = 360.0_f32.max(NODE_HEIGHT * 2.0);
-                CanvasSize {
-                    width: width.max(START_OFFSET * 2.0),
-                    height,
+        }
+
+        if visited.len() != self.nodes.len() {
+            for id in &self.order {
+                if visited.contains(id) {
+                    continue;
                 }
+                let mut max_parent = 0_usize;
+                let mut has_parent = false;
+                for edge in self.edges.iter().filter(|edge| edge.to == *id) {
+                    has_parent = true;
+                    let parent_level = *levels.get(&edge.from).unwrap_or(&0);
+                    max_parent = max_parent.max(parent_level + 1);
+                }
+                levels.insert(id.clone(), if has_parent { max_parent } else { 0 });
+            }
+        }
+
+        let mut layers_map: BTreeMap<usize, Vec<String>> = BTreeMap::new();
+        for id in &self.order {
+            let level = *levels.get(id).unwrap_or(&0);
+            layers_map.entry(level).or_default().push(id.clone());
+        }
+
+        if layers_map.is_empty() {
+            layers_map.insert(0, self.order.clone());
+        }
+
+        let layers: Vec<Vec<String>> = layers_map.into_values().collect();
+        let level_count = layers.len().max(1);
+        let max_per_level = layers
+            .iter()
+            .map(|layer| layer.len())
+            .max()
+            .unwrap_or(1)
+            .max(1);
+
+        let mut positions = HashMap::new();
+
+        let (width, height) = match self.direction {
+            Direction::TopDown | Direction::BottomTop => {
+                let inner_width = NODE_WIDTH + NODE_SPACING * ((max_per_level - 1) as f32);
+                let inner_height = NODE_HEIGHT + NODE_SPACING * ((level_count - 1) as f32);
+                let width = inner_width + START_OFFSET * 2.0;
+                let height = inner_height + START_OFFSET * 2.0;
+
+                let vertical_span = NODE_SPACING * ((level_count - 1) as f32);
+                let start_y = START_OFFSET + (inner_height - vertical_span) / 2.0;
+
+                for (idx, nodes) in layers.iter().enumerate() {
+                    let row_index = if matches!(self.direction, Direction::BottomTop) {
+                        level_count - 1 - idx
+                    } else {
+                        idx
+                    } as f32;
+                    let y = start_y + row_index * NODE_SPACING;
+
+                    let span = NODE_SPACING * ((nodes.len().saturating_sub(1)) as f32);
+                    let start_x = START_OFFSET + (inner_width - span) / 2.0;
+
+                    for (col_idx, id) in nodes.iter().enumerate() {
+                        let x = start_x + col_idx as f32 * NODE_SPACING;
+                        positions.insert(id.clone(), Point { x, y });
+                    }
+                }
+
+                (width, height)
+            }
+            Direction::LeftRight | Direction::RightLeft => {
+                let inner_width = NODE_WIDTH + NODE_SPACING * ((level_count - 1) as f32);
+                let inner_height = NODE_HEIGHT + NODE_SPACING * ((max_per_level - 1) as f32);
+                let width = inner_width + START_OFFSET * 2.0;
+                let height = inner_height + START_OFFSET * 2.0;
+
+                let horizontal_span = NODE_SPACING * ((level_count - 1) as f32);
+                let start_x = START_OFFSET + (inner_width - horizontal_span) / 2.0;
+
+                for (idx, nodes) in layers.iter().enumerate() {
+                    let column_index = if matches!(self.direction, Direction::RightLeft) {
+                        level_count - 1 - idx
+                    } else {
+                        idx
+                    } as f32;
+                    let x = start_x + column_index * NODE_SPACING;
+
+                    let span = NODE_SPACING * ((nodes.len().saturating_sub(1)) as f32);
+                    let start_y = START_OFFSET + (inner_height - span) / 2.0;
+
+                    for (row_idx, id) in nodes.iter().enumerate() {
+                        let y = start_y + row_idx as f32 * NODE_SPACING;
+                        positions.insert(id.clone(), Point { x, y });
+                    }
+                }
+
+                (width, height)
             }
         };
 
-        for (index, id) in self.order.iter().enumerate() {
-            let offset = START_OFFSET + index as f32 * NODE_SPACING;
-            let point = match self.direction {
-                Direction::TopDown => Point {
-                    x: size.width / 2.0,
-                    y: offset,
-                },
-                Direction::BottomTop => Point {
-                    x: size.width / 2.0,
-                    y: size.height - offset,
-                },
-                Direction::LeftRight => Point {
-                    x: offset,
-                    y: size.height / 2.0,
-                },
-                Direction::RightLeft => Point {
-                    x: size.width - offset,
-                    y: size.height / 2.0,
-                },
-            };
-            positions.insert(id.clone(), point);
+        AutoLayout {
+            positions,
+            size: CanvasSize { width, height },
         }
-
-        AutoLayout { positions, size }
     }
 
     fn compute_routes(
