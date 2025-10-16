@@ -21,6 +21,9 @@ use tower::service_fn;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
+mod utils;
+use crate::utils::escape_xml;
+
 const NODE_WIDTH: f32 = 140.0;
 const NODE_HEIGHT: f32 = 60.0;
 const NODE_SPACING: f32 = 160.0;
@@ -1826,21 +1829,6 @@ impl NodeShape {
             NodeShape::Diamond => format!("{id}{{{label}}}"),
         }
     }
-}
-
-fn escape_xml(input: &str) -> String {
-    let mut escaped = String::new();
-    for ch in input.chars() {
-        match ch {
-            '&' => escaped.push_str("&amp;"),
-            '<' => escaped.push_str("&lt;"),
-            '>' => escaped.push_str("&gt;"),
-            '"' => escaped.push_str("&quot;"),
-            '\'' => escaped.push_str("&apos;"),
-            other => escaped.push(other),
-        }
-    }
-    escaped
 }
 
 async fn get_diagram(
