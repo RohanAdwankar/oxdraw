@@ -548,6 +548,8 @@ struct NodePayload {
     shape: String,
     auto_position: Point,
     rendered_position: Point,
+    auto_size: CanvasSize,
+    rendered_size: CanvasSize,
     position: Option<Point>,
     #[serde(skip_serializing_if = "Option::is_none")]
     fill_color: Option<String>,
@@ -1883,6 +1885,10 @@ async fn get_diagram(
         let fill_color = style.and_then(|s| s.fill.clone());
         let stroke_color = style.and_then(|s| s.stroke.clone());
         let text_color = style.and_then(|s| s.text.clone());
+        let node_size = CanvasSize {
+            width: NODE_WIDTH,
+            height: NODE_HEIGHT,
+        };
 
         nodes.push(NodePayload {
             id: id.clone(),
@@ -1890,6 +1896,8 @@ async fn get_diagram(
             shape: node.shape.as_str().to_string(),
             auto_position,
             rendered_position: final_position,
+            auto_size: node_size,
+            rendered_size: node_size,
             position: override_position,
             fill_color,
             stroke_color,
@@ -1951,6 +1959,15 @@ async fn get_diagram(
         edges,
         source,
     };
+
+    #[cfg(debug_assertions)]
+    {
+        if std::env::var_os("OXDRAW_DEBUG_PAYLOAD").is_some() {
+            if let Ok(json) = serde_json::to_string(&payload) {
+                eprintln!("oxdraw payload: {json}");
+            }
+        }
+    }
 
     Ok(Json(payload))
 }
@@ -2044,4 +2061,28 @@ async fn delete_edge(
 
 fn internal_error(err: anyhow::Error) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn debug_flow_layout() {
+        let source = r#"graph TD
+A[Thing] -->|Get money| B(Go shopping)
+B --> C{Let me think}
+C -.->|One| D[Laptop]
+C -.->|Two| E[iPhone]
+C -.->|Three| F[Car]
+"#;
+
+        let diagram = Diagram::parse(source).expect("diagram parses");
+        let layout = diagram.layout(None).expect("layout succeeds");
+        assert_eq!(diagram.nodes.len(), layout.final_positions.len());
+        let geometry = align_geometry(&layout.final_positions, &layout.final_routes)
+            .expect("geometry aligns");
+        assert!(geometry.width > 0.0);
+        assert!(geometry.height > 0.0);
+    }
 }
