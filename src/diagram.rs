@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
+use std::fmt::Write as FmtWrite;
 
 use crate::*;
 
@@ -532,3 +533,304 @@ impl Diagram {
         }
     }
 }
+
+impl NodeShape {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NodeShape::Rectangle => "rectangle",
+            NodeShape::Stadium => "stadium",
+            NodeShape::Circle => "circle",
+            NodeShape::Diamond => "diamond",
+        }
+    }
+
+    fn default_fill_color(&self) -> &'static str {
+        match self {
+            NodeShape::Rectangle => "#fde68a",
+            NodeShape::Stadium => "#c4f1f9",
+            NodeShape::Circle => "#e9d8fd",
+            NodeShape::Diamond => "#fbcfe8",
+        }
+    }
+
+    fn format_spec(&self, id: &str, label: &str) -> String {
+        match self {
+            NodeShape::Rectangle => {
+                if label == id {
+                    id.to_string()
+                } else {
+                    format!("{id}[{label}]")
+                }
+            }
+            NodeShape::Stadium => format!("{id}({label})"),
+            NodeShape::Circle => format!("{id}(({label}))"),
+            NodeShape::Diamond => format!("{id}{{{label}}}"),
+        }
+    }
+}
+
+impl Direction {
+    fn as_token(&self) -> &'static str {
+        match self {
+            Direction::TopDown => "TD",
+            Direction::LeftRight => "LR",
+            Direction::BottomTop => "BT",
+            Direction::RightLeft => "RL",
+        }
+    }
+}
+
+impl EdgeKind {
+    pub fn arrow_token(&self) -> &'static str {
+        match self {
+            EdgeKind::Solid => "-->",
+            EdgeKind::Dashed => "-.->",
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EdgeKind::Solid => "solid",
+            EdgeKind::Dashed => "dashed",
+        }
+    }
+}
+
+pub fn align_geometry(
+    positions: &HashMap<String, Point>,
+    routes: &HashMap<String, Vec<Point>>,
+) -> Result<Geometry> {
+    if positions.is_empty() {
+        bail!("diagram does not declare any nodes");
+    }
+
+    let mut min_x = f32::MAX;
+    let mut max_x = f32::MIN;
+    let mut min_y = f32::MAX;
+    let mut max_y = f32::MIN;
+
+    for point in positions.values() {
+        min_x = min_x.min(point.x - NODE_WIDTH / 2.0);
+        max_x = max_x.max(point.x + NODE_WIDTH / 2.0);
+        min_y = min_y.min(point.y - NODE_HEIGHT / 2.0);
+        max_y = max_y.max(point.y + NODE_HEIGHT / 2.0);
+    }
+
+    if min_x > max_x || min_y > max_y {
+        bail!("unable to compute diagram bounds");
+    }
+
+    let width = (max_x - min_x).max(NODE_WIDTH) + LAYOUT_MARGIN * 2.0;
+    let height = (max_y - min_y).max(NODE_HEIGHT) + LAYOUT_MARGIN * 2.0;
+
+    let shift_x = LAYOUT_MARGIN - min_x;
+    let shift_y = LAYOUT_MARGIN - min_y;
+
+    let mut shifted_positions = HashMap::new();
+    for (id, point) in positions {
+        shifted_positions.insert(
+            id.clone(),
+            Point {
+                x: point.x + shift_x,
+                y: point.y + shift_y,
+            },
+        );
+    }
+
+    let mut shifted_routes = HashMap::new();
+    for (id, path) in routes {
+        let mut shifted = Vec::with_capacity(path.len());
+        for point in path {
+            shifted.push(Point {
+                x: point.x + shift_x,
+                y: point.y + shift_y,
+            });
+        }
+        shifted_routes.insert(id.clone(), shifted);
+    }
+
+    Ok(Geometry {
+        positions: shifted_positions,
+        edges: shifted_routes,
+        width,
+        height,
+    })
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Point {
+    x: f32,
+    y: f32,
+}
+
+
+pub fn centroid(points: &[Point]) -> Point {
+    if points.is_empty() {
+        return Point { x: 0.0, y: 0.0 };
+    }
+
+    let (sum_x, sum_y) = points.iter().fold((0.0_f32, 0.0_f32), |acc, point| {
+        (acc.0 + point.x, acc.1 + point.y)
+    });
+    let count = points.len() as f32;
+    Point {
+        x: sum_x / count,
+        y: sum_y / count,
+    }
+}
+
+pub fn edge_identifier(edge: &Edge) -> String {
+    format!("{} {} {}", edge.from, edge.kind.arrow_token(), edge.to)
+}
+
+fn parse_graph_header(line: &str) -> Result<Direction> {
+    let mut parts = line.split_whitespace();
+    let keyword = parts
+        .next()
+        .ok_or_else(|| anyhow!("empty header line"))?
+        .to_ascii_lowercase();
+
+    if keyword != "graph" {
+        bail!("diagram must start with 'graph', found '{keyword}'");
+    }
+
+    let direction_token = parts.next().unwrap_or("TD").trim().to_ascii_uppercase();
+    let direction = match direction_token.as_str() {
+        "TD" | "TB" => Direction::TopDown,
+        "BT" => Direction::BottomTop,
+        "LR" => Direction::LeftRight,
+        "RL" => Direction::RightLeft,
+        other => {
+            bail!("unsupported direction '{other}' in header; supported values are TD, BT, LR, RL")
+        }
+    };
+
+    Ok(direction)
+}
+
+fn parse_edge_line(
+    line: &str,
+    nodes: &mut HashMap<String, Node>,
+    order: &mut Vec<String>,
+) -> Result<Option<Edge>> {
+    const EDGE_PATTERNS: [(&str, EdgeKind); 2] =
+        [("-.->", EdgeKind::Dashed), ("-->", EdgeKind::Solid)];
+
+    let mut parts = None;
+    for (pattern, kind) in EDGE_PATTERNS {
+        if let Some((lhs, rhs)) = line.split_once(pattern) {
+            parts = Some((lhs.trim(), rhs.trim(), kind));
+            break;
+        }
+    }
+
+    let Some((lhs, rhs, kind)) = parts else {
+        return Ok(None);
+    };
+
+    let (label, rhs_clean) = if let Some(rest) = rhs.strip_prefix('|') {
+        let Some(end_idx) = rest.find('|') else {
+            bail!("edge label missing closing '|' in line: '{line}'");
+        };
+        let label = rest[..end_idx].trim();
+        let target = rest[end_idx + 1..].trim();
+        (Some(label.to_string()), target)
+    } else {
+        (None, rhs)
+    };
+
+    let from_id = intern_node(lhs, nodes, order)?;
+    let to_id = intern_node(rhs_clean, nodes, order)?;
+
+    Ok(Some(Edge {
+        from: from_id,
+        to: to_id,
+        label,
+        kind,
+    }))
+}
+
+fn intern_node(
+    raw: &str,
+    nodes: &mut HashMap<String, Node>,
+    order: &mut Vec<String>,
+) -> Result<String> {
+    let spec = NodeSpec::parse(raw)?;
+    match nodes.entry(spec.id.clone()) {
+        Entry::Vacant(entry) => {
+            order.push(spec.id.clone());
+            entry.insert(Node {
+                label: spec.label,
+                shape: spec.shape,
+            });
+        }
+        Entry::Occupied(_) => {}
+    }
+    Ok(spec.id)
+}
+
+struct NodeSpec {
+    id: String,
+    label: String,
+    shape: NodeShape,
+}
+
+impl NodeSpec {
+    fn parse(raw: &str) -> Result<Self> {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            bail!("encountered empty node reference");
+        }
+
+        let mut id_end = trimmed.len();
+        for (idx, ch) in trimmed.char_indices() {
+            if matches!(ch, '[' | '(' | '{') {
+                id_end = idx;
+                break;
+            }
+        }
+
+        let id = trimmed[..id_end].trim();
+        if id.is_empty() {
+            bail!("node identifier missing in segment '{trimmed}'");
+        }
+
+        let remainder = trimmed[id_end..].trim();
+        let (label, shape) = if remainder.is_empty() {
+            (id.to_string(), NodeShape::Rectangle)
+        } else if remainder.starts_with("((") && remainder.ends_with("))") && remainder.len() >= 4 {
+            (
+                remainder[2..remainder.len() - 2].trim().to_string(),
+                NodeShape::Circle,
+            )
+        } else if remainder.starts_with('(') && remainder.ends_with(')') && remainder.len() >= 2 {
+            (
+                remainder[1..remainder.len() - 1].trim().to_string(),
+                NodeShape::Stadium,
+            )
+        } else if remainder.starts_with('[') && remainder.ends_with(']') && remainder.len() >= 2 {
+            (
+                remainder[1..remainder.len() - 1].trim().to_string(),
+                NodeShape::Rectangle,
+            )
+        } else if remainder.starts_with('{') && remainder.ends_with('}') && remainder.len() >= 2 {
+            (
+                remainder[1..remainder.len() - 1].trim().to_string(),
+                NodeShape::Diamond,
+            )
+        } else {
+            (trimmed.to_string(), NodeShape::Rectangle)
+        };
+
+        Ok(NodeSpec {
+            id: id.to_string(),
+            label: if label.is_empty() {
+                id.to_string()
+            } else {
+                label
+            },
+            shape,
+        })
+    }
+}
+

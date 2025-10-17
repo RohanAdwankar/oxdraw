@@ -6,6 +6,7 @@ use clap::{ArgAction, Parser, ValueEnum};
 
 use crate::serve::{run_serve};
 use crate::diagram::*;
+use crate::serve::{split_source_and_overrides};
 
 use crate::*;
 

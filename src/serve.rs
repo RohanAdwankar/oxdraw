@@ -7,6 +7,9 @@ use axum::http::{StatusCode};
 use axum::response::{IntoResponse};
 use axum::routing::{delete, get, put};
 use axum::{Router,Json};
+use axum::response::{Response};
+use axum::http::{HeaderValue,header};
+use axum::extract::{Path as AxumPath, State};
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
 use tower::ServiceExt;
@@ -580,3 +583,114 @@ async fn delete_edge(
 fn internal_error(err: anyhow::Error) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
 }
+
+fn merge_source_and_overrides(definition: &str, overrides: &LayoutOverrides) -> Result<String> {
+    let trimmed = definition.trim_end_matches('\n');
+    let mut output = trimmed.to_string();
+    output.push('\n');
+
+    if overrides.is_empty() {
+        return Ok(output);
+    }
+
+    output.push('\n');
+    output.push_str(LAYOUT_BLOCK_START);
+    output.push('\n');
+
+    let json = serde_json::to_string_pretty(overrides)?;
+    for line in json.lines() {
+        output.push_str("%% ");
+        output.push_str(line);
+        output.push('\n');
+    }
+
+    output.push_str(LAYOUT_BLOCK_END);
+    output.push('\n');
+
+    Ok(output)
+}
+
+pub fn split_source_and_overrides(source: &str) -> Result<(String, LayoutOverrides)> {
+    let mut definition_lines = Vec::new();
+    let mut layout_lines = Vec::new();
+    let mut in_block = false;
+    let mut found_block = false;
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.eq_ignore_ascii_case(LAYOUT_BLOCK_START) {
+            if in_block {
+                bail!("nested '{}' sections are not supported", LAYOUT_BLOCK_START);
+            }
+            in_block = true;
+            found_block = true;
+            continue;
+        }
+        if trimmed.eq_ignore_ascii_case(LAYOUT_BLOCK_END) {
+            if !in_block {
+                bail!(
+                    "encountered '{}' without a matching start",
+                    LAYOUT_BLOCK_END
+                );
+            }
+            in_block = false;
+            continue;
+        }
+
+        if in_block {
+            if trimmed.is_empty() {
+                continue;
+            }
+            let mut segment = line.trim_start();
+            if let Some(rest) = segment.strip_prefix("%%") {
+                segment = rest.trim_start();
+            }
+            layout_lines.push(segment.to_string());
+        } else {
+            definition_lines.push(line);
+        }
+    }
+
+    if in_block {
+        bail!(
+            "layout metadata block was not terminated with '{}'",
+            LAYOUT_BLOCK_END
+        );
+    }
+
+    let mut definition = definition_lines.join("\n");
+    if source.ends_with('\n') {
+        definition.push('\n');
+    }
+
+    let overrides = if found_block {
+        let json = layout_lines.join("\n");
+        if json.trim().is_empty() {
+            LayoutOverrides::default()
+        } else {
+            serde_json::from_str(&json)
+                .with_context(|| "failed to parse embedded oxdraw layout block")?
+        }
+    } else {
+        LayoutOverrides::default()
+    };
+
+    Ok((definition, overrides))
+}
+
+#[derive(Debug, Serialize)]
+struct SourcePayload {
+    source: String,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct EdgeStylePatch {
+    #[serde(default)]
+    line: Option<Option<EdgeKind>>,
+    #[serde(default)]
+    color: Option<Option<String>>,
+    #[serde(default)]
+    arrow: Option<Option<EdgeArrowDirection>>,
+}
+
+
