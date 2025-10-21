@@ -17,6 +17,7 @@ import {
   EdgeArrowDirection,
   EdgeData,
   EdgeKind,
+  Size,
   Point,
 } from "../lib/types";
 
@@ -27,6 +28,15 @@ const HANDLE_RADIUS = 6;
 const EPSILON = 0.5;
 const GRID_SIZE = 10;
 const ALIGN_THRESHOLD = 8;
+const EDGE_LABEL_MIN_WIDTH = 36;
+const EDGE_LABEL_MIN_HEIGHT = 28;
+const EDGE_LABEL_LINE_HEIGHT = 16;
+const EDGE_LABEL_FONT_SIZE = 13;
+const EDGE_LABEL_HORIZONTAL_PADDING = 16;
+const EDGE_LABEL_VERTICAL_PADDING = 12;
+const EDGE_LABEL_BORDER_RADIUS = 6;
+const EDGE_LABEL_BACKGROUND = "white";
+const EDGE_LABEL_BACKGROUND_OPACITY = 0.96;
 
 const SHAPE_COLORS: Record<DiagramData["nodes"][number]["shape"], string> = {
   rectangle: "#FDE68A", // pastel amber
@@ -176,6 +186,30 @@ function distanceToSegment(point: Point, start: Point, end: Point): number {
   const projectionX = start.x + t * vx;
   const projectionY = start.y + t * vy;
   return Math.hypot(point.x - projectionX, point.y - projectionY);
+}
+
+function normalizeLabelLines(label: string): string[] {
+  return label
+    .split("\n")
+    .map((line) => (line.length === 0 ? "\u00A0" : line));
+}
+
+function measureLabelBox(lines: string[]): Size {
+  let maxChars = 0;
+  for (const line of lines) {
+    maxChars = Math.max(maxChars, line.length);
+  }
+
+  const width = Math.max(
+    EDGE_LABEL_MIN_WIDTH,
+    7.4 * maxChars + EDGE_LABEL_HORIZONTAL_PADDING
+  );
+  const height = Math.max(
+    EDGE_LABEL_MIN_HEIGHT,
+    EDGE_LABEL_LINE_HEIGHT * lines.length + EDGE_LABEL_VERTICAL_PADDING
+  );
+
+  return { width, height };
 }
 
 function snapToGrid(value: number): number {
@@ -1060,6 +1094,54 @@ export default function DiagramCanvas({
               ? "url(#arrow-end)"
               : undefined;
 
+          const labelDisplayPoint = primaryHandlePoint
+            ? labelScreen
+            : { x: labelScreen.x, y: labelScreen.y + labelOffsetY };
+          const labelLines = edge.label ? normalizeLabelLines(edge.label) : [];
+          const labelSize = edge.label ? measureLabelBox(labelLines) : null;
+          const labelStroke = edgeSelected ? "#f472b6" : color;
+          const labelBaselineStart = -((labelLines.length - 1) * EDGE_LABEL_LINE_HEIGHT) / 2;
+
+          const renderLabelText = (pointerEvents: "none" | "auto") => {
+            if (labelLines.length === 0) {
+              return null;
+            }
+            if (labelLines.length === 1) {
+              return (
+                <text
+                  className="edge-label"
+                  textAnchor="middle"
+                  fontSize={EDGE_LABEL_FONT_SIZE}
+                  dominantBaseline="middle"
+                  pointerEvents={pointerEvents}
+                >
+                  {labelLines[0]}
+                </text>
+              );
+            }
+
+            return (
+              <text
+                className="edge-label"
+                textAnchor="middle"
+                fontSize={EDGE_LABEL_FONT_SIZE}
+                dominantBaseline="middle"
+                pointerEvents={pointerEvents}
+              >
+                {labelLines.map((line, idx) => (
+                  <tspan
+                    key={`${edge.id}-label-line-${idx}`}
+                    x={0}
+                    y={labelBaselineStart + idx * EDGE_LABEL_LINE_HEIGHT}
+                    dominantBaseline="middle"
+                  >
+                    {line}
+                  </tspan>
+                ))}
+              </text>
+            );
+          };
+
           return (
             <g
               key={edge.id}
@@ -1112,10 +1194,10 @@ export default function DiagramCanvas({
                   }
                 />
               )}
-              {edge.label && primaryHandlePoint ? (
+              {edge.label && primaryHandlePoint && labelSize ? (
                 <g
                   className={`edge-label-handle${labelHandleDragging ? " edge-label-handle-active" : ""}`}
-                  transform={`translate(${labelScreen.x}, ${labelScreen.y})`}
+                  transform={`translate(${labelDisplayPoint.x}, ${labelDisplayPoint.y})`}
                   onPointerDown={(event: ReactPointerEvent<SVGElement>) =>
                     handleHandlePointerDown(
                       edge.id,
@@ -1130,20 +1212,41 @@ export default function DiagramCanvas({
                     handleHandleDoubleClick(edge.id);
                   }}
                 >
-                  <text className="edge-label" textAnchor="middle" dominantBaseline="middle">
-                    {edge.label}
-                  </text>
+                  <rect
+                    x={-labelSize.width / 2}
+                    y={-labelSize.height / 2}
+                    width={labelSize.width}
+                    height={labelSize.height}
+                    rx={EDGE_LABEL_BORDER_RADIUS}
+                    ry={EDGE_LABEL_BORDER_RADIUS}
+                    fill={EDGE_LABEL_BACKGROUND}
+                    fillOpacity={EDGE_LABEL_BACKGROUND_OPACITY}
+                    stroke={labelStroke}
+                    strokeWidth={1}
+                    pointerEvents="none"
+                  />
+                  {renderLabelText("auto")}
                 </g>
-              ) : edge.label ? (
-                <text
-                  className="edge-label"
-                  x={labelScreen.x}
-                  y={labelScreen.y + labelOffsetY}
-                  textAnchor="middle"
-                  dominantBaseline="central"
+              ) : edge.label && labelSize ? (
+                <g
+                  className="edge-label-group"
+                  transform={`translate(${labelDisplayPoint.x}, ${labelDisplayPoint.y})`}
                 >
-                  {edge.label}
-                </text>
+                  <rect
+                    x={-labelSize.width / 2}
+                    y={-labelSize.height / 2}
+                    width={labelSize.width}
+                    height={labelSize.height}
+                    rx={EDGE_LABEL_BORDER_RADIUS}
+                    ry={EDGE_LABEL_BORDER_RADIUS}
+                    fill={EDGE_LABEL_BACKGROUND}
+                    fillOpacity={EDGE_LABEL_BACKGROUND_OPACITY}
+                    stroke={labelStroke}
+                    strokeWidth={1}
+                    pointerEvents="none"
+                  />
+                  {renderLabelText("none")}
+                </g>
               ) : null}
               {handlePoints
                 .map((point: Point, index: number) => ({ point, index }))

@@ -172,6 +172,15 @@ body > div:first-of-type {
   cursor: grabbing;
 }
 
+.edge-label-group {
+  pointer-events: none;
+}
+
+.edge-label-group rect,
+.edge-label-handle rect {
+  filter: drop-shadow(0 6px 16px rgba(15, 23, 42, 0.18));
+}
+
 .node rect,
 .node ellipse,
 .node polygon {
