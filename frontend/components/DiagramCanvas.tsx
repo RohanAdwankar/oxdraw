@@ -124,6 +124,7 @@ interface EdgeView {
   hasOverride: boolean;
   color: string;
   arrowDirection: EdgeArrowDirection;
+  labelHandleIndex: number | null;
 }
 
 interface ContextMenuState {
@@ -152,6 +153,29 @@ function centroid(points: readonly Point[]): Point {
     sumY += point.y;
   }
   return { x: sumX / points.length, y: sumY / points.length };
+}
+
+function distanceToSegment(point: Point, start: Point, end: Point): number {
+  const vx = end.x - start.x;
+  const vy = end.y - start.y;
+  const wx = point.x - start.x;
+  const wy = point.y - start.y;
+  const lengthSquared = vx * vx + vy * vy;
+
+  if (lengthSquared === 0) {
+    return Math.hypot(point.x - start.x, point.y - start.y);
+  }
+
+  let t = (wx * vx + wy * vy) / lengthSquared;
+  if (t < 0) {
+    t = 0;
+  } else if (t > 1) {
+    t = 1;
+  }
+
+  const projectionX = start.x + t * vx;
+  const projectionY = start.y + t * vy;
+  return Math.hypot(point.x - projectionX, point.y - projectionY);
 }
 
 function snapToGrid(value: number): number {
@@ -569,8 +593,28 @@ export default function DiagramCanvas({
 
         const overridePoints = draftEdges[edge.id] ?? edge.overridePoints ?? [];
         const hasOverride = overridePoints.length > 0;
+        const fallbackPoint = midpoint(from, to);
+        const handlePoints = hasOverride ? overridePoints : [fallbackPoint];
+        let labelHandleIndex: number | null = null;
+        if (edge.label && handlePoints.length > 0) {
+          if (handlePoints.length === 1) {
+            labelHandleIndex = 0;
+          } else {
+            const pathForLabel = [from, ...handlePoints, to];
+            const center = centroid(pathForLabel);
+            let bestIndex = 0;
+            let bestDistance = Number.POSITIVE_INFINITY;
+            handlePoints.forEach((point, idx) => {
+              const distance = Math.hypot(point.x - center.x, point.y - center.y);
+              if (distance < bestDistance) {
+                bestDistance = distance;
+                bestIndex = idx;
+              }
+            });
+            labelHandleIndex = bestIndex;
+          }
+        }
         const route = [from, ...overridePoints, to];
-        const handlePoints = hasOverride ? overridePoints : [midpoint(from, to)];
         const color = edge.color ?? DEFAULT_EDGE_COLOR;
         const arrowDirection = edge.arrowDirection ?? "forward";
 
@@ -581,6 +625,7 @@ export default function DiagramCanvas({
           hasOverride,
           color,
           arrowDirection,
+          labelHandleIndex,
         };
       })
       .filter((value): value is EdgeView => value !== null);
@@ -598,14 +643,14 @@ export default function DiagramCanvas({
   const verticalGuide = alignmentGuides.vertical;
   const horizontalGuide = alignmentGuides.horizontal;
 
-  const clientToDiagram = (event: ReactPointerEvent): Point | null => {
+  const getDiagramPointFromClient = (clientX: number, clientY: number): Point | null => {
     const svg = svgRef.current;
     if (!svg) {
       return null;
     }
     const point = svg.createSVGPoint();
-    point.x = event.clientX;
-    point.y = event.clientY;
+    point.x = clientX;
+    point.y = clientY;
     const ctm = svg.getScreenCTM();
     if (!ctm) {
       return null;
@@ -615,6 +660,10 @@ export default function DiagramCanvas({
       x: transformed.x - bounds.offsetX,
       y: transformed.y - bounds.offsetY,
     };
+  };
+
+  const clientToDiagram = (event: ReactPointerEvent): Point | null => {
+    return getDiagramPointFromClient(event.clientX, event.clientY);
   };
 
   const handleCanvasPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -665,7 +714,7 @@ export default function DiagramCanvas({
     index: number,
     availablePoints: Point[],
     hasOverride: boolean,
-    event: ReactPointerEvent<SVGCircleElement>
+    event: ReactPointerEvent<SVGElement>
   ) => {
     event.preventDefault();
     event.stopPropagation();
@@ -700,6 +749,50 @@ export default function DiagramCanvas({
 
   const handleEdgeContextMenu = (edgeId: string, event: ReactMouseEvent<SVGElement>) => {
     openContextMenu(event, { type: "edge", id: edgeId });
+    onSelectEdge(edgeId);
+    onSelectNode(null);
+  };
+
+  const handleEdgeDoubleClick = (
+    edgeId: string,
+    handlePoints: Point[],
+    pathPoints: Point[],
+    event: ReactMouseEvent<Element>
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const diagramPoint = getDiagramPointFromClient(event.clientX, event.clientY);
+    if (!diagramPoint) {
+      return;
+    }
+
+    const basePoints = handlePoints.map((point) => ({ ...point }));
+
+    if (basePoints.some((point) => isClose(point, diagramPoint))) {
+      return;
+    }
+
+    if (basePoints.length === 0) {
+      basePoints.push(diagramPoint);
+    } else {
+      let bestSegment = 0;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (let index = 0; index < pathPoints.length - 1; index += 1) {
+        const distance = distanceToSegment(diagramPoint, pathPoints[index], pathPoints[index + 1]);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestSegment = index;
+        }
+      }
+
+      const insertIndex = Math.min(bestSegment, basePoints.length);
+      basePoints.splice(insertIndex, 0, diagramPoint);
+    }
+
+    const nextPoints = basePoints.map((point) => ({ ...point }));
+    setDraftEdges((prev: DraftEdges) => ({ ...prev, [edgeId]: nextPoints }));
+    onEdgeMove(edgeId, nextPoints);
     onSelectEdge(edgeId);
     onSelectNode(null);
   };
@@ -936,7 +1029,7 @@ export default function DiagramCanvas({
         onContextMenu={handleCanvasContextMenu}
       >
         {edges.map((view: EdgeView) => {
-          const { edge, route, handlePoints, hasOverride, color, arrowDirection } = view;
+          const { edge, route, handlePoints, hasOverride, color, arrowDirection, labelHandleIndex } = view;
           const screenRoute = route.map(toScreen);
           const pathPoints = screenRoute.map((point: Point) => `${point.x},${point.y}`).join(" ");
           const from = finalPositions.get(edge.from);
@@ -945,8 +1038,17 @@ export default function DiagramCanvas({
             return null;
           }
 
-          const labelPoint = centroid(route);
+          const insertionPath = [from, ...handlePoints, to];
+          const primaryHandlePoint =
+            labelHandleIndex !== null ? handlePoints[labelHandleIndex] : null;
+          const labelPoint = primaryHandlePoint ?? centroid(route);
           const labelScreen = toScreen(labelPoint);
+          const labelOffsetY = primaryHandlePoint ? 0 : -10;
+          const labelHandleDragging =
+            primaryHandlePoint &&
+            dragState?.type === "edge" &&
+            dragState.id === edge.id &&
+            dragState.index === labelHandleIndex;
 
           const edgeSelected = selectedEdgeId === edge.id;
           const markerStart =
@@ -986,6 +1088,9 @@ export default function DiagramCanvas({
                   onContextMenu={(event: ReactMouseEvent<SVGLineElement>) =>
                     handleEdgeContextMenu(edge.id, event)
                   }
+                  onDoubleClick={(event: ReactMouseEvent<SVGLineElement>) =>
+                    handleEdgeDoubleClick(edge.id, handlePoints, insertionPath, event)
+                  }
                 />
               ) : (
                 <polyline
@@ -1002,15 +1107,49 @@ export default function DiagramCanvas({
                   onContextMenu={(event: ReactMouseEvent<SVGPolylineElement>) =>
                     handleEdgeContextMenu(edge.id, event)
                   }
+                  onDoubleClick={(event: ReactMouseEvent<SVGPolylineElement>) =>
+                    handleEdgeDoubleClick(edge.id, handlePoints, insertionPath, event)
+                  }
                 />
               )}
-              {edge.label && (
-                <text className="edge-label" x={labelScreen.x} y={labelScreen.y - 10} textAnchor="middle">
+              {edge.label && primaryHandlePoint ? (
+                <g
+                  className={`edge-label-handle${labelHandleDragging ? " edge-label-handle-active" : ""}`}
+                  transform={`translate(${labelScreen.x}, ${labelScreen.y})`}
+                  onPointerDown={(event: ReactPointerEvent<SVGElement>) =>
+                    handleHandlePointerDown(
+                      edge.id,
+                      labelHandleIndex ?? 0,
+                      handlePoints,
+                      hasOverride,
+                      event
+                    )
+                  }
+                  onDoubleClick={(event: ReactMouseEvent<SVGGElement>) => {
+                    event.stopPropagation();
+                    handleHandleDoubleClick(edge.id);
+                  }}
+                >
+                  <text className="edge-label" textAnchor="middle" dominantBaseline="middle">
+                    {edge.label}
+                  </text>
+                </g>
+              ) : edge.label ? (
+                <text
+                  className="edge-label"
+                  x={labelScreen.x}
+                  y={labelScreen.y + labelOffsetY}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                >
                   {edge.label}
                 </text>
-              )}
-              {handlePoints.map((point: Point, index: number) => {
-                const screen = toScreen(point);
+              ) : null}
+              {handlePoints
+                .map((point: Point, index: number) => ({ point, index }))
+                .filter(({ index }) => labelHandleIndex === null || index !== labelHandleIndex)
+                .map(({ point, index }) => {
+                  const screen = toScreen(point);
                 return (
                   <circle
                     key={`${edge.id}-handle-${index}`}
@@ -1021,10 +1160,13 @@ export default function DiagramCanvas({
                     onPointerDown={(event: ReactPointerEvent<SVGCircleElement>) =>
                       handleHandlePointerDown(edge.id, index, handlePoints, hasOverride, event)
                     }
-                    onDoubleClick={() => handleHandleDoubleClick(edge.id)}
+                    onDoubleClick={(event: ReactMouseEvent<SVGCircleElement>) => {
+                      event.stopPropagation();
+                      handleHandleDoubleClick(edge.id);
+                    }}
                   />
-                );
-              })}
+                  );
+                })}
             </g>
           );
         })}
