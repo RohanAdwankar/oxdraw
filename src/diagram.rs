@@ -167,16 +167,39 @@ impl Diagram {
             }
 
             if let Some(label) = &edge.label {
-                let centroid = centroid(&route);
-                let label_center = Point {
-                    x: centroid.x,
-                    y: centroid.y - 10.0,
+                let handle_points: Vec<Point> = route
+                    .iter()
+                    .skip(1)
+                    .take(route.len().saturating_sub(2))
+                    .cloned()
+                    .collect();
+
+                let fallback = centroid(&route);
+                let label_center = if handle_points.is_empty() {
+                    Point {
+                        x: fallback.x,
+                        y: fallback.y - 10.0,
+                    }
+                } else if handle_points.len() == 1 {
+                    handle_points[0]
+                } else {
+                    let mut best = handle_points[0];
+                    let mut best_distance = f32::INFINITY;
+                    for point in handle_points.iter().copied() {
+                        let distance = ((point.x - fallback.x).powi(2) + (point.y - fallback.y).powi(2)).sqrt();
+                        if distance < best_distance {
+                            best_distance = distance;
+                            best = point;
+                        }
+                    }
+                    best
                 };
 
                 let lines: Vec<String> = label
                     .split('\n')
                     .map(|line| if line.is_empty() { " ".to_string() } else { line.to_string() })
                     .collect();
+
                 let max_chars = lines
                     .iter()
                     .map(|line| line.chars().count())
