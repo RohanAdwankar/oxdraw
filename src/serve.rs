@@ -391,8 +391,8 @@ async fn get_diagram(
     let overrides = state.current_overrides().await;
 
     let layout = diagram.layout(Some(&overrides)).map_err(internal_error)?;
-    let geometry =
-        align_geometry(&layout.final_positions, &layout.final_routes).map_err(internal_error)?;
+    let geometry = align_geometry(&layout.final_positions, &layout.final_routes, &diagram.edges)
+        .map_err(internal_error)?;
 
     let mut nodes = Vec::new();
     for id in &diagram.order {

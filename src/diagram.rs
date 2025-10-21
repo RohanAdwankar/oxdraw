@@ -76,8 +76,8 @@ impl Diagram {
     }
 
     pub fn render_svg(&self, background: &str, overrides: Option<&LayoutOverrides>) -> Result<String> {
-        let layout = self.layout(overrides)?;
-        let geometry = align_geometry(&layout.final_positions, &layout.final_routes)?;
+    let layout = self.layout(overrides)?;
+    let geometry = align_geometry(&layout.final_positions, &layout.final_routes, &self.edges)?;
 
         let mut svg = String::new();
         write!(
@@ -167,46 +167,14 @@ impl Diagram {
             }
 
             if let Some(label) = &edge.label {
-                let handle_points: Vec<Point> = route
-                    .iter()
-                    .skip(1)
-                    .take(route.len().saturating_sub(2))
-                    .cloned()
-                    .collect();
+                let label_center = label_center_for_route(&route);
+                let lines = normalize_label_lines(label);
 
-                let fallback = centroid(&route);
-                let label_center = if handle_points.is_empty() {
-                    Point {
-                        x: fallback.x,
-                        y: fallback.y - 10.0,
-                    }
-                } else if handle_points.len() == 1 {
-                    handle_points[0]
-                } else {
-                    let mut best = handle_points[0];
-                    let mut best_distance = f32::INFINITY;
-                    for point in handle_points.iter().copied() {
-                        let distance = ((point.x - fallback.x).powi(2) + (point.y - fallback.y).powi(2)).sqrt();
-                        if distance < best_distance {
-                            best_distance = distance;
-                            best = point;
-                        }
-                    }
-                    best
-                };
+                if lines.is_empty() {
+                    continue;
+                }
 
-                let lines: Vec<String> = label
-                    .split('\n')
-                    .map(|line| if line.is_empty() { " ".to_string() } else { line.to_string() })
-                    .collect();
-
-                let max_chars = lines
-                    .iter()
-                    .map(|line| line.chars().count())
-                    .max()
-                    .unwrap_or(0) as f32;
-                let box_width = (7.4 * max_chars + 16.0).max(36.0);
-                let box_height = (16.0 * lines.len() as f32 + 12.0).max(28.0);
+                let (box_width, box_height) = measure_label_box(&lines);
                 let rect_x = label_center.x - box_width / 2.0;
                 let rect_y = label_center.y - box_height / 2.0;
 
@@ -221,23 +189,25 @@ impl Diagram {
                 )?;
 
                 if lines.len() <= 1 {
-                    write!(
-                        svg,
-                        "    <text x=\"{:.1}\" y=\"{:.1}\" fill=\"#2d3748\" font-size=\"13\" text-anchor=\"middle\" dominant-baseline=\"middle\" xml:space=\"preserve\">{}</text>\n",
-                        label_center.x,
-                        label_center.y,
-                        escape_xml(lines.first().unwrap_or(&String::new()))
-                    )?;
+                    if let Some(single_line) = lines.first() {
+                        write!(
+                            svg,
+                            "    <text x=\"{:.1}\" y=\"{:.1}\" fill=\"#2d3748\" font-size=\"13\" text-anchor=\"middle\" dominant-baseline=\"middle\" xml:space=\"preserve\">{}</text>\n",
+                            label_center.x,
+                            label_center.y,
+                            escape_xml(single_line)
+                        )?;
+                    }
                 } else {
-                    let line_height = 16.0;
-                    let start_y = label_center.y - line_height * (lines.len() as f32 - 1.0) / 2.0;
+                    let start_y = label_center.y
+                        - EDGE_LABEL_LINE_HEIGHT * (lines.len() as f32 - 1.0) / 2.0;
                     write!(
                         svg,
                         "    <text x=\"{:.1}\" fill=\"#2d3748\" font-size=\"13\" text-anchor=\"middle\" xml:space=\"preserve\">\n",
                         label_center.x
                     )?;
                     for (idx, line_text) in lines.iter().enumerate() {
-                        let line_y = start_y + line_height * idx as f32;
+                        let line_y = start_y + EDGE_LABEL_LINE_HEIGHT * idx as f32;
                         write!(
                             svg,
                             "      <tspan x=\"{:.1}\" y=\"{:.1}\" dominant-baseline=\"middle\">{}</tspan>\n",
@@ -671,9 +641,74 @@ impl EdgeKind {
     }
 }
 
+fn normalize_label_lines(label: &str) -> Vec<String> {
+    label
+        .split('\n')
+        .map(|line| if line.is_empty() { " ".to_string() } else { line.to_string() })
+        .collect()
+}
+
+fn measure_label_box(lines: &[String]) -> (f32, f32) {
+    let mut max_chars = 0_usize;
+    for line in lines {
+        max_chars = max_chars.max(line.chars().count());
+    }
+
+    let width = (EDGE_LABEL_CHAR_WIDTH * max_chars as f32 + EDGE_LABEL_HORIZONTAL_PADDING)
+        .max(EDGE_LABEL_MIN_WIDTH);
+    let height = (EDGE_LABEL_LINE_HEIGHT * lines.len() as f32 + EDGE_LABEL_VERTICAL_PADDING)
+        .max(EDGE_LABEL_MIN_HEIGHT);
+
+    (width, height)
+}
+
+fn label_center_for_route(route: &[Point]) -> Point {
+    if route.is_empty() {
+        return Point {
+            x: 0.0,
+            y: -EDGE_LABEL_VERTICAL_OFFSET,
+        };
+    }
+
+    let fallback = centroid(route);
+    if route.len() <= 2 {
+        return Point {
+            x: fallback.x,
+            y: fallback.y - EDGE_LABEL_VERTICAL_OFFSET,
+        };
+    }
+
+    let handle_points = &route[1..route.len() - 1];
+    if handle_points.is_empty() {
+        return Point {
+            x: fallback.x,
+            y: fallback.y - EDGE_LABEL_VERTICAL_OFFSET,
+        };
+    }
+
+    if handle_points.len() == 1 {
+        return handle_points[0];
+    }
+
+    let mut best = handle_points[0];
+    let mut best_distance = f32::INFINITY;
+    for point in handle_points.iter().copied() {
+        let dx = point.x - fallback.x;
+        let dy = point.y - fallback.y;
+        let distance = (dx * dx + dy * dy).sqrt();
+        if distance < best_distance {
+            best_distance = distance;
+            best = point;
+        }
+    }
+
+    best
+}
+
 pub fn align_geometry(
     positions: &HashMap<String, Point>,
     routes: &HashMap<String, Vec<Point>>,
+    edges: &[Edge],
 ) -> Result<Geometry> {
     if positions.is_empty() {
         bail!("diagram does not declare any nodes");
@@ -689,6 +724,39 @@ pub fn align_geometry(
         max_x = max_x.max(point.x + NODE_WIDTH / 2.0);
         min_y = min_y.min(point.y - NODE_HEIGHT / 2.0);
         max_y = max_y.max(point.y + NODE_HEIGHT / 2.0);
+    }
+
+    for path in routes.values() {
+        for point in path {
+            min_x = min_x.min(point.x);
+            max_x = max_x.max(point.x);
+            min_y = min_y.min(point.y);
+            max_y = max_y.max(point.y);
+        }
+    }
+
+    for edge in edges {
+        if let Some(label) = &edge.label {
+            let identifier = edge_identifier(edge);
+            let route = routes
+                .get(&identifier)
+                .ok_or_else(|| anyhow!("missing geometry for edge '{identifier}'"))?;
+
+            let lines = normalize_label_lines(label);
+            if lines.is_empty() {
+                continue;
+            }
+
+            let (box_width, box_height) = measure_label_box(&lines);
+            let center = label_center_for_route(route);
+            let half_w = box_width / 2.0;
+            let half_h = box_height / 2.0;
+
+            min_x = min_x.min(center.x - half_w);
+            max_x = max_x.max(center.x + half_w);
+            min_y = min_y.min(center.y - half_h);
+            max_y = max_y.max(center.y + half_h);
+        }
     }
 
     if min_x > max_x || min_y > max_y {
