@@ -28,6 +28,8 @@ const HANDLE_RADIUS = 6;
 const EPSILON = 0.5;
 const GRID_SIZE = 10;
 const ALIGN_THRESHOLD = 8;
+const BOUNDS_SMOOTHING = 0.18;
+const BOUNDS_EPSILON = 0.5;
 const EDGE_LABEL_MIN_WIDTH = 36;
 const EDGE_LABEL_MIN_HEIGHT = 28;
 const EDGE_LABEL_LINE_HEIGHT = 16;
@@ -588,7 +590,7 @@ export default function DiagramCanvas({
     return map;
   }, [diagram.nodes, draftNodes]);
 
-  const bounds = useMemo(() => {
+  const fitBounds = useMemo(() => {
     // Zoom-to-fit: include all nodes, edge control points, and label backgrounds.
     let minX = Infinity;
     let minY = Infinity;
@@ -670,6 +672,49 @@ export default function DiagramCanvas({
 
     return { width, height, offsetX, offsetY };
   }, [diagram.edges, draftEdges, finalPositions]);
+
+  const [bounds, setBounds] = useState(() => fitBounds);
+
+  useEffect(() => {
+    let frame: number | null = null;
+
+    const animate = () => {
+      let finished = false;
+      setBounds((prev) => {
+        const lerp = (a: number, b: number) => a + (b - a) * BOUNDS_SMOOTHING;
+        const next = {
+          width: lerp(prev.width, fitBounds.width),
+          height: lerp(prev.height, fitBounds.height),
+          offsetX: lerp(prev.offsetX, fitBounds.offsetX),
+          offsetY: lerp(prev.offsetY, fitBounds.offsetY),
+        };
+
+        const closeEnough =
+          Math.abs(next.width - fitBounds.width) < BOUNDS_EPSILON &&
+          Math.abs(next.height - fitBounds.height) < BOUNDS_EPSILON &&
+          Math.abs(next.offsetX - fitBounds.offsetX) < BOUNDS_EPSILON &&
+          Math.abs(next.offsetY - fitBounds.offsetY) < BOUNDS_EPSILON;
+
+        if (closeEnough) {
+          finished = true;
+          return fitBounds;
+        }
+
+        return next;
+      });
+
+      if (!finished) {
+        frame = requestAnimationFrame(animate);
+      }
+    };
+
+    frame = requestAnimationFrame(animate);
+    return () => {
+      if (frame !== null) {
+        cancelAnimationFrame(frame);
+      }
+    };
+  }, [fitBounds]);
 
   const edges = useMemo<EdgeView[]>(() => {
     return diagram.edges
