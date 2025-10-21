@@ -17,6 +17,7 @@ import {
   EdgeArrowDirection,
   EdgeData,
   EdgeKind,
+  Size,
   Point,
 } from "../lib/types";
 
@@ -27,6 +28,17 @@ const HANDLE_RADIUS = 6;
 const EPSILON = 0.5;
 const GRID_SIZE = 10;
 const ALIGN_THRESHOLD = 8;
+const BOUNDS_SMOOTHING = 0.18;
+const BOUNDS_EPSILON = 0.5;
+const EDGE_LABEL_MIN_WIDTH = 36;
+const EDGE_LABEL_MIN_HEIGHT = 28;
+const EDGE_LABEL_LINE_HEIGHT = 16;
+const EDGE_LABEL_FONT_SIZE = 13;
+const EDGE_LABEL_HORIZONTAL_PADDING = 16;
+const EDGE_LABEL_VERTICAL_PADDING = 12;
+const EDGE_LABEL_BORDER_RADIUS = 6;
+const EDGE_LABEL_BACKGROUND = "white";
+const EDGE_LABEL_BACKGROUND_OPACITY = 0.96;
 
 const SHAPE_COLORS: Record<DiagramData["nodes"][number]["shape"], string> = {
   rectangle: "#FDE68A", // pastel amber
@@ -124,6 +136,7 @@ interface EdgeView {
   hasOverride: boolean;
   color: string;
   arrowDirection: EdgeArrowDirection;
+  labelHandleIndex: number | null;
 }
 
 interface ContextMenuState {
@@ -152,6 +165,53 @@ function centroid(points: readonly Point[]): Point {
     sumY += point.y;
   }
   return { x: sumX / points.length, y: sumY / points.length };
+}
+
+function distanceToSegment(point: Point, start: Point, end: Point): number {
+  const vx = end.x - start.x;
+  const vy = end.y - start.y;
+  const wx = point.x - start.x;
+  const wy = point.y - start.y;
+  const lengthSquared = vx * vx + vy * vy;
+
+  if (lengthSquared === 0) {
+    return Math.hypot(point.x - start.x, point.y - start.y);
+  }
+
+  let t = (wx * vx + wy * vy) / lengthSquared;
+  if (t < 0) {
+    t = 0;
+  } else if (t > 1) {
+    t = 1;
+  }
+
+  const projectionX = start.x + t * vx;
+  const projectionY = start.y + t * vy;
+  return Math.hypot(point.x - projectionX, point.y - projectionY);
+}
+
+function normalizeLabelLines(label: string): string[] {
+  return label
+    .split("\n")
+    .map((line) => (line.length === 0 ? "\u00A0" : line));
+}
+
+function measureLabelBox(lines: string[]): Size {
+  let maxChars = 0;
+  for (const line of lines) {
+    maxChars = Math.max(maxChars, line.length);
+  }
+
+  const width = Math.max(
+    EDGE_LABEL_MIN_WIDTH,
+    7.4 * maxChars + EDGE_LABEL_HORIZONTAL_PADDING
+  );
+  const height = Math.max(
+    EDGE_LABEL_MIN_HEIGHT,
+    EDGE_LABEL_LINE_HEIGHT * lines.length + EDGE_LABEL_VERTICAL_PADDING
+  );
+
+  return { width, height };
 }
 
 function snapToGrid(value: number): number {
@@ -530,17 +590,72 @@ export default function DiagramCanvas({
     return map;
   }, [diagram.nodes, draftNodes]);
 
-  const bounds = useMemo(() => {
+  const fitBounds = useMemo(() => {
+    // Zoom-to-fit: include all nodes, edge control points, and label backgrounds.
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
     let maxY = -Infinity;
 
+    const extend = (point: Point, halfWidth = 0, halfHeight = 0) => {
+      minX = Math.min(minX, point.x - halfWidth);
+      maxX = Math.max(maxX, point.x + halfWidth);
+      minY = Math.min(minY, point.y - halfHeight);
+      maxY = Math.max(maxY, point.y + halfHeight);
+    };
+
     for (const position of finalPositions.values()) {
-      minX = Math.min(minX, position.x - NODE_WIDTH / 2);
-      maxX = Math.max(maxX, position.x + NODE_WIDTH / 2);
-      minY = Math.min(minY, position.y - NODE_HEIGHT / 2);
-      maxY = Math.max(maxY, position.y + NODE_HEIGHT / 2);
+      extend(position, NODE_WIDTH / 2, NODE_HEIGHT / 2);
+    }
+
+    for (const edge of diagram.edges) {
+      const from = finalPositions.get(edge.from);
+      const to = finalPositions.get(edge.to);
+      if (!from || !to) {
+        continue;
+      }
+
+      const overridePoints = draftEdges[edge.id] ?? edge.overridePoints ?? [];
+      const handlePoints = overridePoints.length > 0 ? overridePoints : [midpoint(from, to)];
+      for (const point of handlePoints) {
+        extend(point);
+      }
+
+      if (!edge.label) {
+        continue;
+      }
+
+      let labelHandleIndex: number | null = null;
+      if (handlePoints.length === 1) {
+        labelHandleIndex = 0;
+      } else if (handlePoints.length > 1) {
+        const routeForLabel = [from, ...handlePoints, to];
+        const center = centroid(routeForLabel);
+        let bestIndex = 0;
+        let bestDistance = Number.POSITIVE_INFINITY;
+        handlePoints.forEach((point, idx) => {
+          const distance = Math.hypot(point.x - center.x, point.y - center.y);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestIndex = idx;
+          }
+        });
+        labelHandleIndex = bestIndex;
+      }
+
+      const route = [from, ...overridePoints, to];
+      const centroidPoint = centroid(route);
+      const labelCenter = labelHandleIndex !== null
+        ? handlePoints[labelHandleIndex]
+        : { x: centroidPoint.x, y: centroidPoint.y - 10 };
+
+      const labelLines = normalizeLabelLines(edge.label);
+      if (labelLines.length === 0) {
+        continue;
+      }
+
+      const labelSize = measureLabelBox(labelLines);
+      extend(labelCenter, labelSize.width / 2, labelSize.height / 2);
     }
 
     if (!Number.isFinite(minX)) {
@@ -556,7 +671,50 @@ export default function DiagramCanvas({
     const offsetY = LAYOUT_MARGIN - minY;
 
     return { width, height, offsetX, offsetY };
-  }, [finalPositions]);
+  }, [diagram.edges, draftEdges, finalPositions]);
+
+  const [bounds, setBounds] = useState(() => fitBounds);
+
+  useEffect(() => {
+    let frame: number | null = null;
+
+    const animate = () => {
+      let finished = false;
+      setBounds((prev) => {
+        const lerp = (a: number, b: number) => a + (b - a) * BOUNDS_SMOOTHING;
+        const next = {
+          width: lerp(prev.width, fitBounds.width),
+          height: lerp(prev.height, fitBounds.height),
+          offsetX: lerp(prev.offsetX, fitBounds.offsetX),
+          offsetY: lerp(prev.offsetY, fitBounds.offsetY),
+        };
+
+        const closeEnough =
+          Math.abs(next.width - fitBounds.width) < BOUNDS_EPSILON &&
+          Math.abs(next.height - fitBounds.height) < BOUNDS_EPSILON &&
+          Math.abs(next.offsetX - fitBounds.offsetX) < BOUNDS_EPSILON &&
+          Math.abs(next.offsetY - fitBounds.offsetY) < BOUNDS_EPSILON;
+
+        if (closeEnough) {
+          finished = true;
+          return fitBounds;
+        }
+
+        return next;
+      });
+
+      if (!finished) {
+        frame = requestAnimationFrame(animate);
+      }
+    };
+
+    frame = requestAnimationFrame(animate);
+    return () => {
+      if (frame !== null) {
+        cancelAnimationFrame(frame);
+      }
+    };
+  }, [fitBounds]);
 
   const edges = useMemo<EdgeView[]>(() => {
     return diagram.edges
@@ -569,8 +727,28 @@ export default function DiagramCanvas({
 
         const overridePoints = draftEdges[edge.id] ?? edge.overridePoints ?? [];
         const hasOverride = overridePoints.length > 0;
+        const fallbackPoint = midpoint(from, to);
+        const handlePoints = hasOverride ? overridePoints : [fallbackPoint];
+        let labelHandleIndex: number | null = null;
+        if (edge.label && handlePoints.length > 0) {
+          if (handlePoints.length === 1) {
+            labelHandleIndex = 0;
+          } else {
+            const pathForLabel = [from, ...handlePoints, to];
+            const center = centroid(pathForLabel);
+            let bestIndex = 0;
+            let bestDistance = Number.POSITIVE_INFINITY;
+            handlePoints.forEach((point, idx) => {
+              const distance = Math.hypot(point.x - center.x, point.y - center.y);
+              if (distance < bestDistance) {
+                bestDistance = distance;
+                bestIndex = idx;
+              }
+            });
+            labelHandleIndex = bestIndex;
+          }
+        }
         const route = [from, ...overridePoints, to];
-        const handlePoints = hasOverride ? overridePoints : [midpoint(from, to)];
         const color = edge.color ?? DEFAULT_EDGE_COLOR;
         const arrowDirection = edge.arrowDirection ?? "forward";
 
@@ -581,6 +759,7 @@ export default function DiagramCanvas({
           hasOverride,
           color,
           arrowDirection,
+          labelHandleIndex,
         };
       })
       .filter((value): value is EdgeView => value !== null);
@@ -590,6 +769,16 @@ export default function DiagramCanvas({
     return Array.from(finalPositions.entries());
   }, [finalPositions]);
 
+  const alignmentEntries = useMemo<[string, Point][]>(() => {
+    const combined: [string, Point][] = [...nodeEntries];
+    for (const view of edges) {
+      view.handlePoints.forEach((point, index) => {
+        combined.push([`edge:${view.edge.id}:handle:${index}`, point]);
+      });
+    }
+    return combined;
+  }, [edges, nodeEntries]);
+
   const toScreen = (point: Point) => ({
     x: point.x + bounds.offsetX,
     y: point.y + bounds.offsetY,
@@ -598,14 +787,14 @@ export default function DiagramCanvas({
   const verticalGuide = alignmentGuides.vertical;
   const horizontalGuide = alignmentGuides.horizontal;
 
-  const clientToDiagram = (event: ReactPointerEvent): Point | null => {
+  const getDiagramPointFromClient = (clientX: number, clientY: number): Point | null => {
     const svg = svgRef.current;
     if (!svg) {
       return null;
     }
     const point = svg.createSVGPoint();
-    point.x = event.clientX;
-    point.y = event.clientY;
+    point.x = clientX;
+    point.y = clientY;
     const ctm = svg.getScreenCTM();
     if (!ctm) {
       return null;
@@ -615,6 +804,10 @@ export default function DiagramCanvas({
       x: transformed.x - bounds.offsetX,
       y: transformed.y - bounds.offsetY,
     };
+  };
+
+  const clientToDiagram = (event: ReactPointerEvent): Point | null => {
+    return getDiagramPointFromClient(event.clientX, event.clientY);
   };
 
   const handleCanvasPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -665,7 +858,7 @@ export default function DiagramCanvas({
     index: number,
     availablePoints: Point[],
     hasOverride: boolean,
-    event: ReactPointerEvent<SVGCircleElement>
+    event: ReactPointerEvent<SVGElement>
   ) => {
     event.preventDefault();
     event.stopPropagation();
@@ -704,6 +897,50 @@ export default function DiagramCanvas({
     onSelectNode(null);
   };
 
+  const handleEdgeDoubleClick = (
+    edgeId: string,
+    handlePoints: Point[],
+    pathPoints: Point[],
+    event: ReactMouseEvent<Element>
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const diagramPoint = getDiagramPointFromClient(event.clientX, event.clientY);
+    if (!diagramPoint) {
+      return;
+    }
+
+    const basePoints = handlePoints.map((point) => ({ ...point }));
+
+    if (basePoints.some((point) => isClose(point, diagramPoint))) {
+      return;
+    }
+
+    if (basePoints.length === 0) {
+      basePoints.push(diagramPoint);
+    } else {
+      let bestSegment = 0;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (let index = 0; index < pathPoints.length - 1; index += 1) {
+        const distance = distanceToSegment(diagramPoint, pathPoints[index], pathPoints[index + 1]);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestSegment = index;
+        }
+      }
+
+      const insertIndex = Math.min(bestSegment, basePoints.length);
+      basePoints.splice(insertIndex, 0, diagramPoint);
+    }
+
+    const nextPoints = basePoints.map((point) => ({ ...point }));
+    setDraftEdges((prev: DraftEdges) => ({ ...prev, [edgeId]: nextPoints }));
+    onEdgeMove(edgeId, nextPoints);
+    onSelectEdge(edgeId);
+    onSelectNode(null);
+  };
+
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (!dragState) {
       return;
@@ -718,7 +955,7 @@ export default function DiagramCanvas({
         x: diagramPoint.x - dragState.offset.x,
         y: diagramPoint.y - dragState.offset.y,
       };
-      const alignment = computeNodeAlignment(dragState.id, proposed, nodeEntries, ALIGN_THRESHOLD);
+      const alignment = computeNodeAlignment(dragState.id, proposed, alignmentEntries, ALIGN_THRESHOLD);
       const snappedPosition = {
         x: alignment.appliedX ? alignment.position.x : snapToGrid(alignment.position.x),
         y: alignment.appliedY ? alignment.position.y : snapToGrid(alignment.position.y),
@@ -729,9 +966,17 @@ export default function DiagramCanvas({
       setDragState({ ...dragState, current: snappedPosition, moved: true });
       setDraftNodes((prev: DraftNodes) => ({ ...prev, [dragState.id]: snappedPosition }));
     } else if (dragState.type === "edge") {
-      setAlignmentGuides((prev) => (guidesEqual(prev, EMPTY_GUIDES) ? prev : EMPTY_GUIDES));
+      const handleId = `edge:${dragState.id}:handle:${dragState.index}`;
+      const alignment = computeNodeAlignment(handleId, diagramPoint, alignmentEntries, ALIGN_THRESHOLD);
+      const snappedPoint = {
+        x: alignment.appliedX ? alignment.position.x : snapToGrid(alignment.position.x),
+        y: alignment.appliedY ? alignment.position.y : snapToGrid(alignment.position.y),
+      };
+      setAlignmentGuides((prev) =>
+        guidesEqual(prev, alignment.guides) ? prev : alignment.guides
+      );
       const nextPoints = dragState.points.map((point: Point, idx: number) =>
-        idx === dragState.index ? diagramPoint : point
+        idx === dragState.index ? snappedPoint : point
       );
       setDragState({ ...dragState, points: nextPoints, moved: true });
       setDraftEdges((prev: DraftEdges) => ({ ...prev, [dragState.id]: nextPoints }));
@@ -936,7 +1181,7 @@ export default function DiagramCanvas({
         onContextMenu={handleCanvasContextMenu}
       >
         {edges.map((view: EdgeView) => {
-          const { edge, route, handlePoints, hasOverride, color, arrowDirection } = view;
+          const { edge, route, handlePoints, hasOverride, color, arrowDirection, labelHandleIndex } = view;
           const screenRoute = route.map(toScreen);
           const pathPoints = screenRoute.map((point: Point) => `${point.x},${point.y}`).join(" ");
           const from = finalPositions.get(edge.from);
@@ -945,8 +1190,17 @@ export default function DiagramCanvas({
             return null;
           }
 
-          const labelPoint = centroid(route);
+          const insertionPath = [from, ...handlePoints, to];
+          const primaryHandlePoint =
+            labelHandleIndex !== null ? handlePoints[labelHandleIndex] : null;
+          const labelPoint = primaryHandlePoint ?? centroid(route);
           const labelScreen = toScreen(labelPoint);
+          const labelOffsetY = primaryHandlePoint ? 0 : -10;
+          const labelHandleDragging =
+            primaryHandlePoint &&
+            dragState?.type === "edge" &&
+            dragState.id === edge.id &&
+            dragState.index === labelHandleIndex;
 
           const edgeSelected = selectedEdgeId === edge.id;
           const markerStart =
@@ -957,6 +1211,54 @@ export default function DiagramCanvas({
             arrowDirection === "forward" || arrowDirection === "both"
               ? "url(#arrow-end)"
               : undefined;
+
+          const labelDisplayPoint = primaryHandlePoint
+            ? labelScreen
+            : { x: labelScreen.x, y: labelScreen.y + labelOffsetY };
+          const labelLines = edge.label ? normalizeLabelLines(edge.label) : [];
+          const labelSize = edge.label ? measureLabelBox(labelLines) : null;
+          const labelStroke = edgeSelected ? "#f472b6" : color;
+          const labelBaselineStart = -((labelLines.length - 1) * EDGE_LABEL_LINE_HEIGHT) / 2;
+
+          const renderLabelText = (pointerEvents: "none" | "auto") => {
+            if (labelLines.length === 0) {
+              return null;
+            }
+            if (labelLines.length === 1) {
+              return (
+                <text
+                  className="edge-label"
+                  textAnchor="middle"
+                  fontSize={EDGE_LABEL_FONT_SIZE}
+                  dominantBaseline="middle"
+                  pointerEvents={pointerEvents}
+                >
+                  {labelLines[0]}
+                </text>
+              );
+            }
+
+            return (
+              <text
+                className="edge-label"
+                textAnchor="middle"
+                fontSize={EDGE_LABEL_FONT_SIZE}
+                dominantBaseline="middle"
+                pointerEvents={pointerEvents}
+              >
+                {labelLines.map((line, idx) => (
+                  <tspan
+                    key={`${edge.id}-label-line-${idx}`}
+                    x={0}
+                    y={labelBaselineStart + idx * EDGE_LABEL_LINE_HEIGHT}
+                    dominantBaseline="middle"
+                  >
+                    {line}
+                  </tspan>
+                ))}
+              </text>
+            );
+          };
 
           return (
             <g
@@ -986,6 +1288,9 @@ export default function DiagramCanvas({
                   onContextMenu={(event: ReactMouseEvent<SVGLineElement>) =>
                     handleEdgeContextMenu(edge.id, event)
                   }
+                  onDoubleClick={(event: ReactMouseEvent<SVGLineElement>) =>
+                    handleEdgeDoubleClick(edge.id, handlePoints, insertionPath, event)
+                  }
                 />
               ) : (
                 <polyline
@@ -1002,15 +1307,70 @@ export default function DiagramCanvas({
                   onContextMenu={(event: ReactMouseEvent<SVGPolylineElement>) =>
                     handleEdgeContextMenu(edge.id, event)
                   }
+                  onDoubleClick={(event: ReactMouseEvent<SVGPolylineElement>) =>
+                    handleEdgeDoubleClick(edge.id, handlePoints, insertionPath, event)
+                  }
                 />
               )}
-              {edge.label && (
-                <text className="edge-label" x={labelScreen.x} y={labelScreen.y - 10} textAnchor="middle">
-                  {edge.label}
-                </text>
-              )}
-              {handlePoints.map((point: Point, index: number) => {
-                const screen = toScreen(point);
+              {edge.label && primaryHandlePoint && labelSize ? (
+                <g
+                  className={`edge-label-handle${labelHandleDragging ? " edge-label-handle-active" : ""}`}
+                  transform={`translate(${labelDisplayPoint.x}, ${labelDisplayPoint.y})`}
+                  onPointerDown={(event: ReactPointerEvent<SVGElement>) =>
+                    handleHandlePointerDown(
+                      edge.id,
+                      labelHandleIndex ?? 0,
+                      handlePoints,
+                      hasOverride,
+                      event
+                    )
+                  }
+                  onDoubleClick={(event: ReactMouseEvent<SVGGElement>) => {
+                    event.stopPropagation();
+                    handleHandleDoubleClick(edge.id);
+                  }}
+                >
+                  <rect
+                    x={-labelSize.width / 2}
+                    y={-labelSize.height / 2}
+                    width={labelSize.width}
+                    height={labelSize.height}
+                    rx={EDGE_LABEL_BORDER_RADIUS}
+                    ry={EDGE_LABEL_BORDER_RADIUS}
+                    fill={EDGE_LABEL_BACKGROUND}
+                    fillOpacity={EDGE_LABEL_BACKGROUND_OPACITY}
+                    stroke={labelStroke}
+                    strokeWidth={1}
+                    pointerEvents="none"
+                  />
+                  {renderLabelText("auto")}
+                </g>
+              ) : edge.label && labelSize ? (
+                <g
+                  className="edge-label-group"
+                  transform={`translate(${labelDisplayPoint.x}, ${labelDisplayPoint.y})`}
+                >
+                  <rect
+                    x={-labelSize.width / 2}
+                    y={-labelSize.height / 2}
+                    width={labelSize.width}
+                    height={labelSize.height}
+                    rx={EDGE_LABEL_BORDER_RADIUS}
+                    ry={EDGE_LABEL_BORDER_RADIUS}
+                    fill={EDGE_LABEL_BACKGROUND}
+                    fillOpacity={EDGE_LABEL_BACKGROUND_OPACITY}
+                    stroke={labelStroke}
+                    strokeWidth={1}
+                    pointerEvents="none"
+                  />
+                  {renderLabelText("none")}
+                </g>
+              ) : null}
+              {handlePoints
+                .map((point: Point, index: number) => ({ point, index }))
+                .filter(({ index }) => labelHandleIndex === null || index !== labelHandleIndex)
+                .map(({ point, index }) => {
+                  const screen = toScreen(point);
                 return (
                   <circle
                     key={`${edge.id}-handle-${index}`}
@@ -1021,10 +1381,13 @@ export default function DiagramCanvas({
                     onPointerDown={(event: ReactPointerEvent<SVGCircleElement>) =>
                       handleHandlePointerDown(edge.id, index, handlePoints, hasOverride, event)
                     }
-                    onDoubleClick={() => handleHandleDoubleClick(edge.id)}
+                    onDoubleClick={(event: ReactMouseEvent<SVGCircleElement>) => {
+                      event.stopPropagation();
+                      handleHandleDoubleClick(edge.id);
+                    }}
                   />
-                );
-              })}
+                  );
+                })}
             </g>
           );
         })}

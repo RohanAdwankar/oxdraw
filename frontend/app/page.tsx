@@ -327,6 +327,60 @@ export default function Home() {
     });
   }, [selectedEdge, submitStyleUpdate]);
 
+  const handleAddEdgeJoint = useCallback(() => {
+    if (!selectedEdge) {
+      return;
+    }
+
+    const route = selectedEdge.renderedPoints;
+    if (route.length < 2) {
+      return;
+    }
+
+    let bestSegment = 0;
+    let bestLength = -Infinity;
+    for (let index = 0; index < route.length - 1; index += 1) {
+      const start = route[index];
+      const end = route[index + 1];
+      const length = Math.hypot(end.x - start.x, end.y - start.y);
+      if (length > bestLength) {
+        bestLength = length;
+        bestSegment = index;
+      }
+    }
+
+    const start = route[bestSegment];
+    const end = route[bestSegment + 1];
+    const newPoint: Point = {
+      x: (start.x + end.x) / 2,
+      y: (start.y + end.y) / 2,
+    };
+
+    const currentOverrides = selectedEdge.overridePoints
+      ? selectedEdge.overridePoints.map((point) => ({ ...point }))
+      : [];
+
+    const alreadyPresent = currentOverrides.some((point) => {
+      const dx = point.x - newPoint.x;
+      const dy = point.y - newPoint.y;
+      return Math.hypot(dx, dy) < 0.25;
+    });
+    if (alreadyPresent) {
+      return;
+    }
+
+    const insertIndex = Math.min(bestSegment, currentOverrides.length);
+    currentOverrides.splice(insertIndex, 0, newPoint);
+
+    void applyUpdate({
+      edges: {
+        [selectedEdge.id]: {
+          points: currentOverrides,
+        },
+      },
+    });
+  }, [applyUpdate, selectedEdge]);
+
   const handleNodeMove = useCallback(
     (id: string, position: Point | null) => {
       void applyUpdate({
@@ -732,6 +786,14 @@ export default function Home() {
                       </select>
                     </label>
                   </div>
+                  <button
+                    type="button"
+                    className="style-reset"
+                    onClick={handleAddEdgeJoint}
+                    disabled={edgeControlsDisabled}
+                  >
+                    Add control point
+                  </button>
                   <button
                     type="button"
                     className="style-reset"

@@ -157,6 +157,30 @@ body > div:first-of-type {
   user-select: none;
 }
 
+.edge-label-handle {
+  pointer-events: auto;
+  cursor: grab;
+  user-select: none;
+}
+
+.edge-label-handle .edge-label {
+  pointer-events: all;
+}
+
+.edge-label-handle-active,
+.edge-label-handle:active {
+  cursor: grabbing;
+}
+
+.edge-label-group {
+  pointer-events: none;
+}
+
+.edge-label-group rect,
+.edge-label-handle rect {
+  filter: drop-shadow(0 6px 16px rgba(15, 23, 42, 0.18));
+}
+
 .node rect,
 .node ellipse,
 .node polygon {
