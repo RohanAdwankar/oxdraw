@@ -589,16 +589,71 @@ export default function DiagramCanvas({
   }, [diagram.nodes, draftNodes]);
 
   const bounds = useMemo(() => {
+    // Zoom-to-fit: include all nodes, edge control points, and label backgrounds.
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
     let maxY = -Infinity;
 
+    const extend = (point: Point, halfWidth = 0, halfHeight = 0) => {
+      minX = Math.min(minX, point.x - halfWidth);
+      maxX = Math.max(maxX, point.x + halfWidth);
+      minY = Math.min(minY, point.y - halfHeight);
+      maxY = Math.max(maxY, point.y + halfHeight);
+    };
+
     for (const position of finalPositions.values()) {
-      minX = Math.min(minX, position.x - NODE_WIDTH / 2);
-      maxX = Math.max(maxX, position.x + NODE_WIDTH / 2);
-      minY = Math.min(minY, position.y - NODE_HEIGHT / 2);
-      maxY = Math.max(maxY, position.y + NODE_HEIGHT / 2);
+      extend(position, NODE_WIDTH / 2, NODE_HEIGHT / 2);
+    }
+
+    for (const edge of diagram.edges) {
+      const from = finalPositions.get(edge.from);
+      const to = finalPositions.get(edge.to);
+      if (!from || !to) {
+        continue;
+      }
+
+      const overridePoints = draftEdges[edge.id] ?? edge.overridePoints ?? [];
+      const handlePoints = overridePoints.length > 0 ? overridePoints : [midpoint(from, to)];
+      for (const point of handlePoints) {
+        extend(point);
+      }
+
+      if (!edge.label) {
+        continue;
+      }
+
+      let labelHandleIndex: number | null = null;
+      if (handlePoints.length === 1) {
+        labelHandleIndex = 0;
+      } else if (handlePoints.length > 1) {
+        const routeForLabel = [from, ...handlePoints, to];
+        const center = centroid(routeForLabel);
+        let bestIndex = 0;
+        let bestDistance = Number.POSITIVE_INFINITY;
+        handlePoints.forEach((point, idx) => {
+          const distance = Math.hypot(point.x - center.x, point.y - center.y);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestIndex = idx;
+          }
+        });
+        labelHandleIndex = bestIndex;
+      }
+
+      const route = [from, ...overridePoints, to];
+      const centroidPoint = centroid(route);
+      const labelCenter = labelHandleIndex !== null
+        ? handlePoints[labelHandleIndex]
+        : { x: centroidPoint.x, y: centroidPoint.y - 10 };
+
+      const labelLines = normalizeLabelLines(edge.label);
+      if (labelLines.length === 0) {
+        continue;
+      }
+
+      const labelSize = measureLabelBox(labelLines);
+      extend(labelCenter, labelSize.width / 2, labelSize.height / 2);
     }
 
     if (!Number.isFinite(minX)) {
@@ -614,7 +669,7 @@ export default function DiagramCanvas({
     const offsetY = LAYOUT_MARGIN - minY;
 
     return { width, height, offsetX, offsetY };
-  }, [finalPositions]);
+  }, [diagram.edges, draftEdges, finalPositions]);
 
   const edges = useMemo<EdgeView[]>(() => {
     return diagram.edges
@@ -668,6 +723,16 @@ export default function DiagramCanvas({
   const nodeEntries = useMemo<[string, Point][]>(() => {
     return Array.from(finalPositions.entries());
   }, [finalPositions]);
+
+  const alignmentEntries = useMemo<[string, Point][]>(() => {
+    const combined: [string, Point][] = [...nodeEntries];
+    for (const view of edges) {
+      view.handlePoints.forEach((point, index) => {
+        combined.push([`edge:${view.edge.id}:handle:${index}`, point]);
+      });
+    }
+    return combined;
+  }, [edges, nodeEntries]);
 
   const toScreen = (point: Point) => ({
     x: point.x + bounds.offsetX,
@@ -845,7 +910,7 @@ export default function DiagramCanvas({
         x: diagramPoint.x - dragState.offset.x,
         y: diagramPoint.y - dragState.offset.y,
       };
-      const alignment = computeNodeAlignment(dragState.id, proposed, nodeEntries, ALIGN_THRESHOLD);
+      const alignment = computeNodeAlignment(dragState.id, proposed, alignmentEntries, ALIGN_THRESHOLD);
       const snappedPosition = {
         x: alignment.appliedX ? alignment.position.x : snapToGrid(alignment.position.x),
         y: alignment.appliedY ? alignment.position.y : snapToGrid(alignment.position.y),
@@ -856,9 +921,17 @@ export default function DiagramCanvas({
       setDragState({ ...dragState, current: snappedPosition, moved: true });
       setDraftNodes((prev: DraftNodes) => ({ ...prev, [dragState.id]: snappedPosition }));
     } else if (dragState.type === "edge") {
-      setAlignmentGuides((prev) => (guidesEqual(prev, EMPTY_GUIDES) ? prev : EMPTY_GUIDES));
+      const handleId = `edge:${dragState.id}:handle:${dragState.index}`;
+      const alignment = computeNodeAlignment(handleId, diagramPoint, alignmentEntries, ALIGN_THRESHOLD);
+      const snappedPoint = {
+        x: alignment.appliedX ? alignment.position.x : snapToGrid(alignment.position.x),
+        y: alignment.appliedY ? alignment.position.y : snapToGrid(alignment.position.y),
+      };
+      setAlignmentGuides((prev) =>
+        guidesEqual(prev, alignment.guides) ? prev : alignment.guides
+      );
       const nextPoints = dragState.points.map((point: Point, idx: number) =>
-        idx === dragState.index ? diagramPoint : point
+        idx === dragState.index ? snappedPoint : point
       );
       setDragState({ ...dragState, points: nextPoints, moved: true });
       setDraftEdges((prev: DraftEdges) => ({ ...prev, [dragState.id]: nextPoints }));
