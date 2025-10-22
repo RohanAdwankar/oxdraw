@@ -1,12 +1,12 @@
+use anyhow::{Context, Result, anyhow, bail};
+use clap::{ArgAction, Parser, ValueEnum};
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use anyhow::{Context, Result, anyhow, bail};
-use clap::{ArgAction, Parser, ValueEnum};
 
-use crate::serve::{run_serve};
 use crate::diagram::*;
-use crate::serve::{split_source_and_overrides};
+use crate::serve::run_serve;
+use crate::serve::split_source_and_overrides;
 
 use crate::*;
 
@@ -85,7 +85,6 @@ pub struct ServeArgs {
     #[arg(long = "background-color", default_value = "white")]
     pub background_color: String,
 }
-
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
 enum OutputFormat {
@@ -215,7 +214,6 @@ fn parse_input(input: Option<&str>) -> Result<InputSource> {
         None => Ok(InputSource::Stdin),
     }
 }
-
 
 fn locate_ui_dist() -> Result<PathBuf> {
     if let Ok(custom) = std::env::var("OXDRAW_WEB_DIST") {

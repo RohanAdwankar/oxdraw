@@ -1,15 +1,15 @@
 use std::fs;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use axum::http::{StatusCode};
-use axum::response::{IntoResponse};
-use axum::routing::{delete, get, put};
-use axum::{Router,Json};
-use axum::response::{Response};
-use axum::http::{HeaderValue,header};
 use axum::extract::{Path as AxumPath, State};
+use axum::http::StatusCode;
+use axum::http::{HeaderValue, header};
+use axum::response::IntoResponse;
+use axum::response::Response;
+use axum::routing::{delete, get, put};
+use axum::{Json, Router};
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
 use tower::ServiceExt;
@@ -27,6 +27,7 @@ struct ServeState {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DiagramPayload {
     source_path: String,
     background: String,
@@ -38,15 +39,15 @@ struct DiagramPayload {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct NodePayload {
     id: String,
     label: String,
     shape: String,
     auto_position: Point,
     rendered_position: Point,
-    auto_size: CanvasSize,
-    rendered_size: CanvasSize,
-    position: Option<Point>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    override_position: Option<Point>,
     #[serde(skip_serializing_if = "Option::is_none")]
     fill_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -56,6 +57,7 @@ struct NodePayload {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct EdgePayload {
     id: String,
     from: String,
@@ -64,7 +66,8 @@ struct EdgePayload {
     kind: String,
     auto_points: Vec<Point>,
     rendered_points: Vec<Point>,
-    points: Option<Vec<Point>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    override_points: Option<Vec<Point>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -391,8 +394,12 @@ async fn get_diagram(
     let overrides = state.current_overrides().await;
 
     let layout = diagram.layout(Some(&overrides)).map_err(internal_error)?;
-    let geometry = align_geometry(&layout.final_positions, &layout.final_routes, &diagram.edges)
-        .map_err(internal_error)?;
+    let geometry = align_geometry(
+        &layout.final_positions,
+        &layout.final_routes,
+        &diagram.edges,
+    )
+    .map_err(internal_error)?;
 
     let mut nodes = Vec::new();
     for id in &diagram.order {
@@ -415,20 +422,13 @@ async fn get_diagram(
         let fill_color = style.and_then(|s| s.fill.clone());
         let stroke_color = style.and_then(|s| s.stroke.clone());
         let text_color = style.and_then(|s| s.text.clone());
-        let node_size = CanvasSize {
-            width: NODE_WIDTH,
-            height: NODE_HEIGHT,
-        };
-
         nodes.push(NodePayload {
             id: id.clone(),
             label: node.label.clone(),
             shape: node.shape.as_str().to_string(),
             auto_position,
             rendered_position: final_position,
-            auto_size: node_size,
-            rendered_size: node_size,
-            position: override_position,
+            override_position,
             fill_color,
             stroke_color,
             text_color,
@@ -471,7 +471,7 @@ async fn get_diagram(
             kind: line_kind,
             auto_points,
             rendered_points: final_points,
-            points: manual_points,
+            override_points: manual_points,
             color,
             arrow_direction,
         });
@@ -692,5 +692,3 @@ struct EdgeStylePatch {
     #[serde(default)]
     arrow: Option<Option<EdgeArrowDirection>>,
 }
-
-

@@ -1,5 +1,5 @@
-use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write as FmtWrite;
 
 use crate::*;
@@ -75,9 +75,13 @@ impl Diagram {
         })
     }
 
-    pub fn render_svg(&self, background: &str, overrides: Option<&LayoutOverrides>) -> Result<String> {
-    let layout = self.layout(overrides)?;
-    let geometry = align_geometry(&layout.final_positions, &layout.final_routes, &self.edges)?;
+    pub fn render_svg(
+        &self,
+        background: &str,
+        overrides: Option<&LayoutOverrides>,
+    ) -> Result<String> {
+        let layout = self.layout(overrides)?;
+        let geometry = align_geometry(&layout.final_positions, &layout.final_routes, &self.edges)?;
 
         let mut svg = String::new();
         write!(
@@ -181,11 +185,7 @@ impl Diagram {
                 write!(
                     svg,
                     "  <g pointer-events=\"none\">\n    <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"6\" ry=\"6\" fill=\"white\" fill-opacity=\"0.96\" stroke=\"{}\" stroke-width=\"1\" />\n",
-                    rect_x,
-                    rect_y,
-                    box_width,
-                    box_height,
-                    stroke_color
+                    rect_x, rect_y, box_width, box_height, stroke_color
                 )?;
 
                 if lines.len() <= 1 {
@@ -199,8 +199,8 @@ impl Diagram {
                         )?;
                     }
                 } else {
-                    let start_y = label_center.y
-                        - EDGE_LABEL_LINE_HEIGHT * (lines.len() as f32 - 1.0) / 2.0;
+                    let start_y =
+                        label_center.y - EDGE_LABEL_LINE_HEIGHT * (lines.len() as f32 - 1.0) / 2.0;
                     write!(
                         svg,
                         "    <text x=\"{:.1}\" fill=\"#2d3748\" font-size=\"13\" text-anchor=\"middle\" xml:space=\"preserve\">\n",
@@ -644,7 +644,13 @@ impl EdgeKind {
 fn normalize_label_lines(label: &str) -> Vec<String> {
     label
         .split('\n')
-        .map(|line| if line.is_empty() { " ".to_string() } else { line.to_string() })
+        .map(|line| {
+            if line.is_empty() {
+                " ".to_string()
+            } else {
+                line.to_string()
+            }
+        })
         .collect()
 }
 
@@ -805,7 +811,6 @@ pub struct Point {
     x: f32,
     y: f32,
 }
-
 
 pub fn centroid(points: &[Point]) -> Point {
     if points.is_empty() {
@@ -976,4 +981,3 @@ impl NodeSpec {
         })
     }
 }
-

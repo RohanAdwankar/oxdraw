@@ -1,15 +1,15 @@
-use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
-use std::io::{Write};
 use anyhow::{Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::Entry;
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::io::Write;
 
 mod cli;
 use crate::cli::*;
 mod utils;
-use crate::utils::{escape_xml};
-mod serve;
+use crate::utils::escape_xml;
 mod diagram;
+mod serve;
 use crate::diagram::*;
 
 const NODE_WIDTH: f32 = 140.0;
@@ -185,4 +185,3 @@ impl EdgeArrowDirection {
         }
     }
 }
-
