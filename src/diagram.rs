@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as FmtWrite;
+use tiny_skia::{Pixmap, Transform};
 
 use crate::*;
 
@@ -311,6 +312,36 @@ impl Diagram {
 
         svg.push_str("</svg>\n");
         Ok(svg)
+    }
+
+    pub fn render_png(
+        &self,
+        background: &str,
+        overrides: Option<&LayoutOverrides>,
+    ) -> Result<Vec<u8>> {
+        let svg = self.render_svg(background, overrides)?;
+
+        let mut options = resvg::usvg::Options::default();
+        options.font_family = "Inter".to_string();
+        options.fontdb_mut().load_system_fonts();
+
+        let tree = resvg::usvg::Tree::from_str(&svg, &options)
+            .map_err(|err| anyhow!("failed to parse generated SVG for PNG export: {err}"))?;
+
+        let size = tree.size().to_int_size();
+        let width = size.width();
+        let height = size.height();
+
+        let mut pixmap = Pixmap::new(width, height)
+            .ok_or_else(|| anyhow!("failed to allocate {width}x{height} surface for PNG export"))?;
+
+        resvg::render(&tree, Transform::default(), &mut pixmap.as_mut());
+
+        let png_data = pixmap
+            .encode_png()
+            .map_err(|err| anyhow!("failed to encode PNG output: {err}"))?;
+
+        Ok(png_data)
     }
 
     pub fn layout(&self, overrides: Option<&LayoutOverrides>) -> Result<LayoutComputation> {

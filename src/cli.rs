@@ -40,6 +40,14 @@ pub struct RenderArgs {
     #[arg(short = 'e', long = "output-format")]
     output_format: Option<OutputFormat>,
 
+    /// Convenience flag to force PNG output without specifying --output-format.
+    #[arg(long = "png", action = ArgAction::SetTrue, conflicts_with = "output_format")]
+    png: bool,
+
+    /// Scale factor when rasterizing PNG output.
+    #[arg(long = "scale", default_value_t = 1.0)]
+    scale: f32,
+
     /// Launch the interactive editor instead of rendering once.
     #[arg(
         long = "edit",
@@ -104,6 +112,13 @@ impl OutputFormat {
             _ => None,
         }
     }
+
+    fn extension(self) -> &'static str {
+        match self {
+            OutputFormat::Svg => "svg",
+            OutputFormat::Png => "png",
+        }
+    }
 }
 
 pub async fn run_render_or_edit(cli: RenderArgs) -> Result<()> {
@@ -152,11 +167,17 @@ async fn run_edit(cli: RenderArgs) -> Result<()> {
 
 fn run_render(cli: RenderArgs) -> Result<()> {
     let input_source = parse_input(cli.input.as_deref())?;
-    let output_dest = parse_output(cli.output.as_deref(), &input_source)?;
-    let format = determine_format(cli.output_format, &output_dest)?;
+    let format_preference = if cli.png {
+        Some(OutputFormat::Png)
+    } else {
+        cli.output_format
+    };
 
-    if format == OutputFormat::Png {
-        bail!("PNG output is not yet supported. Please target SVG for now.");
+    let output_dest = parse_output(cli.output.as_deref(), &input_source, format_preference)?;
+    let format = determine_format(format_preference, &output_dest)?;
+
+    if format == OutputFormat::Png && cli.scale <= 0.0 {
+        bail!("--scale must be greater than zero for PNG output");
     }
 
     let definition_raw = load_definition(&input_source)?;
@@ -172,9 +193,14 @@ fn run_render(cli: RenderArgs) -> Result<()> {
         Some(&overrides)
     };
 
-    let svg = diagram.render_svg(&cli.background_color, override_ref)?;
+    let output_bytes = match format {
+        OutputFormat::Svg => diagram
+            .render_svg(&cli.background_color, override_ref)?
+            .into_bytes(),
+        OutputFormat::Png => diagram.render_png(&cli.background_color, override_ref, cli.scale)?,
+    };
 
-    write_output(output_dest, svg.as_bytes(), cli.quiet)?;
+    write_output(output_dest, &output_bytes, cli.quiet)?;
 
     Ok(())
 }
@@ -251,7 +277,11 @@ fn locate_ui_dist() -> Result<PathBuf> {
     );
 }
 
-fn parse_output(output: Option<&str>, input: &InputSource) -> Result<OutputDestination> {
+fn parse_output(
+    output: Option<&str>,
+    input: &InputSource,
+    format_hint: Option<OutputFormat>,
+) -> Result<OutputDestination> {
     match output {
         Some("-") => Ok(OutputDestination::Stdout),
         Some(path_str) => {
@@ -268,25 +298,29 @@ fn parse_output(output: Option<&str>, input: &InputSource) -> Result<OutputDesti
         }
         None => match input {
             InputSource::File(path) => {
+                let ext = format_hint.unwrap_or(OutputFormat::Svg).extension();
                 let default_name = path
                     .file_name()
                     .and_then(|name| name.to_str())
-                    .map(|name| format!("{name}.svg"))
-                    .unwrap_or_else(|| "out.svg".to_string());
+                    .map(|name| format!("{name}.{ext}"))
+                    .unwrap_or_else(|| format!("out.{ext}"));
                 let mut default_path = path.to_path_buf();
                 default_path.set_file_name(default_name);
                 Ok(OutputDestination::File(default_path))
             }
-            InputSource::Stdin => Ok(OutputDestination::File(PathBuf::from("out.svg"))),
+            InputSource::Stdin => {
+                let ext = format_hint.unwrap_or(OutputFormat::Svg).extension();
+                Ok(OutputDestination::File(PathBuf::from(format!("out.{ext}"))))
+            }
         },
     }
 }
 
 fn determine_format(
-    explicit: Option<OutputFormat>,
+    preference: Option<OutputFormat>,
     output: &OutputDestination,
 ) -> Result<OutputFormat> {
-    if let Some(fmt) = explicit {
+    if let Some(fmt) = preference {
         return Ok(fmt);
     }
 
