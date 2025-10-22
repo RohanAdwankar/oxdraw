@@ -45,7 +45,7 @@ pub struct RenderArgs {
     png: bool,
 
     /// Scale factor when rasterizing PNG output.
-    #[arg(long = "scale", default_value_t = 1.0)]
+    #[arg(long = "scale", default_value_t = 10.0)]
     scale: f32,
 
     /// Launch the interactive editor instead of rendering once.

@@ -318,7 +318,12 @@ impl Diagram {
         &self,
         background: &str,
         overrides: Option<&LayoutOverrides>,
+        scale: f32,
     ) -> Result<Vec<u8>> {
+        if scale <= 0.0 {
+            bail!("scale must be greater than zero when rendering PNG output");
+        }
+
         let svg = self.render_svg(background, overrides)?;
 
         let mut options = resvg::usvg::Options::default();
@@ -332,10 +337,32 @@ impl Diagram {
         let width = size.width();
         let height = size.height();
 
-        let mut pixmap = Pixmap::new(width, height)
-            .ok_or_else(|| anyhow!("failed to allocate {width}x{height} surface for PNG export"))?;
+        let scaled_width = ((width as f32) * scale).ceil();
+        let scaled_height = ((height as f32) * scale).ceil();
 
-        resvg::render(&tree, Transform::default(), &mut pixmap.as_mut());
+        if !scaled_width.is_finite() || !scaled_height.is_finite() {
+            bail!("scaled dimensions are not finite; try a smaller scale factor");
+        }
+
+        if scaled_width < 1.0 || scaled_height < 1.0 {
+            bail!("scaled dimensions collapsed below 1px; try a larger scale factor");
+        }
+
+        if scaled_width > u32::MAX as f32 || scaled_height > u32::MAX as f32 {
+            bail!("scaled dimensions exceed supported limits; try a smaller scale factor");
+        }
+
+        let scaled_width = scaled_width as u32;
+        let scaled_height = scaled_height as u32;
+
+        let mut pixmap = Pixmap::new(scaled_width, scaled_height).ok_or_else(|| {
+            anyhow!(
+                "failed to allocate {scaled_width}x{scaled_height} surface for PNG export"
+            )
+        })?;
+
+        let transform = Transform::from_scale(scale, scale);
+        resvg::render(&tree, transform, &mut pixmap.as_mut());
 
         let png_data = pixmap
             .encode_png()
