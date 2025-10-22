@@ -356,9 +356,7 @@ impl Diagram {
         let scaled_height = scaled_height as u32;
 
         let mut pixmap = Pixmap::new(scaled_width, scaled_height).ok_or_else(|| {
-            anyhow!(
-                "failed to allocate {scaled_width}x{scaled_height} surface for PNG export"
-            )
+            anyhow!("failed to allocate {scaled_width}x{scaled_height} surface for PNG export")
         })?;
 
         let transform = Transform::from_scale(scale, scale);
@@ -556,8 +554,140 @@ impl Diagram {
         overrides: Option<&LayoutOverrides>,
     ) -> Result<HashMap<String, Vec<Point>>> {
         let mut routes = HashMap::new();
+        let mut edge_ids = Vec::with_capacity(self.edges.len());
+        let mut pairings: HashMap<(String, String), Vec<(usize, bool)>> = HashMap::new();
 
-        for edge in &self.edges {
+        for (idx, edge) in self.edges.iter().enumerate() {
+            let edge_id = edge_identifier(edge);
+            edge_ids.push(edge_id);
+
+            let mut a = edge.from.clone();
+            let mut b = edge.to.clone();
+            let mut is_forward = true;
+            if a > b {
+                std::mem::swap(&mut a, &mut b);
+                is_forward = false;
+            }
+
+            pairings.entry((a, b)).or_default().push((idx, is_forward));
+        }
+
+        let mut auto_points: HashMap<usize, Vec<Point>> = HashMap::new();
+
+        let has_override = |edge_idx: usize| -> bool {
+            overrides.map_or(false, |ov| ov.edges.contains_key(&edge_ids[edge_idx]))
+        };
+
+        for ((a, b), entries) in pairings {
+            if a == b || entries.len() < 2 {
+                continue;
+            }
+
+            let mut forward = Vec::new();
+            let mut backward = Vec::new();
+
+            for (idx, is_forward) in entries {
+                if is_forward {
+                    forward.push(idx);
+                } else {
+                    backward.push(idx);
+                }
+            }
+
+            if forward.is_empty() || backward.is_empty() {
+                continue;
+            }
+
+            let from = *positions
+                .get(&a)
+                .ok_or_else(|| anyhow!("edge references unknown node '{}'", a))?;
+            let to = *positions
+                .get(&b)
+                .ok_or_else(|| anyhow!("edge references unknown node '{}'", b))?;
+
+            let dx = to.x - from.x;
+            let dy = to.y - from.y;
+            let distance = (dx * dx + dy * dy).sqrt();
+            if distance <= f32::EPSILON {
+                continue;
+            }
+
+            let max_offset = (distance * 0.5) - EDGE_COLLISION_MARGIN;
+            if max_offset <= 0.0 {
+                continue;
+            }
+
+            let base_offset = (distance * 0.25)
+                .min(EDGE_BIDIRECTIONAL_OFFSET)
+                .min(max_offset);
+            if base_offset <= 0.0 {
+                continue;
+            }
+
+            let max_stub = (distance * 0.5) - EDGE_COLLISION_MARGIN;
+            if max_stub <= 0.0 {
+                continue;
+            }
+
+            let stub_base = (distance * 0.25).min(EDGE_BIDIRECTIONAL_STUB).min(max_stub);
+            if stub_base <= 0.0 {
+                continue;
+            }
+
+            let mut first_pair_resolved = false;
+            if let (Some(&f_idx0), Some(&b_idx0)) = (forward.first(), backward.first()) {
+                if !has_override(f_idx0) && !has_override(b_idx0) {
+                    if let Some((forward_points, backward_points)) = self
+                        .resolve_bidirectional_pair(
+                            from,
+                            to,
+                            &self.edges[f_idx0],
+                            &self.edges[b_idx0],
+                        )
+                    {
+                        auto_points.insert(f_idx0, forward_points.clone());
+                        auto_points.insert(b_idx0, backward_points.clone());
+                        first_pair_resolved = true;
+                    }
+                }
+            }
+
+            for (i, &edge_idx) in forward.iter().enumerate() {
+                if first_pair_resolved && i == 0 {
+                    continue;
+                }
+                if has_override(edge_idx) {
+                    continue;
+                }
+
+                let factor = 1.0 + i as f32;
+                let offset = (base_offset * factor).min(max_offset).max(base_offset);
+                let stub = stub_base.min(max_stub);
+                auto_points.insert(
+                    edge_idx,
+                    Self::generate_bidir_points(from, to, offset, stub, 1.0),
+                );
+            }
+
+            for (i, &edge_idx) in backward.iter().enumerate() {
+                if first_pair_resolved && i == 0 {
+                    continue;
+                }
+                if has_override(edge_idx) {
+                    continue;
+                }
+
+                let factor = 1.0 + i as f32;
+                let offset = (base_offset * factor).min(max_offset).max(base_offset);
+                let stub = stub_base.min(max_stub);
+                let mut points = Self::generate_bidir_points(from, to, offset, stub, -1.0);
+                points.reverse();
+                auto_points.insert(edge_idx, points);
+            }
+        }
+
+        for (edge_idx, edge) in self.edges.iter().enumerate() {
+            let edge_id = &edge_ids[edge_idx];
             let from = *positions
                 .get(&edge.from)
                 .ok_or_else(|| anyhow!("edge references unknown node '{}'", edge.from))?;
@@ -568,8 +698,12 @@ impl Diagram {
             let mut path = Vec::new();
             path.push(from);
 
+            if let Some(points) = auto_points.get(&edge_idx) {
+                path.extend(points.iter().copied());
+            }
+
             if let Some(overrides) = overrides {
-                if let Some(custom) = overrides.edges.get(&edge_identifier(edge)) {
+                if let Some(custom) = overrides.edges.get(edge_id) {
                     for point in &custom.points {
                         path.push(*point);
                     }
@@ -577,10 +711,154 @@ impl Diagram {
             }
 
             path.push(to);
-            routes.insert(edge_identifier(edge), path);
+            routes.insert(edge_id.clone(), path);
         }
 
         Ok(routes)
+    }
+
+    fn resolve_bidirectional_pair(
+        &self,
+        from: Point,
+        to: Point,
+        forward_edge: &Edge,
+        backward_edge: &Edge,
+    ) -> Option<(Vec<Point>, Vec<Point>)> {
+        let dx = to.x - from.x;
+        let dy = to.y - from.y;
+        let distance = (dx * dx + dy * dy).sqrt();
+        if distance <= f32::EPSILON {
+            return None;
+        }
+
+        let max_offset = (distance * 0.5) - EDGE_COLLISION_MARGIN;
+        if max_offset <= 0.0 {
+            return None;
+        }
+
+        let max_stub = (distance * 0.5) - EDGE_COLLISION_MARGIN;
+        if max_stub <= 0.0 {
+            return None;
+        }
+
+        let base_offset = (distance * 0.25)
+            .min(EDGE_BIDIRECTIONAL_OFFSET)
+            .min(max_offset);
+        let base_stub = (distance * 0.25).min(EDGE_BIDIRECTIONAL_STUB).min(max_stub);
+
+        if base_offset <= 0.0 || base_stub <= 0.0 {
+            return None;
+        }
+
+        let from_rect = node_rect(from).inflate(EDGE_COLLISION_MARGIN);
+        let to_rect = node_rect(to).inflate(EDGE_COLLISION_MARGIN);
+
+        let mut fallback: Option<(Vec<Point>, Vec<Point>)> = None;
+
+        for attempt in 0..=EDGE_COLLISION_MAX_ITER {
+            let offset = (base_offset + attempt as f32 * EDGE_BIDIRECTIONAL_OFFSET_STEP)
+                .min(max_offset)
+                .max(base_offset);
+            let stub = (base_stub + attempt as f32 * EDGE_BIDIRECTIONAL_STUB_STEP)
+                .min(max_stub)
+                .max(base_stub);
+
+            let forward_points = Diagram::generate_bidir_points(from, to, offset, stub, 1.0);
+            let mut backward_points = Diagram::generate_bidir_points(from, to, offset, stub, -1.0);
+            backward_points.reverse();
+
+            let forward_route = build_route(from, &forward_points, to);
+            let backward_route = build_route(to, &backward_points, from);
+
+            let forward_label = label_rect_for_route(forward_edge, &forward_route)
+                .map(|rect| rect.inflate(EDGE_COLLISION_MARGIN));
+            let backward_label = label_rect_for_route(backward_edge, &backward_route)
+                .map(|rect| rect.inflate(EDGE_COLLISION_MARGIN));
+
+            let mut collision = false;
+
+            if let Some(rect) = forward_label {
+                if rect.intersects(&from_rect) || rect.intersects(&to_rect) {
+                    collision = true;
+                }
+            }
+
+            if let Some(rect) = backward_label {
+                if rect.intersects(&from_rect) || rect.intersects(&to_rect) {
+                    collision = true;
+                }
+            }
+
+            if let (Some(a), Some(b)) = (forward_label, backward_label) {
+                if a.intersects(&b) {
+                    collision = true;
+                }
+            }
+
+            if !collision {
+                return Some((forward_points, backward_points));
+            }
+
+            fallback = Some((forward_points, backward_points));
+
+            if (offset - max_offset).abs() < f32::EPSILON && (stub - max_stub).abs() < f32::EPSILON
+            {
+                break;
+            }
+        }
+
+        fallback
+    }
+
+    fn generate_bidir_points(
+        from: Point,
+        to: Point,
+        offset: f32,
+        stub: f32,
+        normal_sign: f32,
+    ) -> Vec<Point> {
+        let dx = to.x - from.x;
+        let dy = to.y - from.y;
+        let distance = (dx * dx + dy * dy).sqrt();
+        if distance <= f32::EPSILON {
+            return Vec::new();
+        }
+
+        let tangent_x = dx / distance;
+        let tangent_y = dy / distance;
+        let normal_x = -tangent_y;
+        let normal_y = tangent_x;
+
+        let offset_vec_x = normal_x * offset * normal_sign;
+        let offset_vec_y = normal_y * offset * normal_sign;
+
+        let stub_clamped = stub.min(distance / 2.0 - 1.0).max(0.0);
+        if stub_clamped <= 0.0 {
+            return vec![Point {
+                x: (from.x + to.x) * 0.5 + offset_vec_x,
+                y: (from.y + to.y) * 0.5 + offset_vec_y,
+            }];
+        }
+
+        let stub_vec_x = tangent_x * stub_clamped;
+        let stub_vec_y = tangent_y * stub_clamped;
+
+        let first = Point {
+            x: from.x + stub_vec_x + offset_vec_x,
+            y: from.y + stub_vec_y + offset_vec_y,
+        };
+
+        let middle = Point {
+            x: (from.x + to.x) * 0.5 + offset_vec_x,
+            y: (from.y + to.y) * 0.5 + offset_vec_y,
+        };
+
+        let second = Point {
+            x: to.x - stub_vec_x + offset_vec_x,
+            y: to.y - stub_vec_y + offset_vec_y,
+        };
+
+        vec![first, middle, second]
     }
 
     pub fn remove_node(&mut self, node_id: &str) -> bool {
@@ -767,6 +1045,67 @@ fn label_center_for_route(route: &[Point]) -> Point {
     }
 
     best
+}
+
+fn build_route(start: Point, middle: &[Point], end: Point) -> Vec<Point> {
+    let mut route = Vec::with_capacity(middle.len() + 2);
+    route.push(start);
+    route.extend_from_slice(middle);
+    route.push(end);
+    route
+}
+
+fn label_rect_for_route(edge: &Edge, route: &[Point]) -> Option<Rect> {
+    let label = edge.label.as_ref()?;
+    let lines = normalize_label_lines(label);
+    if lines.is_empty() {
+        return None;
+    }
+
+    let (box_width, box_height) = measure_label_box(&lines);
+    let center = label_center_for_route(route);
+
+    Some(Rect {
+        min_x: center.x - box_width / 2.0,
+        max_x: center.x + box_width / 2.0,
+        min_y: center.y - box_height / 2.0,
+        max_y: center.y + box_height / 2.0,
+    })
+}
+
+fn node_rect(center: Point) -> Rect {
+    Rect {
+        min_x: center.x - NODE_WIDTH / 2.0,
+        max_x: center.x + NODE_WIDTH / 2.0,
+        min_y: center.y - NODE_HEIGHT / 2.0,
+        max_y: center.y + NODE_HEIGHT / 2.0,
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Rect {
+    min_x: f32,
+    max_x: f32,
+    min_y: f32,
+    max_y: f32,
+}
+
+impl Rect {
+    fn inflate(self, amount: f32) -> Rect {
+        Rect {
+            min_x: self.min_x - amount,
+            max_x: self.max_x + amount,
+            min_y: self.min_y - amount,
+            max_y: self.max_y + amount,
+        }
+    }
+
+    fn intersects(&self, other: &Rect) -> bool {
+        self.min_x <= other.max_x
+            && self.max_x >= other.min_x
+            && self.min_y <= other.max_y
+            && self.max_y >= other.min_y
+    }
 }
 
 pub fn align_geometry(

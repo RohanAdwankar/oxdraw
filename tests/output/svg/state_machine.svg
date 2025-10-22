@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="620" height="316" viewBox="0 0 620 316" font-family="Inter, system-ui, sans-serif">
+  <defs>
+        <marker id="arrow-end" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M2,2 L10,6 L2,10 z" fill="context-stroke" />
+        </marker>
+        <marker id="arrow-start" markerWidth="12" markerHeight="12" refX="2" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M10,2 L2,6 L10,10 z" fill="context-stroke" />
+        </marker>
+  </defs>
+  <rect width="100%" height="100%" fill="white" />
+  <polyline points="150.0,158.0 224.0,222.0 230.0,222.0 236.0,222.0 310.0,158.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="203.5" y="208.0" width="53.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="230.0" y="222.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">start</text>
+  </g>
+  <polyline points="310.0,158.0 236.0,94.0 230.0,94.0 224.0,94.0 150.0,158.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="199.8" y="80.0" width="60.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="230.0" y="94.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">cancel</text>
+  </g>
+  <line x1="310.0" y1="158.0" x2="470.0" y2="158.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="356.1" y="134.0" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="390.0" y="148.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">success</text>
+  </g>
+  <line x1="470.0" y1="158.0" x2="150.0" y2="158.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="276.1" y="134.0" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="310.0" y="148.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">restart</text>
+  </g>
+  <rect x="80.0" y="128.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="150.0" y="158.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">[Idle]</text>
+  <rect x="240.0" y="128.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="310.0" y="158.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Processing</text>
+  <rect x="400.0" y="128.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="470.0" y="158.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">[Completed]</text>
+</svg>
