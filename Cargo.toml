@@ -12,6 +12,8 @@ serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "fs"] }
 tower-http = { version = "0.5", features = ["cors", "fs"] }
 tower = "0.5"
+resvg = { version = "0.43", features = ["text"] }
+tiny-skia = { version = "0.11", features = ["png"], default-features = false }
 
 [dev-dependencies]
 assert_cmd = "2"
