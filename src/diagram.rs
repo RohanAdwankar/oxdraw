@@ -715,9 +715,13 @@ impl Diagram {
             let mut path = build_route(from, &middle_points, to);
 
             let base_label_collision = self.label_collides_with_nodes(edge, &path, &node_rects);
+            let base_node_collision = self.route_collides_with_nodes(edge, &path, &node_rects);
             let base_intersections = count_route_intersections(&path, &routes);
 
-            if middle_points.is_empty() && !has_override(edge_idx) {
+            if middle_points.is_empty()
+                && !has_override(edge_idx)
+                && (base_label_collision || base_node_collision || base_intersections > 0)
+            {
                 if let Some(adjusted) = self.adjust_edge_for_conflicts(
                     from,
                     to,
@@ -725,6 +729,7 @@ impl Diagram {
                     &node_rects,
                     &routes,
                     base_label_collision,
+                    base_node_collision,
                     base_intersections,
                 ) {
                     path = build_route(from, &adjusted, to);
@@ -850,10 +855,15 @@ impl Diagram {
         node_rects: &HashMap<String, Rect>,
         existing_routes: &HashMap<String, Vec<Point>>,
         base_label_collision: bool,
+        base_node_collision: bool,
         base_intersections: usize,
     ) -> Option<Vec<Point>> {
-        let base_metric = ((base_label_collision as u8), base_intersections);
-        if base_metric == (0_u8, 0_usize) {
+        let base_metric = (
+            base_node_collision as u8,
+            base_label_collision as u8,
+            base_intersections,
+        );
+        if base_metric == (0_u8, 0_u8, 0_usize) {
             return None;
         }
 
@@ -870,14 +880,19 @@ impl Diagram {
             return None;
         }
 
-        let base_offset = (distance * 0.25).min(EDGE_SINGLE_OFFSET).min(max_offset);
-        let base_stub = (distance * 0.25).min(EDGE_SINGLE_STUB).min(max_stub);
+        let mut base_offset = (distance * 0.25).min(max_offset);
+        let mut base_stub = (distance * 0.25).min(max_stub);
+
+        if !base_node_collision {
+            base_offset = base_offset.min(EDGE_SINGLE_OFFSET);
+            base_stub = base_stub.min(EDGE_SINGLE_STUB);
+        }
 
         if base_offset <= 0.0 || base_stub <= 0.0 {
             return None;
         }
 
-        let mut best: Option<(Vec<Point>, (u8, usize))> = None;
+        let mut best: Option<(Vec<Point>, (u8, u8, usize))> = None;
 
         for &normal_sign in &[1.0, -1.0] {
             for attempt in 0..=EDGE_COLLISION_MAX_ITER {
@@ -891,14 +906,18 @@ impl Diagram {
                 let points = Diagram::generate_bidir_points(from, to, offset, stub, normal_sign);
                 let route = build_route(from, &points, to);
 
+                if self.route_collides_with_nodes(edge, &route, node_rects) {
+                    continue;
+                }
+
                 if self.label_collides_with_nodes(edge, &route, node_rects) {
                     continue;
                 }
 
                 let intersection_count = count_route_intersections(&route, existing_routes);
-                let candidate_metric = (0_u8, intersection_count);
+                let candidate_metric = (0_u8, 0_u8, intersection_count);
 
-                if candidate_metric == (0_u8, 0_usize) {
+                if candidate_metric == (0_u8, 0_u8, 0_usize) {
                     return Some(points);
                 }
 
@@ -939,6 +958,32 @@ impl Diagram {
         node_rects
             .values()
             .any(|node_rect| rect.intersects(node_rect))
+    }
+
+    fn route_collides_with_nodes(
+        &self,
+        edge: &Edge,
+        route: &[Point],
+        node_rects: &HashMap<String, Rect>,
+    ) -> bool {
+        if route.len() < 2 {
+            return false;
+        }
+
+        for segment in route.windows(2) {
+            let a = segment[0];
+            let b = segment[1];
+            for (node_id, rect) in node_rects {
+                if node_id == &edge.from || node_id == &edge.to {
+                    continue;
+                }
+                if rect.inflate(EDGE_COLLISION_MARGIN).intersects_segment(a, b) {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 
     fn generate_bidir_points(
@@ -1244,6 +1289,40 @@ impl Rect {
             && point.x <= self.max_x + eps
             && point.y >= self.min_y - eps
             && point.y <= self.max_y + eps
+    }
+
+    fn intersects_segment(&self, a: Point, b: Point) -> bool {
+        if self.contains(a) || self.contains(b) {
+            return true;
+        }
+
+        let top_left = Point {
+            x: self.min_x,
+            y: self.min_y,
+        };
+        let top_right = Point {
+            x: self.max_x,
+            y: self.min_y,
+        };
+        let bottom_right = Point {
+            x: self.max_x,
+            y: self.max_y,
+        };
+        let bottom_left = Point {
+            x: self.min_x,
+            y: self.max_y,
+        };
+
+        let edges = [
+            (top_left, top_right),
+            (top_right, bottom_right),
+            (bottom_right, bottom_left),
+            (bottom_left, top_left),
+        ];
+
+        edges
+            .iter()
+            .any(|(p1, p2)| segments_intersect(a, b, *p1, *p2))
     }
 }
 

@@ -1,0 +1,12 @@
+graph LR
+    Start([Deploy Release]) --> Check{Health Checks Pass?}
+    Check -->|No| Rollback[Trigger Rollback]
+    Rollback --> Notify[Notify Team]
+    Notify --> Start
+    Check -->|Yes| Monitor[Continuous Monitor]
+    Monitor --> Incident{Incident Detected?}
+    Incident -->|No| Success([Stable])
+    Incident -->|Yes| Runbook[Follow Runbook]
+    Runbook --> Patch[Create Hotfix]
+    Patch --> DeployHotfix[Deploy Hotfix]
+    DeployHotfix --> Check
