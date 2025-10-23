@@ -557,9 +557,13 @@ impl Diagram {
         let mut edge_ids = Vec::with_capacity(self.edges.len());
         let mut pairings: HashMap<(String, String), Vec<(usize, bool)>> = HashMap::new();
 
-        let mut node_rects: HashMap<String, Rect> = HashMap::new();
+        let mut node_bounds: HashMap<String, NodeBoundary> = HashMap::new();
         for (id, point) in positions {
-            node_rects.insert(id.clone(), node_rect(*point));
+            let node = self
+                .nodes
+                .get(id)
+                .ok_or_else(|| anyhow!("node '{id}' missing definition"))?;
+            node_bounds.insert(id.clone(), NodeBoundary::new(*point, node.shape));
         }
 
         for (idx, edge) in self.edges.iter().enumerate() {
@@ -714,8 +718,8 @@ impl Diagram {
 
             let mut path = build_route(from, &middle_points, to);
 
-            let base_label_collision = self.label_collides_with_nodes(edge, &path, &node_rects);
-            let base_node_collision = self.route_collides_with_nodes(edge, &path, &node_rects);
+            let base_label_collision = self.label_collides_with_nodes(edge, &path, &node_bounds);
+            let base_node_collision = self.route_collides_with_nodes(edge, &path, &node_bounds);
             let base_intersections = count_route_intersections(&path, &routes);
 
             if middle_points.is_empty()
@@ -726,7 +730,7 @@ impl Diagram {
                     from,
                     to,
                     edge,
-                    &node_rects,
+                    &node_bounds,
                     &routes,
                     base_label_collision,
                     base_node_collision,
@@ -736,16 +740,33 @@ impl Diagram {
                 }
             }
 
+            if !has_custom_override {
+                let mut detour_attempts = 0_usize;
+                while self.route_collides_with_nodes(edge, &path, &node_bounds) {
+                    if let Some(candidate) =
+                        self.detour_route_for_collisions(edge, &path, &node_bounds, &routes)
+                    {
+                        path = candidate;
+                        detour_attempts += 1;
+                        if detour_attempts >= 3 {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
+
             if has_custom_override {
                 if let Some(custom) = overrides.and_then(|ov| ov.edges.get(edge_id)) {
                     path = build_route(from, &custom.points, to);
                 }
             }
 
-            if let (Some(&from_rect), Some(&to_rect)) =
-                (node_rects.get(&edge.from), node_rects.get(&edge.to))
+            if let (Some(from_bounds), Some(to_bounds)) =
+                (node_bounds.get(&edge.from), node_bounds.get(&edge.to))
             {
-                trim_route_endpoints(&mut path, from_rect, to_rect);
+                trim_route_endpoints(&mut path, from_bounds, to_bounds);
             }
 
             routes.insert(edge_id.clone(), path);
@@ -852,7 +873,7 @@ impl Diagram {
         from: Point,
         to: Point,
         edge: &Edge,
-        node_rects: &HashMap<String, Rect>,
+        node_bounds: &HashMap<String, NodeBoundary>,
         existing_routes: &HashMap<String, Vec<Point>>,
         base_label_collision: bool,
         base_node_collision: bool,
@@ -892,9 +913,11 @@ impl Diagram {
             return None;
         }
 
-        let mut best: Option<(Vec<Point>, (u8, u8, usize))> = None;
+        let mut best_metric = base_metric;
+        let mut best_points: Option<Vec<Point>> = None;
+        let mut found_perfect = false;
 
-        for &normal_sign in &[1.0, -1.0] {
+        'search: for &normal_sign in &[1.0, -1.0] {
             for attempt in 0..=EDGE_COLLISION_MAX_ITER {
                 let offset = (base_offset + attempt as f32 * EDGE_SINGLE_OFFSET_STEP)
                     .min(max_offset)
@@ -904,33 +927,19 @@ impl Diagram {
                     .max(base_stub);
 
                 let points = Diagram::generate_bidir_points(from, to, offset, stub, normal_sign);
-                let route = build_route(from, &points, to);
-
-                if self.route_collides_with_nodes(edge, &route, node_rects) {
-                    continue;
-                }
-
-                if self.label_collides_with_nodes(edge, &route, node_rects) {
-                    continue;
-                }
-
-                let intersection_count = count_route_intersections(&route, existing_routes);
-                let candidate_metric = (0_u8, 0_u8, intersection_count);
-
-                if candidate_metric == (0_u8, 0_u8, 0_usize) {
-                    return Some(points);
-                }
-
-                if candidate_metric < base_metric {
-                    match &mut best {
-                        Some((existing_points, existing_metric)) => {
-                            if candidate_metric < *existing_metric {
-                                *existing_points = points;
-                                *existing_metric = candidate_metric;
-                            }
-                        }
-                        None => best = Some((points, candidate_metric)),
-                    }
+                if evaluate_candidate_route(
+                    self,
+                    edge,
+                    from,
+                    to,
+                    node_bounds,
+                    existing_routes,
+                    points,
+                    &mut best_metric,
+                    &mut best_points,
+                ) {
+                    found_perfect = true;
+                    break 'search;
                 }
 
                 if (offset - max_offset).abs() < f32::EPSILON
@@ -941,30 +950,167 @@ impl Diagram {
             }
         }
 
-        best.map(|(points, _)| points)
+        if found_perfect {
+            return best_points;
+        }
+
+        for candidate in generate_axis_detours(from, to) {
+            if evaluate_candidate_route(
+                self,
+                edge,
+                from,
+                to,
+                node_bounds,
+                existing_routes,
+                candidate,
+                &mut best_metric,
+                &mut best_points,
+            ) {
+                found_perfect = true;
+                break;
+            }
+        }
+
+        if found_perfect {
+            return best_points;
+        }
+
+        if best_metric < base_metric {
+            best_points
+        } else {
+            None
+        }
+    }
+
+    fn detour_route_for_collisions(
+        &self,
+        edge: &Edge,
+        route: &[Point],
+        node_bounds: &HashMap<String, NodeBoundary>,
+        existing_routes: &HashMap<String, Vec<Point>>,
+    ) -> Option<Vec<Point>> {
+        if route.len() < 2 {
+            return None;
+        }
+
+        let mut best_metric = (
+            self.route_collides_with_nodes(edge, route, node_bounds) as u8,
+            self.label_collides_with_nodes(edge, route, node_bounds) as u8,
+            count_route_intersections(route, existing_routes),
+        );
+
+        if best_metric.0 == 0 {
+            return None;
+        }
+
+        let clearance = EDGE_COLLISION_MARGIN * 2.0 + 8.0;
+        let mut best_route: Option<Vec<Point>> = None;
+
+        for segment_idx in 0..route.len() - 1 {
+            let a = route[segment_idx];
+            let b = route[segment_idx + 1];
+
+            for (node_id, bounds) in node_bounds {
+                if node_id == &edge.from || node_id == &edge.to {
+                    continue;
+                }
+
+                let inflated = bounds.rect.inflate(EDGE_COLLISION_MARGIN);
+                if !inflated.intersects_segment(a, b) {
+                    continue;
+                }
+
+                let detour_candidates = [
+                    vec![
+                        Point {
+                            x: a.x,
+                            y: inflated.min_y - clearance,
+                        },
+                        Point {
+                            x: b.x,
+                            y: inflated.min_y - clearance,
+                        },
+                    ],
+                    vec![
+                        Point {
+                            x: a.x,
+                            y: inflated.max_y + clearance,
+                        },
+                        Point {
+                            x: b.x,
+                            y: inflated.max_y + clearance,
+                        },
+                    ],
+                    vec![
+                        Point {
+                            x: inflated.min_x - clearance,
+                            y: a.y,
+                        },
+                        Point {
+                            x: inflated.min_x - clearance,
+                            y: b.y,
+                        },
+                    ],
+                    vec![
+                        Point {
+                            x: inflated.max_x + clearance,
+                            y: a.y,
+                        },
+                        Point {
+                            x: inflated.max_x + clearance,
+                            y: b.y,
+                        },
+                    ],
+                ];
+
+                for detour in detour_candidates {
+                    let mut candidate = Vec::new();
+                    candidate.extend_from_slice(&route[..=segment_idx]);
+                    candidate.extend(detour.iter());
+                    candidate.extend_from_slice(&route[segment_idx + 1..]);
+                    simplify_route(&mut candidate);
+
+                    let candidate_metric = (
+                        self.route_collides_with_nodes(edge, &candidate, node_bounds) as u8,
+                        self.label_collides_with_nodes(edge, &candidate, node_bounds) as u8,
+                        count_route_intersections(&candidate, existing_routes),
+                    );
+
+                    if candidate_metric < best_metric {
+                        best_metric = candidate_metric;
+                        best_route = Some(candidate);
+                        if best_metric == (0, 0, 0) {
+                            return best_route;
+                        }
+                    }
+                }
+            }
+        }
+
+        best_route
     }
 
     fn label_collides_with_nodes(
         &self,
         edge: &Edge,
         route: &[Point],
-        node_rects: &HashMap<String, Rect>,
+        node_bounds: &HashMap<String, NodeBoundary>,
     ) -> bool {
         let rect = match label_rect_for_route(edge, route) {
             Some(rect) => rect.inflate(EDGE_COLLISION_MARGIN),
             None => return false,
         };
 
-        node_rects
+        node_bounds
             .values()
-            .any(|node_rect| rect.intersects(node_rect))
+            .any(|bounds| rect.intersects(&bounds.rect))
     }
 
     fn route_collides_with_nodes(
         &self,
         edge: &Edge,
         route: &[Point],
-        node_rects: &HashMap<String, Rect>,
+        node_bounds: &HashMap<String, NodeBoundary>,
     ) -> bool {
         if route.len() < 2 {
             return false;
@@ -973,11 +1119,15 @@ impl Diagram {
         for segment in route.windows(2) {
             let a = segment[0];
             let b = segment[1];
-            for (node_id, rect) in node_rects {
+            for (node_id, bounds) in node_bounds {
                 if node_id == &edge.from || node_id == &edge.to {
                     continue;
                 }
-                if rect.inflate(EDGE_COLLISION_MARGIN).intersects_segment(a, b) {
+                if bounds
+                    .rect
+                    .inflate(EDGE_COLLISION_MARGIN)
+                    .intersects_segment(a, b)
+                {
                     return true;
                 }
             }
@@ -1089,6 +1239,80 @@ impl Diagram {
             format!("{} {} {}", edge.from, edge.kind.arrow_token(), edge.to)
         }
     }
+}
+
+fn evaluate_candidate_route(
+    diagram: &Diagram,
+    edge: &Edge,
+    from: Point,
+    to: Point,
+    node_bounds: &HashMap<String, NodeBoundary>,
+    existing_routes: &HashMap<String, Vec<Point>>,
+    points: Vec<Point>,
+    best_metric: &mut (u8, u8, usize),
+    best_points: &mut Option<Vec<Point>>,
+) -> bool {
+    let route = build_route(from, &points, to);
+    let node_collision = diagram.route_collides_with_nodes(edge, &route, node_bounds);
+    let label_collision = diagram.label_collides_with_nodes(edge, &route, node_bounds);
+    let intersections = count_route_intersections(&route, existing_routes);
+    let candidate_metric = (node_collision as u8, label_collision as u8, intersections);
+
+    if candidate_metric < *best_metric {
+        *best_metric = candidate_metric;
+        *best_points = Some(points);
+    }
+
+    *best_metric == (0_u8, 0_u8, 0_usize)
+}
+
+fn generate_axis_detours(from: Point, to: Point) -> Vec<Vec<Point>> {
+    let mut candidates = Vec::new();
+
+    let horizontal_span = (from.x - to.x).abs();
+    let vertical_span = (from.y - to.y).abs();
+
+    let vertical_clearance = NODE_HEIGHT + EDGE_COLLISION_MARGIN * 4.0;
+    let horizontal_clearance = NODE_WIDTH + EDGE_COLLISION_MARGIN * 4.0;
+
+    if horizontal_span > NODE_WIDTH * 0.5 {
+        let above = from.y.min(to.y) - vertical_clearance;
+        candidates.push(vec![
+            Point {
+                x: from.x,
+                y: above,
+            },
+            Point { x: to.x, y: above },
+        ]);
+
+        let below = from.y.max(to.y) + vertical_clearance;
+        candidates.push(vec![
+            Point {
+                x: from.x,
+                y: below,
+            },
+            Point { x: to.x, y: below },
+        ]);
+    }
+
+    if vertical_span > NODE_HEIGHT * 0.5 {
+        let left = from.x.min(to.x) - horizontal_clearance;
+        candidates.push(vec![
+            Point { x: left, y: from.y },
+            Point { x: left, y: to.y },
+        ]);
+
+        let right = from.x.max(to.x) + horizontal_clearance;
+        candidates.push(vec![
+            Point {
+                x: right,
+                y: from.y,
+            },
+            Point { x: right, y: to.y },
+        ]);
+    }
+
+    candidates
 }
 
 impl NodeShape {
@@ -1231,6 +1455,38 @@ fn build_route(start: Point, middle: &[Point], end: Point) -> Vec<Point> {
     route
 }
 
+fn simplify_route(route: &mut Vec<Point>) {
+    if route.is_empty() {
+        return;
+    }
+
+    route.dedup_by(|a, b| points_close(*a, *b));
+
+    if route.len() < 3 {
+        return;
+    }
+
+    let mut idx = 1;
+    while idx + 1 < route.len() {
+        let prev = route[idx - 1];
+        let current = route[idx];
+        let next = route[idx + 1];
+
+        if orientation(prev, current, next).abs() < 1e-3_f32 {
+            let within_x = current.x >= prev.x.min(next.x) - 1e-3_f32
+                && current.x <= prev.x.max(next.x) + 1e-3_f32;
+            let within_y = current.y >= prev.y.min(next.y) - 1e-3_f32
+                && current.y <= prev.y.max(next.y) + 1e-3_f32;
+            if within_x && within_y {
+                route.remove(idx);
+                continue;
+            }
+        }
+
+        idx += 1;
+    }
+}
+
 fn label_rect_for_route(edge: &Edge, route: &[Point]) -> Option<Rect> {
     let label = edge.label.as_ref()?;
     let lines = normalize_label_lines(label);
@@ -1326,13 +1582,60 @@ impl Rect {
     }
 }
 
-fn trim_route_endpoints(path: &mut Vec<Point>, from_rect: Rect, to_rect: Rect) {
+#[derive(Clone, Copy, Debug)]
+struct NodeBoundary {
+    center: Point,
+    shape: NodeShape,
+    rect: Rect,
+}
+
+impl NodeBoundary {
+    fn new(center: Point, shape: NodeShape) -> Self {
+        Self {
+            center,
+            shape,
+            rect: node_rect(center),
+        }
+    }
+
+    fn contains_point(&self, point: Point) -> bool {
+        match self.shape {
+            NodeShape::Rectangle | NodeShape::Stadium => self.rect.contains(point),
+            NodeShape::Circle => {
+                let rx = NODE_WIDTH / 2.0;
+                let ry = NODE_HEIGHT / 2.0;
+                if rx <= 0.0 || ry <= 0.0 {
+                    return false;
+                }
+                let norm_x = (point.x - self.center.x) / rx;
+                let norm_y = (point.y - self.center.y) / ry;
+                norm_x * norm_x + norm_y * norm_y <= 1.0 + 1e-3_f32
+            }
+            NodeShape::Diamond => {
+                let half_w = NODE_WIDTH / 2.0;
+                let half_h = NODE_HEIGHT / 2.0;
+                if half_w <= 0.0 || half_h <= 0.0 {
+                    return false;
+                }
+                let dx = (point.x - self.center.x).abs() / half_w;
+                let dy = (point.y - self.center.y).abs() / half_h;
+                dx + dy <= 1.0 + 1e-3_f32
+            }
+        }
+    }
+}
+
+fn trim_route_endpoints(
+    path: &mut Vec<Point>,
+    from_bounds: &NodeBoundary,
+    to_bounds: &NodeBoundary,
+) {
     if path.len() < 2 {
         return;
     }
 
-    if from_rect.contains(path[0]) {
-        if let Some(trimmed) = clip_segment_exit(path[0], path[1], from_rect, false) {
+    if from_bounds.contains_point(path[0]) {
+        if let Some(trimmed) = clip_segment_exit_with_shape(path[0], path[1], from_bounds, false) {
             path[0] = trimmed;
         }
     }
@@ -1342,14 +1645,36 @@ fn trim_route_endpoints(path: &mut Vec<Point>, from_rect: Rect, to_rect: Rect) {
     }
 
     let last = path.len() - 1;
-    if to_rect.contains(path[last]) {
-        if let Some(trimmed) = clip_segment_exit(path[last], path[last - 1], to_rect, true) {
+    if to_bounds.contains_point(path[last]) {
+        if let Some(trimmed) =
+            clip_segment_exit_with_shape(path[last], path[last - 1], to_bounds, true)
+        {
             path[last] = trimmed;
         }
     }
 }
 
-fn clip_segment_exit(start: Point, next: Point, rect: Rect, extend_outward: bool) -> Option<Point> {
+fn clip_segment_exit_with_shape(
+    start: Point,
+    next: Point,
+    bounds: &NodeBoundary,
+    extend_outward: bool,
+) -> Option<Point> {
+    match bounds.shape {
+        NodeShape::Rectangle | NodeShape::Stadium => {
+            clip_segment_exit_rect(start, next, bounds.rect, extend_outward)
+        }
+        NodeShape::Circle => clip_segment_exit_circle(start, next, bounds, extend_outward),
+        NodeShape::Diamond => clip_segment_exit_diamond(start, next, bounds, extend_outward),
+    }
+}
+
+fn clip_segment_exit_rect(
+    start: Point,
+    next: Point,
+    rect: Rect,
+    extend_outward: bool,
+) -> Option<Point> {
     let dx = next.x - start.x;
     let dy = next.y - start.y;
     let distance = (dx * dx + dy * dy).sqrt();
@@ -1401,6 +1726,171 @@ fn clip_segment_exit(start: Point, next: Point, rect: Rect, extend_outward: bool
     }
 
     Some(point)
+}
+
+fn clip_segment_exit_circle(
+    start: Point,
+    next: Point,
+    bounds: &NodeBoundary,
+    extend_outward: bool,
+) -> Option<Point> {
+    let dx = next.x - start.x;
+    let dy = next.y - start.y;
+    let distance = (dx * dx + dy * dy).sqrt();
+    if distance <= f32::EPSILON {
+        return None;
+    }
+
+    let rx = NODE_WIDTH / 2.0;
+    let ry = NODE_HEIGHT / 2.0;
+    let sx = start.x - bounds.center.x;
+    let sy = start.y - bounds.center.y;
+
+    let a = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+    if a.abs() <= f32::EPSILON {
+        return None;
+    }
+
+    let b = 2.0 * ((sx * dx) / (rx * rx) + (sy * dy) / (ry * ry));
+    let c = (sx * sx) / (rx * rx) + (sy * sy) / (ry * ry) - 1.0;
+
+    let discriminant = b * b - 4.0 * a * c;
+    if discriminant < 0.0 {
+        return None;
+    }
+
+    let sqrt_disc = discriminant.sqrt();
+    let mut candidates = Vec::new();
+    let t0 = (-b + sqrt_disc) / (2.0 * a);
+    let t1 = (-b - sqrt_disc) / (2.0 * a);
+    if t0 >= 0.0 && t0 <= 1.0 {
+        candidates.push(t0);
+    }
+    if t1 >= 0.0 && t1 <= 1.0 {
+        candidates.push(t1);
+    }
+
+    if candidates.is_empty() {
+        return None;
+    }
+
+    let mut t_exit = candidates
+        .into_iter()
+        .fold(1.0_f32, |acc, t| acc.min(t.max(f32::EPSILON)));
+    t_exit = t_exit.clamp(0.0, 1.0);
+
+    let mut point = Point {
+        x: start.x + t_exit * dx,
+        y: start.y + t_exit * dy,
+    };
+
+    if extend_outward {
+        let dir_x = dx / distance;
+        let dir_y = dy / distance;
+        point.x += dir_x * EDGE_ARROW_EXTENSION;
+        point.y += dir_y * EDGE_ARROW_EXTENSION;
+    }
+
+    Some(point)
+}
+
+fn clip_segment_exit_diamond(
+    start: Point,
+    next: Point,
+    bounds: &NodeBoundary,
+    extend_outward: bool,
+) -> Option<Point> {
+    let dx = next.x - start.x;
+    let dy = next.y - start.y;
+    let distance = (dx * dx + dy * dy).sqrt();
+    if distance <= f32::EPSILON {
+        return None;
+    }
+
+    let half_w = NODE_WIDTH / 2.0;
+    let half_h = NODE_HEIGHT / 2.0;
+    let top = Point {
+        x: bounds.center.x,
+        y: bounds.center.y - half_h,
+    };
+    let right = Point {
+        x: bounds.center.x + half_w,
+        y: bounds.center.y,
+    };
+    let bottom = Point {
+        x: bounds.center.x,
+        y: bounds.center.y + half_h,
+    };
+    let left = Point {
+        x: bounds.center.x - half_w,
+        y: bounds.center.y,
+    };
+
+    let edges = [(top, right), (right, bottom), (bottom, left), (left, top)];
+
+    let mut best_t: Option<f32> = None;
+    for (edge_start, edge_end) in edges {
+        if let Some(t) = segment_intersection_param(start, next, edge_start, edge_end) {
+            if t >= 0.0 && t <= 1.0 {
+                let t = t.max(f32::EPSILON);
+                best_t = Some(best_t.map_or(t, |current| current.min(t)));
+            }
+        }
+    }
+
+    let t_exit = match best_t {
+        Some(t) => t.clamp(0.0, 1.0),
+        None => return None,
+    };
+
+    let mut point = Point {
+        x: start.x + t_exit * dx,
+        y: start.y + t_exit * dy,
+    };
+
+    if extend_outward {
+        let dir_x = dx / distance;
+        let dir_y = dy / distance;
+        point.x += dir_x * EDGE_ARROW_EXTENSION;
+        point.y += dir_y * EDGE_ARROW_EXTENSION;
+    }
+
+    Some(point)
+}
+
+fn segment_intersection_param(
+    start: Point,
+    next: Point,
+    edge_start: Point,
+    edge_end: Point,
+) -> Option<f32> {
+    let r = Point {
+        x: next.x - start.x,
+        y: next.y - start.y,
+    };
+    let s = Point {
+        x: edge_end.x - edge_start.x,
+        y: edge_end.y - edge_start.y,
+    };
+
+    let denom = r.x * s.y - r.y * s.x;
+    if denom.abs() < 1e-6_f32 {
+        return None;
+    }
+
+    let qp = Point {
+        x: edge_start.x - start.x,
+        y: edge_start.y - start.y,
+    };
+
+    let t = (qp.x * s.y - qp.y * s.x) / denom;
+    let u = (qp.x * r.y - qp.y * r.x) / denom;
+
+    if t >= 0.0 && t <= 1.0 && u >= 0.0 && u <= 1.0 {
+        Some(t)
+    } else {
+        None
+    }
 }
 
 fn count_route_intersections(

@@ -15,31 +15,31 @@
     <text x="310.0" y="179.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Get money</text>
   </g>
   <line x1="310.0" y1="300.0" x2="310.0" y2="399.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <line x1="280.0" y1="460.0" x2="180.7" y2="559.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" stroke-dasharray="8 6" />
+  <line x1="289.0" y1="451.0" x2="180.7" y2="559.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" stroke-dasharray="8 6" />
   <g pointer-events="none">
-    <rect x="211.3" y="485.6" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="230.4" y="499.6" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">One</text>
+    <rect x="215.8" y="481.1" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="234.9" y="495.1" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">One</text>
   </g>
   <line x1="310.0" y1="460.0" x2="310.0" y2="559.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" stroke-dasharray="8 6" />
   <g pointer-events="none">
     <rect x="290.9" y="485.5" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="310.0" y="499.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Two</text>
   </g>
-  <line x1="340.0" y1="460.0" x2="439.3" y2="559.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" stroke-dasharray="8 6" />
+  <line x1="331.0" y1="451.0" x2="439.3" y2="559.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" stroke-dasharray="8 6" />
   <g pointer-events="none">
-    <rect x="363.1" y="485.6" width="53.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="389.6" y="499.6" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Three</text>
+    <rect x="358.6" y="481.1" width="53.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="385.1" y="495.1" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Three</text>
   </g>
-  <rect x="240.0" y="560.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="310.0" y="590.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">iPhone</text>
   <rect x="400.0" y="560.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="470.0" y="590.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Car</text>
+  <rect x="80.0" y="560.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="150.0" y="590.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Laptop</text>
   <rect x="240.0" y="80.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="310.0" y="110.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Thing</text>
   <rect x="240.0" y="240.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
   <text x="310.0" y="270.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Go shopping</text>
   <polygon points="310.0,400.0 380.0,430.0 310.0,460.0 240.0,430.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
   <text x="310.0" y="430.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Let me think</text>
-  <rect x="80.0" y="560.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="590.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Laptop</text>
+  <rect x="240.0" y="560.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="310.0" y="590.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">iPhone</text>
 </svg>
