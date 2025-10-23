@@ -683,6 +683,17 @@ impl Diagram {
         }
 
         let mut placed_bounds: Vec<Rect> = Vec::new();
+        let outside_nodes: Vec<(String, Rect)> = positions
+            .iter()
+            .filter_map(|(id, point)| {
+                let membership = self.node_membership.get(id);
+                if membership.map_or(true, |path| path.is_empty()) {
+                    Some((id.clone(), node_rect(*point)))
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         for subgraph in &self.subgraphs {
             let nodes = gather_subgraph_nodes(subgraph);
@@ -696,6 +707,7 @@ impl Diagram {
             };
 
             let mut required_shift = 0.0_f32;
+
             loop {
                 let shifted = Rect {
                     min_x: bounds.min_x + required_shift,
@@ -704,21 +716,27 @@ impl Diagram {
                     max_y: bounds.max_y,
                 };
 
-                let mut overlap_shift = None;
+                let mut next_shift = required_shift;
+
                 for placed in &placed_bounds {
                     if rects_intersect_with_margin(&shifted, placed, SUBGRAPH_SEPARATION) {
                         let candidate = placed.max_x + SUBGRAPH_SEPARATION - bounds.min_x;
-                        overlap_shift = Some(candidate.max(required_shift));
-                        break;
+                        next_shift = next_shift.max(candidate);
                     }
                 }
 
-                if let Some(new_shift) = overlap_shift {
-                    if (new_shift - required_shift).abs() < f32::EPSILON {
-                        required_shift = new_shift + SUBGRAPH_SEPARATION;
-                    } else {
-                        required_shift = new_shift;
+                for (node_id, node_rect) in &outside_nodes {
+                    if nodes.contains(node_id) {
+                        continue;
                     }
+                    if rects_intersect_with_margin(&shifted, node_rect, SUBGRAPH_SEPARATION) {
+                        let candidate = node_rect.max_x + SUBGRAPH_SEPARATION - bounds.min_x;
+                        next_shift = next_shift.max(candidate);
+                    }
+                }
+
+                if next_shift > required_shift + 1e-3_f32 {
+                    required_shift = next_shift;
                     continue;
                 }
 
