@@ -36,6 +36,7 @@ const EDGE_LABEL_LINE_HEIGHT = 16;
 const EDGE_LABEL_FONT_SIZE = 13;
 const EDGE_LABEL_HORIZONTAL_PADDING = 16;
 const EDGE_LABEL_VERTICAL_PADDING = 12;
+const EDGE_LABEL_VERTICAL_OFFSET = 10;
 const EDGE_LABEL_BORDER_RADIUS = 6;
 const EDGE_LABEL_BACKGROUND = "white";
 const EDGE_LABEL_BACKGROUND_OPACITY = 0.96;
@@ -137,6 +138,7 @@ interface EdgeView {
   color: string;
   arrowDirection: EdgeArrowDirection;
   labelHandleIndex: number | null;
+  labelPoint: Point;
 }
 
 interface ContextMenuState {
@@ -212,6 +214,59 @@ function measureLabelBox(lines: string[]): Size {
   );
 
   return { width, height };
+}
+
+function interiorPoints(route: readonly Point[]): Point[] {
+  if (route.length <= 2) {
+    return [];
+  }
+  return route.slice(1, route.length - 1).map((point) => ({ ...point }));
+}
+
+function labelCenterForRoute(route: readonly Point[]): Point {
+  if (route.length === 0) {
+    return { x: 0, y: -EDGE_LABEL_VERTICAL_OFFSET };
+  }
+
+  const fallback = centroid(route);
+  if (route.length <= 2) {
+    return { x: fallback.x, y: fallback.y - EDGE_LABEL_VERTICAL_OFFSET };
+  }
+
+  const candidates = route.slice(1, route.length - 1);
+  if (candidates.length === 0) {
+    return { x: fallback.x, y: fallback.y - EDGE_LABEL_VERTICAL_OFFSET };
+  }
+
+  if (candidates.length === 1) {
+    const point = candidates[0];
+    return { x: point.x, y: point.y };
+  }
+
+  let best = candidates[0];
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const point of candidates) {
+    const distance = Math.hypot(point.x - fallback.x, point.y - fallback.y);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = point;
+    }
+  }
+
+  return { x: best.x, y: best.y };
+}
+
+function defaultHandleForRoute(
+  route: readonly Point[],
+  start: Point,
+  end: Point
+): Point {
+  const interior = interiorPoints(route);
+  if (interior.length > 0) {
+    const index = Math.floor(interior.length / 2);
+    return { ...interior[index] };
+  }
+  return midpoint(start, end);
 }
 
 function snapToGrid(value: number): number {
@@ -590,6 +645,79 @@ export default function DiagramCanvas({
     return map;
   }, [diagram.nodes, draftNodes]);
 
+  const edges = useMemo<EdgeView[]>(() => {
+    return diagram.edges
+      .map((edge) => {
+        const from = finalPositions.get(edge.from);
+        const to = finalPositions.get(edge.to);
+        if (!from || !to) {
+          return null;
+        }
+
+        const draftOverride = draftEdges[edge.id];
+        const hasDraftOverride = draftOverride !== undefined;
+        const baseOverrides = draftOverride ?? edge.overridePoints ?? [];
+        const overridePoints = baseOverrides.map((point) => ({ x: point.x, y: point.y }));
+        const hasOverride = overridePoints.length > 0;
+
+        const renderedRoute = edge.renderedPoints.length >= 2
+          ? edge.renderedPoints.map((point) => ({ x: point.x, y: point.y }))
+          : [
+              { x: from.x, y: from.y },
+              { x: to.x, y: to.y },
+            ];
+
+        const route = hasDraftOverride
+          ? [
+              { x: from.x, y: from.y },
+              ...overridePoints,
+              { x: to.x, y: to.y },
+            ]
+          : renderedRoute;
+
+        const handlePoints = hasOverride
+          ? overridePoints
+          : [defaultHandleForRoute(renderedRoute, from, to)];
+
+        let labelHandleIndex: number | null = null;
+        if (edge.label && hasOverride && handlePoints.length > 0) {
+          if (handlePoints.length === 1) {
+            labelHandleIndex = 0;
+          } else {
+            const routeCentroid = centroid(route);
+            let bestIndex = 0;
+            let bestDistance = Number.POSITIVE_INFINITY;
+            handlePoints.forEach((point, idx) => {
+              const distance = Math.hypot(point.x - routeCentroid.x, point.y - routeCentroid.y);
+              if (distance < bestDistance) {
+                bestDistance = distance;
+                bestIndex = idx;
+              }
+            });
+            labelHandleIndex = bestIndex;
+          }
+        }
+
+        const labelPoint =
+          labelHandleIndex !== null ? { ...handlePoints[labelHandleIndex] } : labelCenterForRoute(route);
+
+        const color = edge.color ?? DEFAULT_EDGE_COLOR;
+        const arrowDirection = edge.arrowDirection ?? "forward";
+
+        return {
+          edge,
+          route,
+          handlePoints,
+          hasOverride,
+          color,
+          arrowDirection,
+          labelHandleIndex,
+          labelPoint,
+        };
+      })
+      .filter((value): value is EdgeView => value !== null);
+  }, [diagram.edges, draftEdges, finalPositions]);
+
   const fitBounds = useMemo(() => {
     // Zoom-to-fit: include all nodes, edge control points, and label backgrounds.
     let minX = Infinity;
@@ -608,54 +736,20 @@ export default function DiagramCanvas({
       extend(position, NODE_WIDTH / 2, NODE_HEIGHT / 2);
     }
 
-    for (const edge of diagram.edges) {
-      const from = finalPositions.get(edge.from);
-      const to = finalPositions.get(edge.to);
-      if (!from || !to) {
-        continue;
-      }
-
-      const overridePoints = draftEdges[edge.id] ?? edge.overridePoints ?? [];
-      const handlePoints = overridePoints.length > 0 ? overridePoints : [midpoint(from, to)];
-      for (const point of handlePoints) {
+    for (const view of edges) {
+      for (const point of view.route) {
         extend(point);
       }
-
-      if (!edge.label) {
-        continue;
+      for (const point of view.handlePoints) {
+        extend(point);
       }
-
-      let labelHandleIndex: number | null = null;
-      if (handlePoints.length === 1) {
-        labelHandleIndex = 0;
-      } else if (handlePoints.length > 1) {
-        const routeForLabel = [from, ...handlePoints, to];
-        const center = centroid(routeForLabel);
-        let bestIndex = 0;
-        let bestDistance = Number.POSITIVE_INFINITY;
-        handlePoints.forEach((point, idx) => {
-          const distance = Math.hypot(point.x - center.x, point.y - center.y);
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            bestIndex = idx;
-          }
-        });
-        labelHandleIndex = bestIndex;
+      if (view.edge.label) {
+        const labelLines = normalizeLabelLines(view.edge.label);
+        if (labelLines.length > 0) {
+          const labelSize = measureLabelBox(labelLines);
+          extend(view.labelPoint, labelSize.width / 2, labelSize.height / 2);
+        }
       }
-
-      const route = [from, ...overridePoints, to];
-      const centroidPoint = centroid(route);
-      const labelCenter = labelHandleIndex !== null
-        ? handlePoints[labelHandleIndex]
-        : { x: centroidPoint.x, y: centroidPoint.y - 10 };
-
-      const labelLines = normalizeLabelLines(edge.label);
-      if (labelLines.length === 0) {
-        continue;
-      }
-
-      const labelSize = measureLabelBox(labelLines);
-      extend(labelCenter, labelSize.width / 2, labelSize.height / 2);
     }
 
     if (!Number.isFinite(minX)) {
@@ -671,7 +765,7 @@ export default function DiagramCanvas({
     const offsetY = LAYOUT_MARGIN - minY;
 
     return { width, height, offsetX, offsetY };
-  }, [diagram.edges, draftEdges, finalPositions]);
+  }, [edges, finalPositions]);
 
   const [bounds, setBounds] = useState(() => fitBounds);
 
@@ -715,55 +809,6 @@ export default function DiagramCanvas({
       }
     };
   }, [fitBounds]);
-
-  const edges = useMemo<EdgeView[]>(() => {
-    return diagram.edges
-      .map((edge) => {
-        const from = finalPositions.get(edge.from);
-        const to = finalPositions.get(edge.to);
-        if (!from || !to) {
-          return null;
-        }
-
-        const overridePoints = draftEdges[edge.id] ?? edge.overridePoints ?? [];
-        const hasOverride = overridePoints.length > 0;
-        const fallbackPoint = midpoint(from, to);
-        const handlePoints = hasOverride ? overridePoints : [fallbackPoint];
-        let labelHandleIndex: number | null = null;
-        if (edge.label && handlePoints.length > 0) {
-          if (handlePoints.length === 1) {
-            labelHandleIndex = 0;
-          } else {
-            const pathForLabel = [from, ...handlePoints, to];
-            const center = centroid(pathForLabel);
-            let bestIndex = 0;
-            let bestDistance = Number.POSITIVE_INFINITY;
-            handlePoints.forEach((point, idx) => {
-              const distance = Math.hypot(point.x - center.x, point.y - center.y);
-              if (distance < bestDistance) {
-                bestDistance = distance;
-                bestIndex = idx;
-              }
-            });
-            labelHandleIndex = bestIndex;
-          }
-        }
-        const route = [from, ...overridePoints, to];
-        const color = edge.color ?? DEFAULT_EDGE_COLOR;
-        const arrowDirection = edge.arrowDirection ?? "forward";
-
-        return {
-          edge,
-          route,
-          handlePoints,
-          hasOverride,
-          color,
-          arrowDirection,
-          labelHandleIndex,
-        };
-      })
-      .filter((value): value is EdgeView => value !== null);
-  }, [diagram.edges, draftEdges, finalPositions]);
 
   const nodeEntries = useMemo<[string, Point][]>(() => {
     return Array.from(finalPositions.entries());
@@ -1181,21 +1226,22 @@ export default function DiagramCanvas({
         onContextMenu={handleCanvasContextMenu}
       >
         {edges.map((view: EdgeView) => {
-          const { edge, route, handlePoints, hasOverride, color, arrowDirection, labelHandleIndex } = view;
+          const {
+            edge,
+            route,
+            handlePoints,
+            hasOverride,
+            color,
+            arrowDirection,
+            labelHandleIndex,
+            labelPoint: resolvedLabelPoint,
+          } = view;
           const screenRoute = route.map(toScreen);
           const pathPoints = screenRoute.map((point: Point) => `${point.x},${point.y}`).join(" ");
-          const from = finalPositions.get(edge.from);
-          const to = finalPositions.get(edge.to);
-          if (!from || !to) {
-            return null;
-          }
-
-          const insertionPath = [from, ...handlePoints, to];
           const primaryHandlePoint =
             labelHandleIndex !== null ? handlePoints[labelHandleIndex] : null;
-          const labelPoint = primaryHandlePoint ?? centroid(route);
-          const labelScreen = toScreen(labelPoint);
-          const labelOffsetY = primaryHandlePoint ? 0 : -10;
+          const labelAnchor = primaryHandlePoint ?? resolvedLabelPoint;
+          const labelScreen = toScreen(labelAnchor);
           const labelHandleDragging =
             primaryHandlePoint &&
             dragState?.type === "edge" &&
@@ -1212,9 +1258,7 @@ export default function DiagramCanvas({
               ? "url(#arrow-end)"
               : undefined;
 
-          const labelDisplayPoint = primaryHandlePoint
-            ? labelScreen
-            : { x: labelScreen.x, y: labelScreen.y + labelOffsetY };
+          const labelDisplayPoint = labelScreen;
           const labelLines = edge.label ? normalizeLabelLines(edge.label) : [];
           const labelSize = edge.label ? measureLabelBox(labelLines) : null;
           const labelStroke = edgeSelected ? "#f472b6" : color;
@@ -1289,7 +1333,7 @@ export default function DiagramCanvas({
                     handleEdgeContextMenu(edge.id, event)
                   }
                   onDoubleClick={(event: ReactMouseEvent<SVGLineElement>) =>
-                    handleEdgeDoubleClick(edge.id, handlePoints, insertionPath, event)
+                    handleEdgeDoubleClick(edge.id, handlePoints, route, event)
                   }
                 />
               ) : (
@@ -1308,7 +1352,7 @@ export default function DiagramCanvas({
                     handleEdgeContextMenu(edge.id, event)
                   }
                   onDoubleClick={(event: ReactMouseEvent<SVGPolylineElement>) =>
-                    handleEdgeDoubleClick(edge.id, handlePoints, insertionPath, event)
+                    handleEdgeDoubleClick(edge.id, handlePoints, route, event)
                   }
                 />
               )}
