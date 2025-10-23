@@ -557,6 +557,11 @@ impl Diagram {
         let mut edge_ids = Vec::with_capacity(self.edges.len());
         let mut pairings: HashMap<(String, String), Vec<(usize, bool)>> = HashMap::new();
 
+        let mut node_rects: HashMap<String, Rect> = HashMap::new();
+        for (id, point) in positions {
+            node_rects.insert(id.clone(), node_rect(*point));
+        }
+
         for (idx, edge) in self.edges.iter().enumerate() {
             let edge_id = edge_identifier(edge);
             edge_ids.push(edge_id);
@@ -695,22 +700,33 @@ impl Diagram {
                 .get(&edge.to)
                 .ok_or_else(|| anyhow!("edge references unknown node '{}'", edge.to))?;
 
-            let mut path = Vec::new();
-            path.push(from);
-
-            if let Some(points) = auto_points.get(&edge_idx) {
-                path.extend(points.iter().copied());
-            }
-
-            if let Some(overrides) = overrides {
-                if let Some(custom) = overrides.edges.get(edge_id) {
-                    for point in &custom.points {
-                        path.push(*point);
+            let mut middle_points: Vec<Point> = Vec::new();
+            let has_custom_override =
+                if let Some(custom) = overrides.and_then(|ov| ov.edges.get(edge_id)) {
+                    middle_points.extend(custom.points.iter().copied());
+                    true
+                } else {
+                    if let Some(points) = auto_points.get(&edge_idx) {
+                        middle_points.extend(points.iter().copied());
                     }
+                    false
+                };
+
+            let mut path = build_route(from, &middle_points, to);
+
+            if middle_points.is_empty() && !has_override(edge_idx) {
+                if let Some(adjusted) = self.adjust_edge_for_collisions(from, to, edge, &node_rects)
+                {
+                    path = build_route(from, &adjusted, to);
                 }
             }
 
-            path.push(to);
+            if has_custom_override {
+                if let Some(custom) = overrides.and_then(|ov| ov.edges.get(edge_id)) {
+                    path = build_route(from, &custom.points, to);
+                }
+            }
+
             routes.insert(edge_id.clone(), path);
         }
 
@@ -808,6 +824,85 @@ impl Diagram {
         }
 
         fallback
+    }
+
+    fn adjust_edge_for_collisions(
+        &self,
+        from: Point,
+        to: Point,
+        edge: &Edge,
+        node_rects: &HashMap<String, Rect>,
+    ) -> Option<Vec<Point>> {
+        if edge.label.is_none() {
+            return None;
+        }
+
+        let base_route = [from, to];
+        if !self.label_collides_with_nodes(edge, &base_route, node_rects) {
+            return None;
+        }
+
+        let dx = to.x - from.x;
+        let dy = to.y - from.y;
+        let distance = (dx * dx + dy * dy).sqrt();
+        if distance <= f32::EPSILON {
+            return None;
+        }
+
+        let max_offset = (distance * 0.5) - EDGE_COLLISION_MARGIN;
+        let max_stub = (distance * 0.5) - EDGE_COLLISION_MARGIN;
+        if max_offset <= 0.0 || max_stub <= 0.0 {
+            return None;
+        }
+
+        let base_offset = (distance * 0.25).min(EDGE_SINGLE_OFFSET).min(max_offset);
+        let base_stub = (distance * 0.25).min(EDGE_SINGLE_STUB).min(max_stub);
+
+        if base_offset <= 0.0 || base_stub <= 0.0 {
+            return None;
+        }
+
+        for &normal_sign in &[1.0, -1.0] {
+            for attempt in 0..=EDGE_COLLISION_MAX_ITER {
+                let offset = (base_offset + attempt as f32 * EDGE_SINGLE_OFFSET_STEP)
+                    .min(max_offset)
+                    .max(base_offset);
+                let stub = (base_stub + attempt as f32 * EDGE_SINGLE_STUB_STEP)
+                    .min(max_stub)
+                    .max(base_stub);
+
+                let points = Diagram::generate_bidir_points(from, to, offset, stub, normal_sign);
+                let route = build_route(from, &points, to);
+
+                if !self.label_collides_with_nodes(edge, &route, node_rects) {
+                    return Some(points);
+                }
+
+                if (offset - max_offset).abs() < f32::EPSILON
+                    && (stub - max_stub).abs() < f32::EPSILON
+                {
+                    break;
+                }
+            }
+        }
+
+        None
+    }
+
+    fn label_collides_with_nodes(
+        &self,
+        edge: &Edge,
+        route: &[Point],
+        node_rects: &HashMap<String, Rect>,
+    ) -> bool {
+        let rect = match label_rect_for_route(edge, route) {
+            Some(rect) => rect.inflate(EDGE_COLLISION_MARGIN),
+            None => return false,
+        };
+
+        node_rects
+            .values()
+            .any(|node_rect| rect.intersects(node_rect))
     }
 
     fn generate_bidir_points(
