@@ -90,11 +90,11 @@ impl Diagram {
             r##"<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="{:.0}" height="{:.0}" viewBox="0 0 {:.0} {:.0}" font-family="Inter, system-ui, sans-serif">
   <defs>
-        <marker id="arrow-end" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
-            <path d="M2,2 L10,6 L2,10 z" fill="context-stroke" />
+        <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
         </marker>
-        <marker id="arrow-start" markerWidth="12" markerHeight="12" refX="2" refY="6" orient="auto" markerUnits="strokeWidth">
-            <path d="M10,2 L2,6 L10,10 z" fill="context-stroke" />
+        <marker id="arrow-start" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M7,1 L2,4 L7,7 z" fill="context-stroke" />
         </marker>
   </defs>
   <rect width="100%" height="100%" fill="{}" />
@@ -714,10 +714,19 @@ impl Diagram {
 
             let mut path = build_route(from, &middle_points, to);
 
+            let base_label_collision = self.label_collides_with_nodes(edge, &path, &node_rects);
+            let base_intersections = count_route_intersections(&path, &routes);
+
             if middle_points.is_empty() && !has_override(edge_idx) {
-                if let Some(adjusted) =
-                    self.adjust_edge_for_collisions(from, to, edge, &node_rects, &routes)
-                {
+                if let Some(adjusted) = self.adjust_edge_for_conflicts(
+                    from,
+                    to,
+                    edge,
+                    &node_rects,
+                    &routes,
+                    base_label_collision,
+                    base_intersections,
+                ) {
                     path = build_route(from, &adjusted, to);
                 }
             }
@@ -833,20 +842,18 @@ impl Diagram {
         fallback
     }
 
-    fn adjust_edge_for_collisions(
+    fn adjust_edge_for_conflicts(
         &self,
         from: Point,
         to: Point,
         edge: &Edge,
         node_rects: &HashMap<String, Rect>,
         existing_routes: &HashMap<String, Vec<Point>>,
+        base_label_collision: bool,
+        base_intersections: usize,
     ) -> Option<Vec<Point>> {
-        if edge.label.is_none() {
-            return None;
-        }
-
-        let base_route = [from, to];
-        if !self.label_collides_with_nodes(edge, &base_route, node_rects) {
+        let base_metric = ((base_label_collision as u8), base_intersections);
+        if base_metric == (0_u8, 0_usize) {
             return None;
         }
 
@@ -870,7 +877,7 @@ impl Diagram {
             return None;
         }
 
-        let mut fallback: Option<(Vec<Point>, usize)> = None;
+        let mut best: Option<(Vec<Point>, (u8, usize))> = None;
 
         for &normal_sign in &[1.0, -1.0] {
             for attempt in 0..=EDGE_COLLISION_MAX_ITER {
@@ -889,18 +896,22 @@ impl Diagram {
                 }
 
                 let intersection_count = count_route_intersections(&route, existing_routes);
-                if intersection_count == 0 {
+                let candidate_metric = (0_u8, intersection_count);
+
+                if candidate_metric == (0_u8, 0_usize) {
                     return Some(points);
                 }
 
-                match &mut fallback {
-                    Some((existing_points, best_count)) => {
-                        if intersection_count < *best_count {
-                            *existing_points = points;
-                            *best_count = intersection_count;
+                if candidate_metric < base_metric {
+                    match &mut best {
+                        Some((existing_points, existing_metric)) => {
+                            if candidate_metric < *existing_metric {
+                                *existing_points = points;
+                                *existing_metric = candidate_metric;
+                            }
                         }
+                        None => best = Some((points, candidate_metric)),
                     }
-                    None => fallback = Some((points, intersection_count)),
                 }
 
                 if (offset - max_offset).abs() < f32::EPSILON
@@ -911,7 +922,7 @@ impl Diagram {
             }
         }
 
-        fallback.map(|(points, _)| points)
+        best.map(|(points, _)| points)
     }
 
     fn label_collides_with_nodes(
