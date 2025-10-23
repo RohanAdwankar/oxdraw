@@ -1,0 +1,5 @@
+graph LR
+    Start([Idle]) -->|start| Proc[Processing]
+    Proc -->|cancel| Start
+    Proc -->|success| Done([Completed])
+    Done -->|restart| Start
