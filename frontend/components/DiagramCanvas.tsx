@@ -51,6 +51,10 @@ const SHAPE_COLORS: Record<DiagramData["nodes"][number]["shape"], string> = {
 const DEFAULT_NODE_STROKE = "#2d3748";
 const DEFAULT_NODE_TEXT = "#1a202c";
 const DEFAULT_EDGE_COLOR = "#2d3748";
+const SUBGRAPH_FILL = "#edf2f7";
+const SUBGRAPH_STROKE = "#a0aec0";
+const SUBGRAPH_LABEL_COLOR = "#2d3748";
+const SUBGRAPH_BORDER_RADIUS = 16;
 
 interface DiagramCanvasProps {
   diagram: DiagramData;
@@ -824,6 +828,19 @@ export default function DiagramCanvas({
     return combined;
   }, [edges, nodeEntries]);
 
+  const subgraphViews = useMemo(() => {
+    const items = diagram.subgraphs ?? [];
+    return [...items].sort((a, b) => {
+      if (a.depth !== b.depth) {
+        return a.depth - b.depth;
+      }
+      if (a.order !== b.order) {
+        return a.order - b.order;
+      }
+      return a.id.localeCompare(b.id);
+    });
+  }, [diagram.subgraphs]);
+
   const toScreen = (point: Point) => ({
     x: point.x + bounds.offsetX,
     y: point.y + bounds.offsetY,
@@ -1225,6 +1242,49 @@ export default function DiagramCanvas({
         onPointerCancel={handlePointerCancel}
         onContextMenu={handleCanvasContextMenu}
       >
+        {subgraphViews.map((subgraph) => {
+          const topLeft = toScreen({ x: subgraph.x, y: subgraph.y });
+          const bottomRight = toScreen({
+            x: subgraph.x + subgraph.width,
+            y: subgraph.y + subgraph.height,
+          });
+          const labelPoint = toScreen({ x: subgraph.labelX, y: subgraph.labelY });
+          const width = bottomRight.x - topLeft.x;
+          const height = bottomRight.y - topLeft.y;
+          return (
+            <g
+              key={`subgraph-${subgraph.id}`}
+              className="subgraph"
+              data-id={subgraph.id}
+              style={{ pointerEvents: "none" }}
+            >
+              <rect
+                x={topLeft.x}
+                y={topLeft.y}
+                width={width}
+                height={height}
+                rx={SUBGRAPH_BORDER_RADIUS}
+                ry={SUBGRAPH_BORDER_RADIUS}
+                fill={SUBGRAPH_FILL}
+                fillOpacity={0.7}
+                stroke={SUBGRAPH_STROKE}
+                strokeWidth={1.5}
+              />
+              <text
+                x={labelPoint.x}
+                y={labelPoint.y}
+                fill={SUBGRAPH_LABEL_COLOR}
+                fontSize={14}
+                fontWeight={600}
+                textAnchor="start"
+                dominantBaseline="hanging"
+              >
+                {subgraph.label}
+              </text>
+            </g>
+          );
+        })}
+
         {edges.map((view: EdgeView) => {
           const {
             edge,

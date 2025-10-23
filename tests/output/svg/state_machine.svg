@@ -31,8 +31,8 @@
   </g>
   <rect x="240.0" y="144.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="310.0" y="174.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Processing</text>
-  <rect x="80.0" y="144.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="174.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">[Idle]</text>
   <rect x="400.0" y="144.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
   <text x="470.0" y="174.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">[Completed]</text>
+  <rect x="80.0" y="144.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="150.0" y="174.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">[Idle]</text>
 </svg>

@@ -37,6 +37,19 @@ export interface EdgeData {
   arrowDirection?: EdgeArrowDirection;
 }
 
+export interface SubgraphData {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  labelX: number;
+  labelY: number;
+  depth: number;
+  order: number;
+}
+
 export interface DiagramData {
   sourcePath: string;
   background: string;
@@ -44,6 +57,7 @@ export interface DiagramData {
   renderSize: Size;
   nodes: NodeData[];
   edges: EdgeData[];
+  subgraphs?: SubgraphData[];
   source: string;
 }
 

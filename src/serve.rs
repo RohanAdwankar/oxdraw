@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -35,6 +36,8 @@ struct DiagramPayload {
     render_size: CanvasSize,
     nodes: Vec<NodePayload>,
     edges: Vec<EdgePayload>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    subgraphs: Vec<SubgraphPayload>,
     source: String,
 }
 
@@ -54,6 +57,21 @@ struct NodePayload {
     stroke_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     text_color: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SubgraphPayload {
+    id: String,
+    label: String,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    label_x: f32,
+    label_y: f32,
+    depth: usize,
+    order: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -398,6 +416,7 @@ async fn get_diagram(
         &layout.final_positions,
         &layout.final_routes,
         &diagram.edges,
+        &diagram.subgraphs,
     )
     .map_err(internal_error)?;
 
@@ -477,6 +496,22 @@ async fn get_diagram(
         });
     }
 
+    let mut subgraphs = Vec::new();
+    for sg in &geometry.subgraphs {
+        subgraphs.push(SubgraphPayload {
+            id: sg.id.clone(),
+            label: sg.label.clone(),
+            x: sg.x,
+            y: sg.y,
+            width: sg.width,
+            height: sg.height,
+            label_x: sg.label_x,
+            label_y: sg.label_y,
+            depth: sg.depth,
+            order: sg.order,
+        });
+    }
+
     let payload = DiagramPayload {
         source_path: state.source_path.display().to_string(),
         background: state.background.clone(),
@@ -487,6 +522,7 @@ async fn get_diagram(
         },
         nodes,
         edges,
+        subgraphs,
         source,
     };
 

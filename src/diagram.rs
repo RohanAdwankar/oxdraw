@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fmt::Write as FmtWrite;
 use tiny_skia::{Pixmap, Transform};
 
@@ -18,11 +18,57 @@ pub struct LayoutOverrides {
 }
 
 #[derive(Debug, Clone)]
+pub struct Subgraph {
+    pub id: String,
+    pub label: String,
+    pub nodes: Vec<String>,
+    pub children: Vec<Subgraph>,
+    pub order: usize,
+}
+
+#[derive(Debug, Clone)]
+struct SubgraphBuilder {
+    id: String,
+    label: String,
+    nodes: Vec<String>,
+    children: Vec<SubgraphBuilder>,
+    order: usize,
+}
+
+impl SubgraphBuilder {
+    fn new(id: String, label: String, order: usize) -> Self {
+        Self {
+            id,
+            label,
+            nodes: Vec::new(),
+            children: Vec::new(),
+            order,
+        }
+    }
+
+    fn into_subgraph(self) -> Subgraph {
+        Subgraph {
+            id: self.id,
+            label: self.label,
+            nodes: self.nodes,
+            children: self
+                .children
+                .into_iter()
+                .map(SubgraphBuilder::into_subgraph)
+                .collect(),
+            order: self.order,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Diagram {
     pub direction: Direction,
     pub nodes: HashMap<String, Node>,
     pub order: Vec<String>,
     pub edges: Vec<Edge>,
+    pub subgraphs: Vec<Subgraph>,
+    pub node_membership: HashMap<String, Vec<String>>,
 }
 
 impl LayoutOverrides {
@@ -57,11 +103,60 @@ impl Diagram {
         let mut nodes = HashMap::new();
         let mut order = Vec::new();
         let mut edges = Vec::new();
+        let mut node_membership: HashMap<String, Vec<String>> = HashMap::new();
+        let mut subgraph_stack: Vec<SubgraphBuilder> = Vec::new();
+        let mut top_subgraphs: Vec<SubgraphBuilder> = Vec::new();
+        let mut seen_subgraph_ids: HashSet<String> = HashSet::new();
+        let mut subgraph_counter = 0_usize;
 
         for line in lines {
-            if let Some(edge) = parse_edge_line(line, &mut nodes, &mut order)? {
-                edges.push(edge);
+            if let Some(rest) = line.strip_prefix("subgraph") {
+                let (id, label) = parse_subgraph_header(rest)?;
+                if !seen_subgraph_ids.insert(id.clone()) {
+                    bail!("duplicate subgraph identifier '{id}'");
+                }
+                let builder = SubgraphBuilder::new(id, label, subgraph_counter);
+                subgraph_counter += 1;
+                subgraph_stack.push(builder);
+                continue;
             }
+
+            if line.eq_ignore_ascii_case("end") {
+                let builder = subgraph_stack
+                    .pop()
+                    .ok_or_else(|| anyhow!("encountered 'end' without matching 'subgraph'"))?;
+                if let Some(parent) = subgraph_stack.last_mut() {
+                    parent.children.push(builder);
+                } else {
+                    top_subgraphs.push(builder);
+                }
+                continue;
+            }
+
+            if let Some(edge) = parse_edge_line(
+                line,
+                &mut nodes,
+                &mut order,
+                &mut node_membership,
+                &mut subgraph_stack,
+            )? {
+                edges.push(edge);
+                continue;
+            }
+
+            if parse_node_line(
+                line,
+                &mut nodes,
+                &mut order,
+                &mut node_membership,
+                &mut subgraph_stack,
+            )? {
+                continue;
+            }
+        }
+
+        if let Some(unclosed) = subgraph_stack.last() {
+            bail!("subgraph '{}' missing closing 'end'", unclosed.id);
         }
 
         if nodes.is_empty() {
@@ -73,6 +168,11 @@ impl Diagram {
             nodes,
             order,
             edges,
+            subgraphs: top_subgraphs
+                .into_iter()
+                .map(SubgraphBuilder::into_subgraph)
+                .collect(),
+            node_membership,
         })
     }
 
@@ -82,7 +182,12 @@ impl Diagram {
         overrides: Option<&LayoutOverrides>,
     ) -> Result<String> {
         let layout = self.layout(overrides)?;
-        let geometry = align_geometry(&layout.final_positions, &layout.final_routes, &self.edges)?;
+        let geometry = align_geometry(
+            &layout.final_positions,
+            &layout.final_routes,
+            &self.edges,
+            &self.subgraphs,
+        )?;
 
         let mut svg = String::new();
         write!(
@@ -105,6 +210,28 @@ impl Diagram {
             geometry.height,
             escape_xml(background)
         )?;
+
+        let subgraph_fill = "#edf2f7";
+        let subgraph_stroke = "#a0aec0";
+        let subgraph_label = "#2d3748";
+
+        for subgraph in &geometry.subgraphs {
+            write!(
+                svg,
+                "  <g class=\"subgraph\" data-id=\"{}\">\n    <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"16\" ry=\"16\" fill=\"{}\" fill-opacity=\"0.7\" stroke=\"{}\" stroke-width=\"1.5\" />\n    <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" font-weight=\"600\" text-anchor=\"start\" dominant-baseline=\"hanging\">{}</text>\n  </g>\n",
+                escape_xml(&subgraph.id),
+                subgraph.x,
+                subgraph.y,
+                subgraph.width,
+                subgraph.height,
+                subgraph_fill,
+                subgraph_stroke,
+                subgraph.label_x,
+                subgraph.label_y,
+                subgraph_label,
+                escape_xml(&subgraph.label)
+            )?;
+        }
 
         for edge in &self.edges {
             let id = edge_identifier(edge);
@@ -370,7 +497,9 @@ impl Diagram {
     }
 
     pub fn layout(&self, overrides: Option<&LayoutOverrides>) -> Result<LayoutComputation> {
-        let auto = self.compute_auto_layout();
+        let mut auto = self.compute_auto_layout();
+        self.separate_top_level_subgraphs(&mut auto.positions);
+        auto.size = compute_canvas_size_for_positions(&auto.positions);
         let mut final_positions = auto.positions.clone();
 
         if let Some(overrides) = overrides {
@@ -545,6 +674,63 @@ impl Diagram {
         AutoLayout {
             positions,
             size: CanvasSize { width, height },
+        }
+    }
+
+    fn separate_top_level_subgraphs(&self, positions: &mut HashMap<String, Point>) {
+        if self.subgraphs.is_empty() {
+            return;
+        }
+
+        let mut placed_bounds: Vec<Rect> = Vec::new();
+
+        for subgraph in &self.subgraphs {
+            let nodes = gather_subgraph_nodes(subgraph);
+            if nodes.is_empty() {
+                continue;
+            }
+
+            let mut bounds = match compute_group_bounds(&nodes, positions) {
+                Some(bounds) => bounds,
+                None => continue,
+            };
+
+            let mut required_shift = 0.0_f32;
+            loop {
+                let shifted = Rect {
+                    min_x: bounds.min_x + required_shift,
+                    max_x: bounds.max_x + required_shift,
+                    min_y: bounds.min_y,
+                    max_y: bounds.max_y,
+                };
+
+                let mut overlap_shift = None;
+                for placed in &placed_bounds {
+                    if rects_intersect_with_margin(&shifted, placed, SUBGRAPH_SEPARATION) {
+                        let candidate = placed.max_x + SUBGRAPH_SEPARATION - bounds.min_x;
+                        overlap_shift = Some(candidate.max(required_shift));
+                        break;
+                    }
+                }
+
+                if let Some(new_shift) = overlap_shift {
+                    if (new_shift - required_shift).abs() < f32::EPSILON {
+                        required_shift = new_shift + SUBGRAPH_SEPARATION;
+                    } else {
+                        required_shift = new_shift;
+                    }
+                    continue;
+                }
+
+                if required_shift.abs() > f32::EPSILON {
+                    offset_nodes(positions, &nodes, required_shift, 0.0);
+                    bounds.min_x += required_shift;
+                    bounds.max_x += required_shift;
+                }
+
+                placed_bounds.push(bounds);
+                break;
+            }
         }
     }
 
@@ -1193,6 +1379,8 @@ impl Diagram {
             self.order.retain(|id| id != node_id);
             self.edges
                 .retain(|edge| edge.from != node_id && edge.to != node_id);
+            self.node_membership.remove(node_id);
+            prune_node_from_subgraphs(&mut self.subgraphs, node_id);
         }
         existed
     }
@@ -1207,19 +1395,82 @@ impl Diagram {
         let mut lines = Vec::new();
         lines.push(format!("graph {}", self.direction.as_token()));
 
+        let mut emitted = HashSet::new();
+
+        for (idx, subgraph) in self.subgraphs.iter().enumerate() {
+            self.emit_subgraph_definition(subgraph, 1, &mut lines, &mut emitted);
+            if idx + 1 != self.subgraphs.len() {
+                lines.push(String::new());
+            }
+        }
+
+        if !self.subgraphs.is_empty() && self.order.iter().any(|id| !emitted.contains(id)) {
+            lines.push(String::new());
+        }
+
         for id in &self.order {
+            if emitted.contains(id) {
+                continue;
+            }
             if let Some(node) = self.nodes.get(id) {
                 lines.push(Self::format_node_line(id, node));
             }
+        }
+
+        if !self.edges.is_empty() && !lines.is_empty() {
+            lines.push(String::new());
         }
 
         for edge in &self.edges {
             lines.push(Self::format_edge_line(edge));
         }
 
+        while matches!(lines.last(), Some(line) if line.is_empty()) {
+            lines.pop();
+        }
+
         let mut output = lines.join("\n");
         output.push('\n');
         output
+    }
+
+    fn emit_subgraph_definition(
+        &self,
+        subgraph: &Subgraph,
+        depth: usize,
+        lines: &mut Vec<String>,
+        emitted: &mut HashSet<String>,
+    ) {
+        let indent = "    ".repeat(depth);
+        let header = if subgraph.label == subgraph.id {
+            subgraph.id.clone()
+        } else {
+            format!("{}[{}]", subgraph.id, subgraph.label)
+        };
+        lines.push(format!("{}subgraph {}", indent, header));
+
+        let inner_indent = "    ".repeat(depth + 1);
+        let direct_nodes: HashSet<&str> = subgraph.nodes.iter().map(|id| id.as_str()).collect();
+        for id in &self.order {
+            if !direct_nodes.contains(id.as_str()) {
+                continue;
+            }
+            if emitted.insert(id.clone()) {
+                if let Some(node) = self.nodes.get(id) {
+                    lines.push(format!(
+                        "{}{}",
+                        inner_indent,
+                        Self::format_node_line(id, node)
+                    ));
+                }
+            }
+        }
+
+        for child in &subgraph.children {
+            self.emit_subgraph_definition(child, depth + 1, lines, emitted);
+        }
+
+        lines.push(format!("{}end", indent));
     }
 
     fn format_node_line(id: &str, node: &Node) -> String {
@@ -1969,6 +2220,7 @@ pub fn align_geometry(
     positions: &HashMap<String, Point>,
     routes: &HashMap<String, Vec<Point>>,
     edges: &[Edge],
+    subgraphs: &[Subgraph],
 ) -> Result<Geometry> {
     if positions.is_empty() {
         bail!("diagram does not declare any nodes");
@@ -2019,6 +2271,14 @@ pub fn align_geometry(
         }
     }
 
+    let unshifted_subgraphs = compute_subgraph_visuals(subgraphs, positions);
+    for sg in &unshifted_subgraphs {
+        min_x = min_x.min(sg.x);
+        max_x = max_x.max(sg.x + sg.width);
+        min_y = min_y.min(sg.y);
+        max_y = max_y.max(sg.y + sg.height);
+    }
+
     if min_x > max_x || min_y > max_y {
         bail!("unable to compute diagram bounds");
     }
@@ -2052,12 +2312,199 @@ pub fn align_geometry(
         shifted_routes.insert(id.clone(), shifted);
     }
 
+    let shifted_subgraphs = unshifted_subgraphs
+        .into_iter()
+        .map(|mut sg| {
+            sg.x += shift_x;
+            sg.y += shift_y;
+            sg.label_x += shift_x;
+            sg.label_y += shift_y;
+            sg
+        })
+        .collect();
+
     Ok(Geometry {
         positions: shifted_positions,
         edges: shifted_routes,
+        subgraphs: shifted_subgraphs,
         width,
         height,
     })
+}
+
+fn compute_subgraph_visuals(
+    subgraphs: &[Subgraph],
+    positions: &HashMap<String, Point>,
+) -> Vec<SubgraphVisual> {
+    let mut visuals = Vec::new();
+    for subgraph in subgraphs {
+        collect_subgraph_visual(subgraph, positions, &mut visuals, 0);
+    }
+
+    visuals.sort_by(|a, b| {
+        a.depth
+            .cmp(&b.depth)
+            .then_with(|| a.order.cmp(&b.order))
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    visuals
+}
+
+fn collect_subgraph_visual(
+    subgraph: &Subgraph,
+    positions: &HashMap<String, Point>,
+    visuals: &mut Vec<SubgraphVisual>,
+    depth: usize,
+) -> Option<Rect> {
+    let mut bounds: Option<Rect> = None;
+
+    for child in &subgraph.children {
+        if let Some(child_bounds) = collect_subgraph_visual(child, positions, visuals, depth + 1) {
+            expand_bounds(&mut bounds, child_bounds);
+        }
+    }
+
+    for node_id in &subgraph.nodes {
+        if let Some(position) = positions.get(node_id) {
+            expand_bounds(&mut bounds, node_rect(*position));
+        }
+    }
+
+    let mut bounds = match bounds {
+        Some(bounds) => bounds,
+        None => return None,
+    };
+
+    bounds.min_x -= SUBGRAPH_PADDING;
+    bounds.max_x += SUBGRAPH_PADDING;
+    bounds.min_y -= SUBGRAPH_PADDING;
+    bounds.max_y += SUBGRAPH_PADDING;
+
+    let mut outer = bounds;
+    outer.min_y -= SUBGRAPH_LABEL_AREA;
+
+    let mut width = outer.max_x - outer.min_x;
+    let mut height = outer.max_y - outer.min_y;
+
+    let min_width = NODE_WIDTH + SUBGRAPH_PADDING * 2.0;
+    if width < min_width {
+        let delta = (min_width - width) / 2.0;
+        outer.min_x -= delta;
+        outer.max_x += delta;
+    }
+
+    let min_height = NODE_HEIGHT + SUBGRAPH_PADDING * 2.0 + SUBGRAPH_LABEL_AREA;
+    if height < min_height {
+        let delta = (min_height - height) / 2.0;
+        outer.min_y -= delta;
+        outer.max_y += delta;
+    }
+
+    width = outer.max_x - outer.min_x;
+    height = outer.max_y - outer.min_y;
+
+    let visual = SubgraphVisual {
+        id: subgraph.id.clone(),
+        label: subgraph.label.clone(),
+        x: outer.min_x,
+        y: outer.min_y,
+        width,
+        height,
+        label_x: outer.min_x + SUBGRAPH_LABEL_INSET_X,
+        label_y: outer.min_y + SUBGRAPH_LABEL_TEXT_BASELINE,
+        depth,
+        order: subgraph.order,
+    };
+
+    visuals.push(visual);
+
+    Some(Rect {
+        min_x: outer.min_x,
+        max_x: outer.max_x,
+        min_y: outer.min_y,
+        max_y: outer.max_y,
+    })
+}
+
+fn expand_bounds(target: &mut Option<Rect>, rect: Rect) {
+    if let Some(existing) = target.as_mut() {
+        existing.min_x = existing.min_x.min(rect.min_x);
+        existing.max_x = existing.max_x.max(rect.max_x);
+        existing.min_y = existing.min_y.min(rect.min_y);
+        existing.max_y = existing.max_y.max(rect.max_y);
+    } else {
+        *target = Some(rect);
+    }
+}
+
+fn compute_canvas_size_for_positions(positions: &HashMap<String, Point>) -> CanvasSize {
+    if positions.is_empty() {
+        return CanvasSize {
+            width: START_OFFSET * 2.0 + NODE_WIDTH,
+            height: START_OFFSET * 2.0 + NODE_HEIGHT,
+        };
+    }
+
+    let mut min_x = f32::MAX;
+    let mut max_x = f32::MIN;
+    let mut min_y = f32::MAX;
+    let mut max_y = f32::MIN;
+
+    for point in positions.values() {
+        min_x = min_x.min(point.x - NODE_WIDTH / 2.0);
+        max_x = max_x.max(point.x + NODE_WIDTH / 2.0);
+        min_y = min_y.min(point.y - NODE_HEIGHT / 2.0);
+        max_y = max_y.max(point.y + NODE_HEIGHT / 2.0);
+    }
+
+    let width = (max_x - min_x).max(NODE_WIDTH) + LAYOUT_MARGIN * 2.0;
+    let height = (max_y - min_y).max(NODE_HEIGHT) + LAYOUT_MARGIN * 2.0;
+
+    CanvasSize { width, height }
+}
+
+fn gather_subgraph_nodes(subgraph: &Subgraph) -> HashSet<String> {
+    let mut nodes = HashSet::new();
+    collect_nodes_recursive(subgraph, &mut nodes);
+    nodes
+}
+
+fn collect_nodes_recursive(subgraph: &Subgraph, nodes: &mut HashSet<String>) {
+    for id in &subgraph.nodes {
+        nodes.insert(id.clone());
+    }
+    for child in &subgraph.children {
+        collect_nodes_recursive(child, nodes);
+    }
+}
+
+fn compute_group_bounds(
+    nodes: &HashSet<String>,
+    positions: &HashMap<String, Point>,
+) -> Option<Rect> {
+    let mut bounds: Option<Rect> = None;
+    for id in nodes {
+        if let Some(position) = positions.get(id) {
+            expand_bounds(&mut bounds, node_rect(*position));
+        }
+    }
+    bounds
+}
+
+fn offset_nodes(positions: &mut HashMap<String, Point>, nodes: &HashSet<String>, dx: f32, dy: f32) {
+    for id in nodes {
+        if let Some(point) = positions.get_mut(id) {
+            point.x += dx;
+            point.y += dy;
+        }
+    }
+}
+
+fn rects_intersect_with_margin(a: &Rect, b: &Rect, margin: f32) -> bool {
+    (a.min_x - margin) < (b.max_x + margin)
+        && (a.max_x + margin) > (b.min_x - margin)
+        && (a.min_y - margin) < (b.max_y + margin)
+        && (a.max_y + margin) > (b.min_y - margin)
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -2110,10 +2557,113 @@ fn parse_graph_header(line: &str) -> Result<Direction> {
     Ok(direction)
 }
 
+fn parse_subgraph_header(raw: &str) -> Result<(String, String)> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        bail!("subgraph declaration missing identifier");
+    }
+
+    if let Some(start) = trimmed.find('[') {
+        if trimmed.ends_with(']') && start < trimmed.len() - 1 {
+            let id_part = trimmed[..start].trim();
+            if id_part.is_empty() {
+                bail!("subgraph identifier cannot be empty");
+            }
+            let label_part = trimmed[start + 1..trimmed.len() - 1].trim();
+            let label = if label_part.is_empty() {
+                id_part
+            } else {
+                label_part
+            };
+            return Ok((normalize_subgraph_id(id_part), label.to_string()));
+        }
+    }
+
+    if trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2 {
+        let label = trimmed[1..trimmed.len() - 1].trim();
+        if label.is_empty() {
+            bail!("subgraph label cannot be empty");
+        }
+        return Ok((normalize_subgraph_id(label), label.to_string()));
+    }
+
+    Ok((normalize_subgraph_id(trimmed), trimmed.to_string()))
+}
+
+fn normalize_subgraph_id(raw: &str) -> String {
+    let mut id = raw.trim().to_string();
+    if id.is_empty() {
+        id = "subgraph".to_string();
+    }
+    id.chars()
+        .map(|ch| if ch.is_whitespace() { '_' } else { ch })
+        .collect()
+}
+
+fn record_node_membership(
+    node_id: &str,
+    subgraph_stack: &mut Vec<SubgraphBuilder>,
+    node_membership: &mut HashMap<String, Vec<String>>,
+) {
+    let node_id_string = node_id.to_string();
+
+    // Record membership path using current stack ordering.
+    let path: Vec<String> = subgraph_stack.iter().map(|sg| sg.id.clone()).collect();
+    node_membership.insert(node_id_string.clone(), path);
+
+    if let Some(current) = subgraph_stack.last_mut() {
+        if !current.nodes.contains(&node_id_string) {
+            current.nodes.push(node_id_string);
+        }
+    }
+}
+
+fn prune_node_from_subgraphs(subgraphs: &mut Vec<Subgraph>, node_id: &str) -> bool {
+    subgraphs.retain_mut(|subgraph| {
+        subgraph.nodes.retain(|id| id != node_id);
+        prune_node_from_subgraphs(&mut subgraph.children, node_id);
+        !subgraph.nodes.is_empty() || !subgraph.children.is_empty()
+    });
+    !subgraphs.is_empty()
+}
+
+fn parse_node_line(
+    line: &str,
+    nodes: &mut HashMap<String, Node>,
+    order: &mut Vec<String>,
+    node_membership: &mut HashMap<String, Vec<String>>,
+    subgraph_stack: &mut Vec<SubgraphBuilder>,
+) -> Result<bool> {
+    if line.contains("-->") || line.contains("-.->") {
+        return Ok(false);
+    }
+
+    let spec = match NodeSpec::parse(line) {
+        Ok(spec) => spec,
+        Err(_) => return Ok(false),
+    };
+
+    let (id, inserted) = insert_node_spec(spec, nodes, order);
+    if inserted {
+        record_node_membership(&id, subgraph_stack, node_membership);
+    } else if !node_membership.contains_key(&id) {
+        if subgraph_stack.is_empty() {
+            node_membership.insert(id.clone(), Vec::new());
+        } else {
+            // Preserve membership for nodes first declared outside any subgraph when later wrapped.
+            record_node_membership(&id, subgraph_stack, node_membership);
+        }
+    }
+
+    Ok(true)
+}
+
 fn parse_edge_line(
     line: &str,
     nodes: &mut HashMap<String, Node>,
     order: &mut Vec<String>,
+    node_membership: &mut HashMap<String, Vec<String>>,
+    subgraph_stack: &mut Vec<SubgraphBuilder>,
 ) -> Result<Option<Edge>> {
     const EDGE_PATTERNS: [(&str, EdgeKind); 2] =
         [("-.->", EdgeKind::Dashed), ("-->", EdgeKind::Solid)];
@@ -2141,8 +2691,19 @@ fn parse_edge_line(
         (None, rhs)
     };
 
-    let from_id = intern_node(lhs, nodes, order)?;
-    let to_id = intern_node(rhs_clean, nodes, order)?;
+    let (from_id, from_new) = intern_node(lhs, nodes, order)?;
+    if from_new {
+        record_node_membership(&from_id, subgraph_stack, node_membership);
+    } else if !node_membership.contains_key(&from_id) && subgraph_stack.is_empty() {
+        node_membership.insert(from_id.clone(), Vec::new());
+    }
+
+    let (to_id, to_new) = intern_node(rhs_clean, nodes, order)?;
+    if to_new {
+        record_node_membership(&to_id, subgraph_stack, node_membership);
+    } else if !node_membership.contains_key(&to_id) && subgraph_stack.is_empty() {
+        node_membership.insert(to_id.clone(), Vec::new());
+    }
 
     Ok(Some(Edge {
         from: from_id,
@@ -2156,19 +2717,27 @@ fn intern_node(
     raw: &str,
     nodes: &mut HashMap<String, Node>,
     order: &mut Vec<String>,
-) -> Result<String> {
+) -> Result<(String, bool)> {
     let spec = NodeSpec::parse(raw)?;
-    match nodes.entry(spec.id.clone()) {
+    Ok(insert_node_spec(spec, nodes, order))
+}
+
+fn insert_node_spec(
+    spec: NodeSpec,
+    nodes: &mut HashMap<String, Node>,
+    order: &mut Vec<String>,
+) -> (String, bool) {
+    let NodeSpec { id, label, shape } = spec;
+    let mut inserted = false;
+    match nodes.entry(id.clone()) {
         Entry::Vacant(entry) => {
-            order.push(spec.id.clone());
-            entry.insert(Node {
-                label: spec.label,
-                shape: spec.shape,
-            });
+            order.push(id.clone());
+            entry.insert(Node { label, shape });
+            inserted = true;
         }
         Entry::Occupied(_) => {}
     }
-    Ok(spec.id)
+    (id, inserted)
 }
 
 struct NodeSpec {
