@@ -9,30 +9,30 @@
         </marker>
   </defs>
   <rect width="100%" height="100%" fill="white" />
-  <polyline points="150.0,158.0 224.0,222.0 230.0,222.0 236.0,222.0 310.0,158.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="184.7,188.0 224.0,222.0 230.0,222.0 236.0,222.0 270.8,191.9" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="203.5" y="208.0" width="53.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="230.0" y="222.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">start</text>
   </g>
-  <polyline points="310.0,158.0 236.0,94.0 230.0,94.0 224.0,94.0 150.0,158.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="275.3,128.0 236.0,94.0 230.0,94.0 224.0,94.0 189.2,124.1" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="199.8" y="80.0" width="60.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="230.0" y="94.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">cancel</text>
   </g>
-  <polyline points="310.0,158.0 384.0,218.0 390.0,218.0 396.0,218.0 470.0,158.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="347.0,188.0 384.0,218.0 390.0,218.0 396.0,218.0 428.3,191.8" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="356.1" y="204.0" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="390.0" y="218.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">success</text>
   </g>
-  <polyline points="470.0,158.0 374.0,98.0 310.0,98.0 246.0,98.0 150.0,158.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="422.0,128.0 374.0,98.0 310.0,98.0 246.0,98.0 203.1,124.8" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="276.1" y="84.0" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="310.0" y="98.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">restart</text>
   </g>
-  <rect x="80.0" y="128.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="158.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">[Idle]</text>
-  <rect x="400.0" y="128.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
-  <text x="470.0" y="158.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">[Completed]</text>
   <rect x="240.0" y="128.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="310.0" y="158.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Processing</text>
+  <rect x="400.0" y="128.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="470.0" y="158.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">[Completed]</text>
+  <rect x="80.0" y="128.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="150.0" y="158.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">[Idle]</text>
 </svg>

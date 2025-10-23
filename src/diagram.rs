@@ -715,7 +715,8 @@ impl Diagram {
             let mut path = build_route(from, &middle_points, to);
 
             if middle_points.is_empty() && !has_override(edge_idx) {
-                if let Some(adjusted) = self.adjust_edge_for_collisions(from, to, edge, &node_rects)
+                if let Some(adjusted) =
+                    self.adjust_edge_for_collisions(from, to, edge, &node_rects, &routes)
                 {
                     path = build_route(from, &adjusted, to);
                 }
@@ -725,6 +726,12 @@ impl Diagram {
                 if let Some(custom) = overrides.and_then(|ov| ov.edges.get(edge_id)) {
                     path = build_route(from, &custom.points, to);
                 }
+            }
+
+            if let (Some(&from_rect), Some(&to_rect)) =
+                (node_rects.get(&edge.from), node_rects.get(&edge.to))
+            {
+                trim_route_endpoints(&mut path, from_rect, to_rect);
             }
 
             routes.insert(edge_id.clone(), path);
@@ -832,6 +839,7 @@ impl Diagram {
         to: Point,
         edge: &Edge,
         node_rects: &HashMap<String, Rect>,
+        existing_routes: &HashMap<String, Vec<Point>>,
     ) -> Option<Vec<Point>> {
         if edge.label.is_none() {
             return None;
@@ -862,6 +870,8 @@ impl Diagram {
             return None;
         }
 
+        let mut fallback: Option<(Vec<Point>, usize)> = None;
+
         for &normal_sign in &[1.0, -1.0] {
             for attempt in 0..=EDGE_COLLISION_MAX_ITER {
                 let offset = (base_offset + attempt as f32 * EDGE_SINGLE_OFFSET_STEP)
@@ -874,8 +884,23 @@ impl Diagram {
                 let points = Diagram::generate_bidir_points(from, to, offset, stub, normal_sign);
                 let route = build_route(from, &points, to);
 
-                if !self.label_collides_with_nodes(edge, &route, node_rects) {
+                if self.label_collides_with_nodes(edge, &route, node_rects) {
+                    continue;
+                }
+
+                let intersection_count = count_route_intersections(&route, existing_routes);
+                if intersection_count == 0 {
                     return Some(points);
+                }
+
+                match &mut fallback {
+                    Some((existing_points, best_count)) => {
+                        if intersection_count < *best_count {
+                            *existing_points = points;
+                            *best_count = intersection_count;
+                        }
+                    }
+                    None => fallback = Some((points, intersection_count)),
                 }
 
                 if (offset - max_offset).abs() < f32::EPSILON
@@ -886,7 +911,7 @@ impl Diagram {
             }
         }
 
-        None
+        fallback.map(|(points, _)| points)
     }
 
     fn label_collides_with_nodes(
@@ -1201,6 +1226,163 @@ impl Rect {
             && self.min_y <= other.max_y
             && self.max_y >= other.min_y
     }
+
+    fn contains(&self, point: Point) -> bool {
+        let eps = 1e-3_f32;
+        point.x >= self.min_x - eps
+            && point.x <= self.max_x + eps
+            && point.y >= self.min_y - eps
+            && point.y <= self.max_y + eps
+    }
+}
+
+fn trim_route_endpoints(path: &mut Vec<Point>, from_rect: Rect, to_rect: Rect) {
+    if path.len() < 2 {
+        return;
+    }
+
+    if from_rect.contains(path[0]) {
+        if let Some(trimmed) = clip_segment_exit(path[0], path[1], from_rect, false) {
+            path[0] = trimmed;
+        }
+    }
+
+    if path.len() < 2 {
+        return;
+    }
+
+    let last = path.len() - 1;
+    if to_rect.contains(path[last]) {
+        if let Some(trimmed) = clip_segment_exit(path[last], path[last - 1], to_rect, true) {
+            path[last] = trimmed;
+        }
+    }
+}
+
+fn clip_segment_exit(start: Point, next: Point, rect: Rect, extend_outward: bool) -> Option<Point> {
+    let dx = next.x - start.x;
+    let dy = next.y - start.y;
+    let distance = (dx * dx + dy * dy).sqrt();
+    if distance <= f32::EPSILON {
+        return None;
+    }
+
+    let mut candidates = Vec::new();
+    if dx.abs() > f32::EPSILON {
+        let target_x = if dx > 0.0 { rect.max_x } else { rect.min_x };
+        let t = (target_x - start.x) / dx;
+        if t >= 0.0 && t <= 1.0 {
+            let y = start.y + t * dy;
+            if y >= rect.min_y - 1e-3_f32 && y <= rect.max_y + 1e-3_f32 {
+                candidates.push(t);
+            }
+        }
+    }
+    if dy.abs() > f32::EPSILON {
+        let target_y = if dy > 0.0 { rect.max_y } else { rect.min_y };
+        let t = (target_y - start.y) / dy;
+        if t >= 0.0 && t <= 1.0 {
+            let x = start.x + t * dx;
+            if x >= rect.min_x - 1e-3_f32 && x <= rect.max_x + 1e-3_f32 {
+                candidates.push(t);
+            }
+        }
+    }
+
+    if candidates.is_empty() {
+        return None;
+    }
+
+    let mut t_exit = candidates
+        .into_iter()
+        .fold(1.0_f32, |acc, t| acc.min(t.max(f32::EPSILON)));
+    t_exit = t_exit.clamp(0.0, 1.0);
+
+    let mut point = Point {
+        x: start.x + t_exit * dx,
+        y: start.y + t_exit * dy,
+    };
+
+    if extend_outward {
+        let dir_x = dx / distance;
+        let dir_y = dy / distance;
+        point.x += dir_x * EDGE_ARROW_EXTENSION;
+        point.y += dir_y * EDGE_ARROW_EXTENSION;
+    }
+
+    Some(point)
+}
+
+fn count_route_intersections(
+    route: &[Point],
+    existing_routes: &HashMap<String, Vec<Point>>,
+) -> usize {
+    existing_routes
+        .values()
+        .filter(|other| routes_intersect(route, other))
+        .count()
+}
+
+fn routes_intersect(a: &[Point], b: &[Point]) -> bool {
+    for segment_a in a.windows(2) {
+        for segment_b in b.windows(2) {
+            if shares_endpoint(segment_a[0], segment_a[1], segment_b[0], segment_b[1]) {
+                continue;
+            }
+            if segments_intersect(segment_a[0], segment_a[1], segment_b[0], segment_b[1]) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn shares_endpoint(a1: Point, a2: Point, b1: Point, b2: Point) -> bool {
+    points_close(a1, b1) || points_close(a1, b2) || points_close(a2, b1) || points_close(a2, b2)
+}
+
+fn segments_intersect(a1: Point, a2: Point, b1: Point, b2: Point) -> bool {
+    let o1 = orientation(a1, a2, b1);
+    let o2 = orientation(a1, a2, b2);
+    let o3 = orientation(b1, b2, a1);
+    let o4 = orientation(b1, b2, a2);
+
+    if o1 * o2 < 0.0 && o3 * o4 < 0.0 {
+        return true;
+    }
+
+    if o1.abs() < 1e-3_f32 && on_segment(a1, a2, b1) {
+        return true;
+    }
+    if o2.abs() < 1e-3_f32 && on_segment(a1, a2, b2) {
+        return true;
+    }
+    if o3.abs() < 1e-3_f32 && on_segment(b1, b2, a1) {
+        return true;
+    }
+    if o4.abs() < 1e-3_f32 && on_segment(b1, b2, a2) {
+        return true;
+    }
+
+    false
+}
+
+fn orientation(a: Point, b: Point, c: Point) -> f32 {
+    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+}
+
+fn on_segment(a: Point, b: Point, c: Point) -> bool {
+    let eps = 1e-3_f32;
+    c.x >= a.x.min(b.x) - eps
+        && c.x <= a.x.max(b.x) + eps
+        && c.y >= a.y.min(b.y) - eps
+        && c.y <= a.y.max(b.y) + eps
+}
+
+fn points_close(a: Point, b: Point) -> bool {
+    let dx = a.x - b.x;
+    let dy = a.y - b.y;
+    (dx * dx + dy * dy).sqrt() < 1e-2_f32
 }
 
 pub fn align_geometry(
