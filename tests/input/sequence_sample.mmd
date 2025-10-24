@@ -1,0 +1,12 @@
+graph TD
+    subgraph ClientFlow
+        A[Client Request] -->|POST /diagram| B{Payload Valid?}
+        B -->|No| C([Reject])
+        B -->|Yes| D[Queue Job]
+    end
+    D --> E[[Worker]]
+    E --> F{Render Success?}
+    F -->|Yes| G[Generate SVG]
+    F -->|No| H[Retry]
+    H --> D
+    G --> I([Send 200 OK])

@@ -1,4 +1,17 @@
-export type NodeShape = "rectangle" | "stadium" | "circle" | "diamond";
+export type NodeShape =
+  | "rectangle"
+  | "stadium"
+  | "circle"
+  | "double-circle"
+  | "diamond"
+  | "subroutine"
+  | "cylinder"
+  | "hexagon"
+  | "parallelogram"
+  | "parallelogram-alt"
+  | "trapezoid"
+  | "trapezoid-alt"
+  | "asymmetric";
 export type EdgeKind = "solid" | "dashed";
 export type EdgeArrowDirection = "forward" | "backward" | "both" | "none";
 
@@ -22,6 +35,7 @@ export interface NodeData {
   fillColor?: string;
   strokeColor?: string;
   textColor?: string;
+  membership?: string[];
 }
 
 export interface EdgeData {
@@ -37,6 +51,20 @@ export interface EdgeData {
   arrowDirection?: EdgeArrowDirection;
 }
 
+export interface SubgraphData {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  labelX: number;
+  labelY: number;
+  depth: number;
+  order: number;
+  parentId?: string;
+}
+
 export interface DiagramData {
   sourcePath: string;
   background: string;
@@ -44,6 +72,7 @@ export interface DiagramData {
   renderSize: Size;
   nodes: NodeData[];
   edges: EdgeData[];
+  subgraphs?: SubgraphData[];
   source: string;
 }
 

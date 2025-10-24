@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::fmt::Write as FmtWrite;
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::fmt::Write;
 use tiny_skia::{Pixmap, Transform};
 
 use crate::*;
@@ -18,11 +18,57 @@ pub struct LayoutOverrides {
 }
 
 #[derive(Debug, Clone)]
+pub struct Subgraph {
+    pub id: String,
+    pub label: String,
+    pub nodes: Vec<String>,
+    pub children: Vec<Subgraph>,
+    pub order: usize,
+}
+
+#[derive(Debug, Clone)]
+struct SubgraphBuilder {
+    id: String,
+    label: String,
+    nodes: Vec<String>,
+    children: Vec<SubgraphBuilder>,
+    order: usize,
+}
+
+impl SubgraphBuilder {
+    fn new(id: String, label: String, order: usize) -> Self {
+        Self {
+            id,
+            label,
+            nodes: Vec::new(),
+            children: Vec::new(),
+            order,
+        }
+    }
+
+    fn into_subgraph(self) -> Subgraph {
+        Subgraph {
+            id: self.id,
+            label: self.label,
+            nodes: self.nodes,
+            children: self
+                .children
+                .into_iter()
+                .map(SubgraphBuilder::into_subgraph)
+                .collect(),
+            order: self.order,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Diagram {
     pub direction: Direction,
     pub nodes: HashMap<String, Node>,
     pub order: Vec<String>,
     pub edges: Vec<Edge>,
+    pub subgraphs: Vec<Subgraph>,
+    pub node_membership: HashMap<String, Vec<String>>,
 }
 
 impl LayoutOverrides {
@@ -57,11 +103,60 @@ impl Diagram {
         let mut nodes = HashMap::new();
         let mut order = Vec::new();
         let mut edges = Vec::new();
+        let mut node_membership: HashMap<String, Vec<String>> = HashMap::new();
+        let mut subgraph_stack: Vec<SubgraphBuilder> = Vec::new();
+        let mut top_subgraphs: Vec<SubgraphBuilder> = Vec::new();
+        let mut seen_subgraph_ids: HashSet<String> = HashSet::new();
+        let mut subgraph_counter = 0_usize;
 
         for line in lines {
-            if let Some(edge) = parse_edge_line(line, &mut nodes, &mut order)? {
-                edges.push(edge);
+            if let Some(rest) = line.strip_prefix("subgraph") {
+                let (id, label) = parse_subgraph_header(rest)?;
+                if !seen_subgraph_ids.insert(id.clone()) {
+                    bail!("duplicate subgraph identifier '{id}'");
+                }
+                let builder = SubgraphBuilder::new(id, label, subgraph_counter);
+                subgraph_counter += 1;
+                subgraph_stack.push(builder);
+                continue;
             }
+
+            if line.eq_ignore_ascii_case("end") {
+                let builder = subgraph_stack
+                    .pop()
+                    .ok_or_else(|| anyhow!("encountered 'end' without matching 'subgraph'"))?;
+                if let Some(parent) = subgraph_stack.last_mut() {
+                    parent.children.push(builder);
+                } else {
+                    top_subgraphs.push(builder);
+                }
+                continue;
+            }
+
+            if let Some(edge) = parse_edge_line(
+                line,
+                &mut nodes,
+                &mut order,
+                &mut node_membership,
+                &mut subgraph_stack,
+            )? {
+                edges.push(edge);
+                continue;
+            }
+
+            if parse_node_line(
+                line,
+                &mut nodes,
+                &mut order,
+                &mut node_membership,
+                &mut subgraph_stack,
+            )? {
+                continue;
+            }
+        }
+
+        if let Some(unclosed) = subgraph_stack.last() {
+            bail!("subgraph '{}' missing closing 'end'", unclosed.id);
         }
 
         if nodes.is_empty() {
@@ -73,6 +168,11 @@ impl Diagram {
             nodes,
             order,
             edges,
+            subgraphs: top_subgraphs
+                .into_iter()
+                .map(SubgraphBuilder::into_subgraph)
+                .collect(),
+            node_membership,
         })
     }
 
@@ -82,7 +182,12 @@ impl Diagram {
         overrides: Option<&LayoutOverrides>,
     ) -> Result<String> {
         let layout = self.layout(overrides)?;
-        let geometry = align_geometry(&layout.final_positions, &layout.final_routes, &self.edges)?;
+        let geometry = align_geometry(
+            &layout.final_positions,
+            &layout.final_routes,
+            &self.edges,
+            &self.subgraphs,
+        )?;
 
         let mut svg = String::new();
         write!(
@@ -105,6 +210,28 @@ impl Diagram {
             geometry.height,
             escape_xml(background)
         )?;
+
+        let subgraph_fill = "#edf2f7";
+        let subgraph_stroke = "#a0aec0";
+        let subgraph_label = "#2d3748";
+
+        for subgraph in &geometry.subgraphs {
+            write!(
+                svg,
+                "  <g class=\"subgraph\" data-id=\"{}\">\n    <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"16\" ry=\"16\" fill=\"{}\" fill-opacity=\"0.7\" stroke=\"{}\" stroke-width=\"1.5\" />\n    <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" font-weight=\"600\" text-anchor=\"start\" dominant-baseline=\"hanging\">{}</text>\n  </g>\n",
+                escape_xml(&subgraph.id),
+                subgraph.x,
+                subgraph.y,
+                subgraph.width,
+                subgraph.height,
+                subgraph_fill,
+                subgraph_stroke,
+                subgraph.label_x,
+                subgraph.label_y,
+                subgraph_label,
+                escape_xml(&subgraph.label)
+            )?;
+        }
 
         for edge in &self.edges {
             let id = edge_identifier(edge);
@@ -249,56 +376,8 @@ impl Diagram {
                 }
             }
 
-            match node.shape {
-                NodeShape::Rectangle => write!(
-                    svg,
-                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    position.x - NODE_WIDTH / 2.0,
-                    position.y - NODE_HEIGHT / 2.0,
-                    NODE_WIDTH,
-                    NODE_HEIGHT,
-                    fill_color,
-                    stroke_color
-                )?,
-                NodeShape::Stadium => write!(
-                    svg,
-                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    position.x - NODE_WIDTH / 2.0,
-                    position.y - NODE_HEIGHT / 2.0,
-                    NODE_WIDTH,
-                    NODE_HEIGHT,
-                    fill_color,
-                    stroke_color
-                )?,
-                NodeShape::Circle => write!(
-                    svg,
-                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    position.x,
-                    position.y,
-                    NODE_WIDTH / 2.0,
-                    NODE_HEIGHT / 2.0,
-                    fill_color,
-                    stroke_color
-                )?,
-                NodeShape::Diamond => {
-                    let half_w = NODE_WIDTH / 2.0;
-                    let half_h = NODE_HEIGHT / 2.0;
-                    write!(
-                        svg,
-                        "  <polygon points=\"{:.1},{:.1} {:.1},{:.1} {:.1},{:.1} {:.1},{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                        position.x,
-                        position.y - half_h,
-                        position.x + half_w,
-                        position.y,
-                        position.x,
-                        position.y + half_h,
-                        position.x - half_w,
-                        position.y,
-                        fill_color,
-                        stroke_color
-                    )?;
-                }
-            }
+            node.shape
+                .render_svg_shape(&mut svg, position, &fill_color, &stroke_color)?;
 
             write!(
                 svg,
@@ -370,7 +449,9 @@ impl Diagram {
     }
 
     pub fn layout(&self, overrides: Option<&LayoutOverrides>) -> Result<LayoutComputation> {
-        let auto = self.compute_auto_layout();
+        let mut auto = self.compute_auto_layout();
+        self.separate_top_level_subgraphs(&mut auto.positions);
+        auto.size = compute_canvas_size_for_positions(&auto.positions);
         let mut final_positions = auto.positions.clone();
 
         if let Some(overrides) = overrides {
@@ -545,6 +626,81 @@ impl Diagram {
         AutoLayout {
             positions,
             size: CanvasSize { width, height },
+        }
+    }
+
+    fn separate_top_level_subgraphs(&self, positions: &mut HashMap<String, Point>) {
+        if self.subgraphs.is_empty() {
+            return;
+        }
+
+        let mut placed_bounds: Vec<Rect> = Vec::new();
+        let outside_nodes: Vec<(String, Rect)> = positions
+            .iter()
+            .filter_map(|(id, point)| {
+                let membership = self.node_membership.get(id);
+                if membership.map_or(true, |path| path.is_empty()) {
+                    Some((id.clone(), node_rect(*point)))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for subgraph in &self.subgraphs {
+            let nodes = gather_subgraph_nodes(subgraph);
+            if nodes.is_empty() {
+                continue;
+            }
+
+            let mut bounds = match compute_group_bounds(&nodes, positions) {
+                Some(bounds) => bounds,
+                None => continue,
+            };
+
+            let mut required_shift = 0.0_f32;
+
+            loop {
+                let shifted = Rect {
+                    min_x: bounds.min_x + required_shift,
+                    max_x: bounds.max_x + required_shift,
+                    min_y: bounds.min_y,
+                    max_y: bounds.max_y,
+                };
+
+                let mut next_shift = required_shift;
+
+                for placed in &placed_bounds {
+                    if rects_intersect_with_margin(&shifted, placed, SUBGRAPH_SEPARATION) {
+                        let candidate = placed.max_x + SUBGRAPH_SEPARATION - bounds.min_x;
+                        next_shift = next_shift.max(candidate);
+                    }
+                }
+
+                for (node_id, node_rect) in &outside_nodes {
+                    if nodes.contains(node_id) {
+                        continue;
+                    }
+                    if rects_intersect_with_margin(&shifted, node_rect, SUBGRAPH_SEPARATION) {
+                        let candidate = node_rect.max_x + SUBGRAPH_SEPARATION - bounds.min_x;
+                        next_shift = next_shift.max(candidate);
+                    }
+                }
+
+                if next_shift > required_shift + 1e-3_f32 {
+                    required_shift = next_shift;
+                    continue;
+                }
+
+                if required_shift.abs() > f32::EPSILON {
+                    offset_nodes(positions, &nodes, required_shift, 0.0);
+                    bounds.min_x += required_shift;
+                    bounds.max_x += required_shift;
+                }
+
+                placed_bounds.push(bounds);
+                break;
+            }
         }
     }
 
@@ -1193,6 +1349,8 @@ impl Diagram {
             self.order.retain(|id| id != node_id);
             self.edges
                 .retain(|edge| edge.from != node_id && edge.to != node_id);
+            self.node_membership.remove(node_id);
+            prune_node_from_subgraphs(&mut self.subgraphs, node_id);
         }
         existed
     }
@@ -1207,19 +1365,82 @@ impl Diagram {
         let mut lines = Vec::new();
         lines.push(format!("graph {}", self.direction.as_token()));
 
+        let mut emitted = HashSet::new();
+
+        for (idx, subgraph) in self.subgraphs.iter().enumerate() {
+            self.emit_subgraph_definition(subgraph, 1, &mut lines, &mut emitted);
+            if idx + 1 != self.subgraphs.len() {
+                lines.push(String::new());
+            }
+        }
+
+        if !self.subgraphs.is_empty() && self.order.iter().any(|id| !emitted.contains(id)) {
+            lines.push(String::new());
+        }
+
         for id in &self.order {
+            if emitted.contains(id) {
+                continue;
+            }
             if let Some(node) = self.nodes.get(id) {
                 lines.push(Self::format_node_line(id, node));
             }
+        }
+
+        if !self.edges.is_empty() && !lines.is_empty() {
+            lines.push(String::new());
         }
 
         for edge in &self.edges {
             lines.push(Self::format_edge_line(edge));
         }
 
+        while matches!(lines.last(), Some(line) if line.is_empty()) {
+            lines.pop();
+        }
+
         let mut output = lines.join("\n");
         output.push('\n');
         output
+    }
+
+    fn emit_subgraph_definition(
+        &self,
+        subgraph: &Subgraph,
+        depth: usize,
+        lines: &mut Vec<String>,
+        emitted: &mut HashSet<String>,
+    ) {
+        let indent = "    ".repeat(depth);
+        let header = if subgraph.label == subgraph.id {
+            subgraph.id.clone()
+        } else {
+            format!("{}[{}]", subgraph.id, subgraph.label)
+        };
+        lines.push(format!("{}subgraph {}", indent, header));
+
+        let inner_indent = "    ".repeat(depth + 1);
+        let direct_nodes: HashSet<&str> = subgraph.nodes.iter().map(|id| id.as_str()).collect();
+        for id in &self.order {
+            if !direct_nodes.contains(id.as_str()) {
+                continue;
+            }
+            if emitted.insert(id.clone()) {
+                if let Some(node) = self.nodes.get(id) {
+                    lines.push(format!(
+                        "{}{}",
+                        inner_indent,
+                        Self::format_node_line(id, node)
+                    ));
+                }
+            }
+        }
+
+        for child in &subgraph.children {
+            self.emit_subgraph_definition(child, depth + 1, lines, emitted);
+        }
+
+        lines.push(format!("{}end", indent));
     }
 
     fn format_node_line(id: &str, node: &Node) -> String {
@@ -1315,13 +1536,30 @@ fn generate_axis_detours(from: Point, to: Point) -> Vec<Vec<Point>> {
     candidates
 }
 
+fn format_points(points: &[(f32, f32)]) -> String {
+    points
+        .iter()
+        .map(|(x, y)| format!("{:.1},{:.1}", x, y))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 impl NodeShape {
     pub fn as_str(&self) -> &'static str {
         match self {
             NodeShape::Rectangle => "rectangle",
             NodeShape::Stadium => "stadium",
             NodeShape::Circle => "circle",
+            NodeShape::DoubleCircle => "double-circle",
             NodeShape::Diamond => "diamond",
+            NodeShape::Subroutine => "subroutine",
+            NodeShape::Cylinder => "cylinder",
+            NodeShape::Hexagon => "hexagon",
+            NodeShape::Parallelogram => "parallelogram",
+            NodeShape::ParallelogramAlt => "parallelogram-alt",
+            NodeShape::Trapezoid => "trapezoid",
+            NodeShape::TrapezoidAlt => "trapezoid-alt",
+            NodeShape::Asymmetric => "asymmetric",
         }
     }
 
@@ -1330,7 +1568,16 @@ impl NodeShape {
             NodeShape::Rectangle => "#fde68a",
             NodeShape::Stadium => "#c4f1f9",
             NodeShape::Circle => "#e9d8fd",
+            NodeShape::DoubleCircle => "#bfdbfe",
             NodeShape::Diamond => "#fbcfe8",
+            NodeShape::Subroutine => "#fed7aa",
+            NodeShape::Cylinder => "#bbf7d0",
+            NodeShape::Hexagon => "#fca5a5",
+            NodeShape::Parallelogram => "#c7d2fe",
+            NodeShape::ParallelogramAlt => "#a5f3fc",
+            NodeShape::Trapezoid => "#fce7f3",
+            NodeShape::TrapezoidAlt => "#fcd5ce",
+            NodeShape::Asymmetric => "#f5d0fe",
         }
     }
 
@@ -1345,7 +1592,235 @@ impl NodeShape {
             }
             NodeShape::Stadium => format!("{id}({label})"),
             NodeShape::Circle => format!("{id}(({label}))"),
+            NodeShape::DoubleCircle => format!("{id}((({label})))"),
             NodeShape::Diamond => format!("{id}{{{label}}}"),
+            NodeShape::Subroutine => format!("{id}[[{label}]]"),
+            NodeShape::Cylinder => format!("{id}[({label})]"),
+            NodeShape::Hexagon => format!("{id}{{{{{label}}}}}"),
+            NodeShape::Parallelogram => format!("{id}[/{label}/]"),
+            NodeShape::ParallelogramAlt => format!("{id}[\\{label}\\]"),
+            NodeShape::Trapezoid => format!("{id}[/{label}\\]"),
+            NodeShape::TrapezoidAlt => format!("{id}[\\{label}/]"),
+            NodeShape::Asymmetric => format!("{id}>{label}]"),
+        }
+    }
+
+    fn render_svg_shape(
+        &self,
+        svg: &mut String,
+        position: Point,
+        fill_color: &str,
+        stroke_color: &str,
+    ) -> std::fmt::Result {
+        let half_w = NODE_WIDTH / 2.0;
+        let half_h = NODE_HEIGHT / 2.0;
+        match self {
+            NodeShape::Rectangle => write!(
+                svg,
+                "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                position.x - half_w,
+                position.y - half_h,
+                NODE_WIDTH,
+                NODE_HEIGHT,
+                fill_color,
+                stroke_color
+            ),
+            NodeShape::Stadium => write!(
+                svg,
+                "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                position.x - half_w,
+                position.y - half_h,
+                NODE_WIDTH,
+                NODE_HEIGHT,
+                fill_color,
+                stroke_color
+            ),
+            NodeShape::Circle => write!(
+                svg,
+                "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                position.x, position.y, half_w, half_h, fill_color, stroke_color
+            ),
+            NodeShape::DoubleCircle => {
+                write!(
+                    svg,
+                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    position.x, position.y, half_w, half_h, fill_color, stroke_color
+                )?;
+                write!(
+                    svg,
+                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    position.x,
+                    position.y,
+                    (half_w - 6.0).max(half_w * 0.65),
+                    (half_h - 6.0).max(half_h * 0.65),
+                    stroke_color
+                )
+            }
+            NodeShape::Diamond => {
+                let points = format_points(&[
+                    (position.x, position.y - half_h),
+                    (position.x + half_w, position.y),
+                    (position.x, position.y + half_h),
+                    (position.x - half_w, position.y),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
+            NodeShape::Subroutine => {
+                let left = position.x - half_w;
+                let top = position.y - half_h;
+                let right = position.x + half_w;
+                let bottom = position.y + half_h;
+                let inset = 12.0;
+                write!(
+                    svg,
+                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    left, top, NODE_WIDTH, NODE_HEIGHT, fill_color, stroke_color
+                )?;
+                write!(
+                    svg,
+                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    left + inset,
+                    top,
+                    left + inset,
+                    bottom,
+                    stroke_color
+                )?;
+                write!(
+                    svg,
+                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    right - inset,
+                    top,
+                    right - inset,
+                    bottom,
+                    stroke_color
+                )
+            }
+            NodeShape::Cylinder => {
+                let left = position.x - half_w;
+                let right = position.x + half_w;
+                let top = position.y - half_h;
+                let bottom = position.y + half_h;
+                let rx = half_w;
+                let ry = NODE_HEIGHT / 6.0;
+                let top_center = top + ry;
+                let bottom_center = bottom - ry;
+                write!(
+                    svg,
+                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} L{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    left,
+                    top_center,
+                    rx,
+                    ry,
+                    right,
+                    top_center,
+                    right,
+                    bottom_center,
+                    rx,
+                    ry,
+                    left,
+                    bottom_center,
+                    fill_color,
+                    stroke_color
+                )?;
+                write!(
+                    svg,
+                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    left, top_center, rx, ry, right, top_center, stroke_color
+                )
+            }
+            NodeShape::Hexagon => {
+                let offset = NODE_WIDTH * 0.25;
+                let points = format_points(&[
+                    (position.x - half_w + offset, position.y - half_h),
+                    (position.x + half_w - offset, position.y - half_h),
+                    (position.x + half_w, position.y),
+                    (position.x + half_w - offset, position.y + half_h),
+                    (position.x - half_w + offset, position.y + half_h),
+                    (position.x - half_w, position.y),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
+            NodeShape::Parallelogram => {
+                let skew = NODE_HEIGHT * 0.35;
+                let points = format_points(&[
+                    (position.x - half_w + skew, position.y - half_h),
+                    (position.x + half_w, position.y - half_h),
+                    (position.x + half_w - skew, position.y + half_h),
+                    (position.x - half_w, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
+            NodeShape::ParallelogramAlt => {
+                let skew = NODE_HEIGHT * 0.35;
+                let points = format_points(&[
+                    (position.x - half_w, position.y - half_h),
+                    (position.x + half_w - skew, position.y - half_h),
+                    (position.x + half_w, position.y + half_h),
+                    (position.x - half_w + skew, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
+            NodeShape::Trapezoid => {
+                let top_inset = NODE_WIDTH * 0.22;
+                let bottom_inset = NODE_WIDTH * 0.08;
+                let points = format_points(&[
+                    (position.x - half_w + top_inset, position.y - half_h),
+                    (position.x + half_w - top_inset, position.y - half_h),
+                    (position.x + half_w - bottom_inset, position.y + half_h),
+                    (position.x - half_w + bottom_inset, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
+            NodeShape::TrapezoidAlt => {
+                let top_inset = NODE_WIDTH * 0.08;
+                let bottom_inset = NODE_WIDTH * 0.22;
+                let points = format_points(&[
+                    (position.x - half_w + top_inset, position.y - half_h),
+                    (position.x + half_w - top_inset, position.y - half_h),
+                    (position.x + half_w - bottom_inset, position.y + half_h),
+                    (position.x - half_w + bottom_inset, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
+            NodeShape::Asymmetric => {
+                let skew = NODE_HEIGHT * 0.45;
+                let points = format_points(&[
+                    (position.x - half_w, position.y - half_h),
+                    (position.x + half_w - skew, position.y - half_h),
+                    (position.x + half_w, position.y),
+                    (position.x + half_w - skew, position.y + half_h),
+                    (position.x - half_w, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
         }
     }
 }
@@ -1600,8 +2075,7 @@ impl NodeBoundary {
 
     fn contains_point(&self, point: Point) -> bool {
         match self.shape {
-            NodeShape::Rectangle | NodeShape::Stadium => self.rect.contains(point),
-            NodeShape::Circle => {
+            NodeShape::Circle | NodeShape::DoubleCircle => {
                 let rx = NODE_WIDTH / 2.0;
                 let ry = NODE_HEIGHT / 2.0;
                 if rx <= 0.0 || ry <= 0.0 {
@@ -1621,6 +2095,7 @@ impl NodeBoundary {
                 let dy = (point.y - self.center.y).abs() / half_h;
                 dx + dy <= 1.0 + 1e-3_f32
             }
+            _ => self.rect.contains(point),
         }
     }
 }
@@ -1661,11 +2136,11 @@ fn clip_segment_exit_with_shape(
     extend_outward: bool,
 ) -> Option<Point> {
     match bounds.shape {
-        NodeShape::Rectangle | NodeShape::Stadium => {
-            clip_segment_exit_rect(start, next, bounds.rect, extend_outward)
+        NodeShape::Circle | NodeShape::DoubleCircle => {
+            clip_segment_exit_circle(start, next, bounds, extend_outward)
         }
-        NodeShape::Circle => clip_segment_exit_circle(start, next, bounds, extend_outward),
         NodeShape::Diamond => clip_segment_exit_diamond(start, next, bounds, extend_outward),
+        _ => clip_segment_exit_rect(start, next, bounds.rect, extend_outward),
     }
 }
 
@@ -1969,6 +2444,7 @@ pub fn align_geometry(
     positions: &HashMap<String, Point>,
     routes: &HashMap<String, Vec<Point>>,
     edges: &[Edge],
+    subgraphs: &[Subgraph],
 ) -> Result<Geometry> {
     if positions.is_empty() {
         bail!("diagram does not declare any nodes");
@@ -2019,6 +2495,14 @@ pub fn align_geometry(
         }
     }
 
+    let unshifted_subgraphs = compute_subgraph_visuals(subgraphs, positions);
+    for sg in &unshifted_subgraphs {
+        min_x = min_x.min(sg.x);
+        max_x = max_x.max(sg.x + sg.width);
+        min_y = min_y.min(sg.y);
+        max_y = max_y.max(sg.y + sg.height);
+    }
+
     if min_x > max_x || min_y > max_y {
         bail!("unable to compute diagram bounds");
     }
@@ -2052,12 +2536,203 @@ pub fn align_geometry(
         shifted_routes.insert(id.clone(), shifted);
     }
 
+    let shifted_subgraphs = unshifted_subgraphs
+        .into_iter()
+        .map(|mut sg| {
+            sg.x += shift_x;
+            sg.y += shift_y;
+            sg.label_x += shift_x;
+            sg.label_y += shift_y;
+            sg
+        })
+        .collect();
+
     Ok(Geometry {
         positions: shifted_positions,
         edges: shifted_routes,
+        subgraphs: shifted_subgraphs,
         width,
         height,
     })
+}
+
+fn compute_subgraph_visuals(
+    subgraphs: &[Subgraph],
+    positions: &HashMap<String, Point>,
+) -> Vec<SubgraphVisual> {
+    let mut visuals = Vec::new();
+    for subgraph in subgraphs {
+        collect_subgraph_visual(subgraph, positions, &mut visuals, 0, None);
+    }
+
+    visuals.sort_by(|a, b| {
+        a.depth
+            .cmp(&b.depth)
+            .then_with(|| a.order.cmp(&b.order))
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    visuals
+}
+
+fn collect_subgraph_visual(
+    subgraph: &Subgraph,
+    positions: &HashMap<String, Point>,
+    visuals: &mut Vec<SubgraphVisual>,
+    depth: usize,
+    parent_id: Option<&str>,
+) -> Option<Rect> {
+    let mut bounds: Option<Rect> = None;
+
+    for child in &subgraph.children {
+        if let Some(child_bounds) =
+            collect_subgraph_visual(child, positions, visuals, depth + 1, Some(&subgraph.id))
+        {
+            expand_bounds(&mut bounds, child_bounds);
+        }
+    }
+
+    for node_id in &subgraph.nodes {
+        if let Some(position) = positions.get(node_id) {
+            expand_bounds(&mut bounds, node_rect(*position));
+        }
+    }
+
+    let mut bounds = match bounds {
+        Some(bounds) => bounds,
+        None => return None,
+    };
+
+    bounds.min_x -= SUBGRAPH_PADDING;
+    bounds.max_x += SUBGRAPH_PADDING;
+    bounds.min_y -= SUBGRAPH_PADDING;
+    bounds.max_y += SUBGRAPH_PADDING;
+
+    let mut outer = bounds;
+    outer.min_y -= SUBGRAPH_LABEL_AREA;
+
+    let mut width = outer.max_x - outer.min_x;
+    let mut height = outer.max_y - outer.min_y;
+
+    let min_width = NODE_WIDTH + SUBGRAPH_PADDING * 2.0;
+    if width < min_width {
+        let delta = (min_width - width) / 2.0;
+        outer.min_x -= delta;
+        outer.max_x += delta;
+    }
+
+    let min_height = NODE_HEIGHT + SUBGRAPH_PADDING * 2.0 + SUBGRAPH_LABEL_AREA;
+    if height < min_height {
+        let delta = (min_height - height) / 2.0;
+        outer.min_y -= delta;
+        outer.max_y += delta;
+    }
+
+    width = outer.max_x - outer.min_x;
+    height = outer.max_y - outer.min_y;
+
+    let visual = SubgraphVisual {
+        id: subgraph.id.clone(),
+        label: subgraph.label.clone(),
+        x: outer.min_x,
+        y: outer.min_y,
+        width,
+        height,
+        label_x: outer.min_x + SUBGRAPH_LABEL_INSET_X,
+        label_y: outer.min_y + SUBGRAPH_LABEL_TEXT_BASELINE,
+        depth,
+        order: subgraph.order,
+        parent_id: parent_id.map(|value| value.to_string()),
+    };
+
+    visuals.push(visual);
+
+    Some(Rect {
+        min_x: outer.min_x,
+        max_x: outer.max_x,
+        min_y: outer.min_y,
+        max_y: outer.max_y,
+    })
+}
+
+fn expand_bounds(target: &mut Option<Rect>, rect: Rect) {
+    if let Some(existing) = target.as_mut() {
+        existing.min_x = existing.min_x.min(rect.min_x);
+        existing.max_x = existing.max_x.max(rect.max_x);
+        existing.min_y = existing.min_y.min(rect.min_y);
+        existing.max_y = existing.max_y.max(rect.max_y);
+    } else {
+        *target = Some(rect);
+    }
+}
+
+fn compute_canvas_size_for_positions(positions: &HashMap<String, Point>) -> CanvasSize {
+    if positions.is_empty() {
+        return CanvasSize {
+            width: START_OFFSET * 2.0 + NODE_WIDTH,
+            height: START_OFFSET * 2.0 + NODE_HEIGHT,
+        };
+    }
+
+    let mut min_x = f32::MAX;
+    let mut max_x = f32::MIN;
+    let mut min_y = f32::MAX;
+    let mut max_y = f32::MIN;
+
+    for point in positions.values() {
+        min_x = min_x.min(point.x - NODE_WIDTH / 2.0);
+        max_x = max_x.max(point.x + NODE_WIDTH / 2.0);
+        min_y = min_y.min(point.y - NODE_HEIGHT / 2.0);
+        max_y = max_y.max(point.y + NODE_HEIGHT / 2.0);
+    }
+
+    let width = (max_x - min_x).max(NODE_WIDTH) + LAYOUT_MARGIN * 2.0;
+    let height = (max_y - min_y).max(NODE_HEIGHT) + LAYOUT_MARGIN * 2.0;
+
+    CanvasSize { width, height }
+}
+
+fn gather_subgraph_nodes(subgraph: &Subgraph) -> HashSet<String> {
+    let mut nodes = HashSet::new();
+    collect_nodes_recursive(subgraph, &mut nodes);
+    nodes
+}
+
+fn collect_nodes_recursive(subgraph: &Subgraph, nodes: &mut HashSet<String>) {
+    for id in &subgraph.nodes {
+        nodes.insert(id.clone());
+    }
+    for child in &subgraph.children {
+        collect_nodes_recursive(child, nodes);
+    }
+}
+
+fn compute_group_bounds(
+    nodes: &HashSet<String>,
+    positions: &HashMap<String, Point>,
+) -> Option<Rect> {
+    let mut bounds: Option<Rect> = None;
+    for id in nodes {
+        if let Some(position) = positions.get(id) {
+            expand_bounds(&mut bounds, node_rect(*position));
+        }
+    }
+    bounds
+}
+
+fn offset_nodes(positions: &mut HashMap<String, Point>, nodes: &HashSet<String>, dx: f32, dy: f32) {
+    for id in nodes {
+        if let Some(point) = positions.get_mut(id) {
+            point.x += dx;
+            point.y += dy;
+        }
+    }
+}
+
+fn rects_intersect_with_margin(a: &Rect, b: &Rect, margin: f32) -> bool {
+    (a.min_x - margin) < (b.max_x + margin)
+        && (a.max_x + margin) > (b.min_x - margin)
+        && (a.min_y - margin) < (b.max_y + margin)
+        && (a.max_y + margin) > (b.min_y - margin)
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -2110,10 +2785,113 @@ fn parse_graph_header(line: &str) -> Result<Direction> {
     Ok(direction)
 }
 
+fn parse_subgraph_header(raw: &str) -> Result<(String, String)> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        bail!("subgraph declaration missing identifier");
+    }
+
+    if let Some(start) = trimmed.find('[') {
+        if trimmed.ends_with(']') && start < trimmed.len() - 1 {
+            let id_part = trimmed[..start].trim();
+            if id_part.is_empty() {
+                bail!("subgraph identifier cannot be empty");
+            }
+            let label_part = trimmed[start + 1..trimmed.len() - 1].trim();
+            let label = if label_part.is_empty() {
+                id_part
+            } else {
+                label_part
+            };
+            return Ok((normalize_subgraph_id(id_part), label.to_string()));
+        }
+    }
+
+    if trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2 {
+        let label = trimmed[1..trimmed.len() - 1].trim();
+        if label.is_empty() {
+            bail!("subgraph label cannot be empty");
+        }
+        return Ok((normalize_subgraph_id(label), label.to_string()));
+    }
+
+    Ok((normalize_subgraph_id(trimmed), trimmed.to_string()))
+}
+
+fn normalize_subgraph_id(raw: &str) -> String {
+    let mut id = raw.trim().to_string();
+    if id.is_empty() {
+        id = "subgraph".to_string();
+    }
+    id.chars()
+        .map(|ch| if ch.is_whitespace() { '_' } else { ch })
+        .collect()
+}
+
+fn record_node_membership(
+    node_id: &str,
+    subgraph_stack: &mut Vec<SubgraphBuilder>,
+    node_membership: &mut HashMap<String, Vec<String>>,
+) {
+    let node_id_string = node_id.to_string();
+
+    // Record membership path using current stack ordering.
+    let path: Vec<String> = subgraph_stack.iter().map(|sg| sg.id.clone()).collect();
+    node_membership.insert(node_id_string.clone(), path);
+
+    if let Some(current) = subgraph_stack.last_mut() {
+        if !current.nodes.contains(&node_id_string) {
+            current.nodes.push(node_id_string);
+        }
+    }
+}
+
+fn prune_node_from_subgraphs(subgraphs: &mut Vec<Subgraph>, node_id: &str) -> bool {
+    subgraphs.retain_mut(|subgraph| {
+        subgraph.nodes.retain(|id| id != node_id);
+        prune_node_from_subgraphs(&mut subgraph.children, node_id);
+        !subgraph.nodes.is_empty() || !subgraph.children.is_empty()
+    });
+    !subgraphs.is_empty()
+}
+
+fn parse_node_line(
+    line: &str,
+    nodes: &mut HashMap<String, Node>,
+    order: &mut Vec<String>,
+    node_membership: &mut HashMap<String, Vec<String>>,
+    subgraph_stack: &mut Vec<SubgraphBuilder>,
+) -> Result<bool> {
+    if line.contains("-->") || line.contains("-.->") {
+        return Ok(false);
+    }
+
+    let spec = match NodeSpec::parse(line) {
+        Ok(spec) => spec,
+        Err(_) => return Ok(false),
+    };
+
+    let (id, inserted) = insert_node_spec(spec, nodes, order);
+    if inserted {
+        record_node_membership(&id, subgraph_stack, node_membership);
+    } else if !node_membership.contains_key(&id) {
+        if subgraph_stack.is_empty() {
+            node_membership.insert(id.clone(), Vec::new());
+        } else {
+            // Preserve membership for nodes first declared outside any subgraph when later wrapped.
+            record_node_membership(&id, subgraph_stack, node_membership);
+        }
+    }
+
+    Ok(true)
+}
+
 fn parse_edge_line(
     line: &str,
     nodes: &mut HashMap<String, Node>,
     order: &mut Vec<String>,
+    node_membership: &mut HashMap<String, Vec<String>>,
+    subgraph_stack: &mut Vec<SubgraphBuilder>,
 ) -> Result<Option<Edge>> {
     const EDGE_PATTERNS: [(&str, EdgeKind); 2] =
         [("-.->", EdgeKind::Dashed), ("-->", EdgeKind::Solid)];
@@ -2141,8 +2919,19 @@ fn parse_edge_line(
         (None, rhs)
     };
 
-    let from_id = intern_node(lhs, nodes, order)?;
-    let to_id = intern_node(rhs_clean, nodes, order)?;
+    let (from_id, from_new) = intern_node(lhs, nodes, order)?;
+    if from_new {
+        record_node_membership(&from_id, subgraph_stack, node_membership);
+    } else if !node_membership.contains_key(&from_id) && subgraph_stack.is_empty() {
+        node_membership.insert(from_id.clone(), Vec::new());
+    }
+
+    let (to_id, to_new) = intern_node(rhs_clean, nodes, order)?;
+    if to_new {
+        record_node_membership(&to_id, subgraph_stack, node_membership);
+    } else if !node_membership.contains_key(&to_id) && subgraph_stack.is_empty() {
+        node_membership.insert(to_id.clone(), Vec::new());
+    }
 
     Ok(Some(Edge {
         from: from_id,
@@ -2156,19 +2945,27 @@ fn intern_node(
     raw: &str,
     nodes: &mut HashMap<String, Node>,
     order: &mut Vec<String>,
-) -> Result<String> {
+) -> Result<(String, bool)> {
     let spec = NodeSpec::parse(raw)?;
-    match nodes.entry(spec.id.clone()) {
+    Ok(insert_node_spec(spec, nodes, order))
+}
+
+fn insert_node_spec(
+    spec: NodeSpec,
+    nodes: &mut HashMap<String, Node>,
+    order: &mut Vec<String>,
+) -> (String, bool) {
+    let NodeSpec { id, label, shape } = spec;
+    let mut inserted = false;
+    match nodes.entry(id.clone()) {
         Entry::Vacant(entry) => {
-            order.push(spec.id.clone());
-            entry.insert(Node {
-                label: spec.label,
-                shape: spec.shape,
-            });
+            order.push(id.clone());
+            entry.insert(Node { label, shape });
+            inserted = true;
         }
         Entry::Occupied(_) => {}
     }
-    Ok(spec.id)
+    (id, inserted)
 }
 
 struct NodeSpec {
@@ -2186,7 +2983,7 @@ impl NodeSpec {
 
         let mut id_end = trimmed.len();
         for (idx, ch) in trimmed.char_indices() {
-            if matches!(ch, '[' | '(' | '{') {
+            if matches!(ch, '[' | '(' | '{' | '>') {
                 id_end = idx;
                 break;
             }
@@ -2200,26 +2997,8 @@ impl NodeSpec {
         let remainder = trimmed[id_end..].trim();
         let (label, shape) = if remainder.is_empty() {
             (id.to_string(), NodeShape::Rectangle)
-        } else if remainder.starts_with("((") && remainder.ends_with("))") && remainder.len() >= 4 {
-            (
-                remainder[2..remainder.len() - 2].trim().to_string(),
-                NodeShape::Circle,
-            )
-        } else if remainder.starts_with('(') && remainder.ends_with(')') && remainder.len() >= 2 {
-            (
-                remainder[1..remainder.len() - 1].trim().to_string(),
-                NodeShape::Stadium,
-            )
-        } else if remainder.starts_with('[') && remainder.ends_with(']') && remainder.len() >= 2 {
-            (
-                remainder[1..remainder.len() - 1].trim().to_string(),
-                NodeShape::Rectangle,
-            )
-        } else if remainder.starts_with('{') && remainder.ends_with('}') && remainder.len() >= 2 {
-            (
-                remainder[1..remainder.len() - 1].trim().to_string(),
-                NodeShape::Diamond,
-            )
+        } else if let Some((label, shape)) = Self::parse_shape_spec(remainder) {
+            (label, shape)
         } else {
             (trimmed.to_string(), NodeShape::Rectangle)
         };
@@ -2233,5 +3012,147 @@ impl NodeSpec {
             },
             shape,
         })
+    }
+
+    fn parse_shape_spec(spec: &str) -> Option<(String, NodeShape)> {
+        let trimmed = spec.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        if trimmed.starts_with("(((") && trimmed.ends_with(")))") && trimmed.len() >= 6 {
+            let inner = trimmed[3..trimmed.len() - 3].trim();
+            return Some((inner.to_string(), NodeShape::DoubleCircle));
+        }
+
+        if trimmed.starts_with("((") && trimmed.ends_with("))") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::Circle));
+        }
+
+        if trimmed.starts_with("[[") && trimmed.ends_with("]]") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::Subroutine));
+        }
+
+        if trimmed.starts_with("[(") && trimmed.ends_with(")]") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::Cylinder));
+        }
+
+        if trimmed.starts_with("{{") && trimmed.ends_with("}}") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::Hexagon));
+        }
+
+        if trimmed.starts_with("[/") && trimmed.ends_with("/]") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::Parallelogram));
+        }
+
+        if trimmed.starts_with("[\\") && trimmed.ends_with("\\]") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::ParallelogramAlt));
+        }
+
+        if trimmed.starts_with("[/") && trimmed.ends_with("\\]") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::Trapezoid));
+        }
+
+        if trimmed.starts_with("[\\") && trimmed.ends_with("/]") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::TrapezoidAlt));
+        }
+
+        if trimmed.starts_with('(') && trimmed.ends_with(')') && trimmed.len() >= 2 {
+            let mut inner = trimmed[1..trimmed.len() - 1].trim().to_string();
+            if inner.starts_with('[') && inner.ends_with(']') && inner.len() >= 2 {
+                inner = inner[1..inner.len() - 1].trim().to_string();
+            }
+            return Some((inner, NodeShape::Stadium));
+        }
+
+        if trimmed.starts_with('[') && trimmed.ends_with(']') && trimmed.len() >= 2 {
+            let inner = trimmed[1..trimmed.len() - 1].trim();
+            return Some((inner.to_string(), NodeShape::Rectangle));
+        }
+
+        if trimmed.starts_with('{') && trimmed.ends_with('}') && trimmed.len() >= 2 {
+            let inner = trimmed[1..trimmed.len() - 1].trim();
+            return Some((inner.to_string(), NodeShape::Diamond));
+        }
+
+        if trimmed.starts_with('>') && trimmed.ends_with(']') && trimmed.len() >= 2 {
+            let inner = trimmed[1..trimmed.len() - 1].trim();
+            return Some((inner.to_string(), NodeShape::Asymmetric));
+        }
+
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_extended_shape_syntax() {
+        let cases = [
+            ("sub[[Subroutine]]", NodeShape::Subroutine, "Subroutine"),
+            ("db[(Database)]", NodeShape::Cylinder, "Database"),
+            ("hex{{Prep}}", NodeShape::Hexagon, "Prep"),
+            ("stop(((Stop)))", NodeShape::DoubleCircle, "Stop"),
+            ("lean[/Tilt/]", NodeShape::Parallelogram, "Tilt"),
+            ("leanAlt[\\Lean\\]", NodeShape::ParallelogramAlt, "Lean"),
+            ("prio[/Priority\\]", NodeShape::Trapezoid, "Priority"),
+            ("manual[\\Manual/]", NodeShape::TrapezoidAlt, "Manual"),
+            ("asym>Skewed]", NodeShape::Asymmetric, "Skewed"),
+            ("term([Terminal])", NodeShape::Stadium, "Terminal"),
+        ];
+
+        for (input, expected_shape, expected_label) in cases {
+            let spec = NodeSpec::parse(input).unwrap();
+            assert_eq!(spec.shape, expected_shape, "shape mismatch for {input}");
+            assert_eq!(spec.label, expected_label, "label mismatch for {input}");
+        }
+    }
+
+    #[test]
+    fn formats_extended_shapes() {
+        let cases = [
+            (NodeShape::Subroutine, "sub", "Task", "sub[[Task]]"),
+            (NodeShape::Cylinder, "db", "Data", "db[(Data)]"),
+            (NodeShape::Hexagon, "hex", "Prep", "hex{{Prep}}"),
+            (NodeShape::DoubleCircle, "stop", "Stop", "stop(((Stop)))"),
+            (NodeShape::Parallelogram, "lean", "Tilt", "lean[/Tilt/]"),
+            (
+                NodeShape::ParallelogramAlt,
+                "leanAlt",
+                "Tilt",
+                "leanAlt[\\Tilt\\]",
+            ),
+            (
+                NodeShape::Trapezoid,
+                "prio",
+                "Priority",
+                "prio[/Priority\\]",
+            ),
+            (
+                NodeShape::TrapezoidAlt,
+                "manual",
+                "Manual",
+                "manual[\\Manual/]",
+            ),
+            (NodeShape::Asymmetric, "asym", "Skewed", "asym>Skewed]"),
+        ];
+
+        for (shape, id, label, expected) in cases {
+            assert_eq!(
+                shape.format_spec(id, label),
+                expected,
+                "format mismatch for {id}"
+            );
+        }
     }
 }

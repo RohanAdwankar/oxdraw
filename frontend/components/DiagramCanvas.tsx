@@ -17,6 +17,7 @@ import {
   EdgeArrowDirection,
   EdgeData,
   EdgeKind,
+  LayoutUpdate,
   Size,
   Point,
 } from "../lib/types";
@@ -42,19 +43,37 @@ const EDGE_LABEL_BACKGROUND = "white";
 const EDGE_LABEL_BACKGROUND_OPACITY = 0.96;
 
 const SHAPE_COLORS: Record<DiagramData["nodes"][number]["shape"], string> = {
-  rectangle: "#FDE68A", // pastel amber
-  stadium: "#C4F1F9", // pastel cyan
-  circle: "#E9D8FD", // pastel purple
-  diamond: "#FBCFE8", // pastel pink
+  rectangle: "#FDE68A",
+  stadium: "#C4F1F9",
+  circle: "#E9D8FD",
+  "double-circle": "#BFDBFE",
+  diamond: "#FBCFE8",
+  subroutine: "#FED7AA",
+  cylinder: "#BBF7D0",
+  hexagon: "#FCA5A5",
+  parallelogram: "#C7D2FE",
+  "parallelogram-alt": "#A5F3FC",
+  trapezoid: "#FCE7F3",
+  "trapezoid-alt": "#FCD5CE",
+  asymmetric: "#F5D0FE",
 };
+
+const polygonPoints = (points: [number, number][]) =>
+  points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
 
 const DEFAULT_NODE_STROKE = "#2d3748";
 const DEFAULT_NODE_TEXT = "#1a202c";
 const DEFAULT_EDGE_COLOR = "#2d3748";
+const SUBGRAPH_FILL = "#edf2f7";
+const SUBGRAPH_STROKE = "#a0aec0";
+const SUBGRAPH_LABEL_COLOR = "#2d3748";
+const SUBGRAPH_BORDER_RADIUS = 16;
+const SUBGRAPH_SEPARATION = 140;
 
 interface DiagramCanvasProps {
   diagram: DiagramData;
   onNodeMove: (id: string, position: Point | null) => void;
+  onLayoutUpdate?: (update: LayoutUpdate) => void;
   onEdgeMove: (id: string, points: Point[] | null) => void;
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
@@ -82,10 +101,24 @@ interface EdgeDragState {
   hasOverride: boolean;
 }
 
-type DragState = NodeDragState | EdgeDragState | null;
+interface SubgraphDragState {
+  type: "subgraph";
+  id: string;
+  offset: Point;
+  origin: Point;
+  members: string[];
+  nodeOffsets: Record<string, Point>;
+  subgraphIds: string[];
+  edgeOverrides: Record<string, Point[]>;
+  delta: Point;
+  moved: boolean;
+}
+
+type DragState = NodeDragState | EdgeDragState | SubgraphDragState | null;
 
 type DraftNodes = Record<string, Point>;
 type DraftEdges = Record<string, Point[]>;
+type DraftSubgraphs = Record<string, Point>;
 
 interface NodeBox {
   left: number;
@@ -94,6 +127,17 @@ interface NodeBox {
   top: number;
   bottom: number;
   centerY: number;
+}
+
+interface SubgraphRect {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  centerX: number;
+  centerY: number;
+  width: number;
+  height: number;
 }
 
 interface VerticalGuide {
@@ -285,6 +329,83 @@ function createNodeBox(position: Point): NodeBox {
     bottom: position.y + NODE_HEIGHT / 2,
     centerY: position.y,
   };
+}
+
+function createSubgraphRect(
+  subgraph: NonNullable<DiagramData["subgraphs"]>[number],
+  offset?: Point
+): SubgraphRect {
+  const dx = offset?.x ?? 0;
+  const dy = offset?.y ?? 0;
+  const left = subgraph.x + dx;
+  const top = subgraph.y + dy;
+  const width = subgraph.width;
+  const height = subgraph.height;
+  return {
+    left,
+    right: left + width,
+    top,
+    bottom: top + height,
+    centerX: left + width / 2,
+    centerY: top + height / 2,
+    width,
+    height,
+  };
+}
+
+function computeSubgraphSeparationShift(
+  moving: SubgraphRect,
+  stationary: SubgraphRect,
+  margin: number
+): Point | null {
+  const expanded = {
+    left: stationary.left - margin,
+    right: stationary.right + margin,
+    top: stationary.top - margin,
+    bottom: stationary.bottom + margin,
+  };
+
+  const overlapX = Math.min(moving.right, expanded.right) - Math.max(moving.left, expanded.left);
+  const overlapY = Math.min(moving.bottom, expanded.bottom) - Math.max(moving.top, expanded.top);
+
+  if (overlapX <= 0 || overlapY <= 0) {
+    return null;
+  }
+
+  const horizontalShift = (() => {
+    if (moving.centerX >= stationary.centerX) {
+      const target = expanded.right;
+      const shift = target - moving.left;
+      return shift + (shift >= 0 ? EPSILON : -EPSILON);
+    }
+    const target = expanded.left;
+    const shift = target - moving.right;
+    return shift + (shift >= 0 ? EPSILON : -EPSILON);
+  })();
+
+  const verticalShift = (() => {
+    if (moving.centerY >= stationary.centerY) {
+      const target = expanded.bottom;
+      const shift = target - moving.top;
+      return shift + (shift >= 0 ? EPSILON : -EPSILON);
+    }
+    const target = expanded.top;
+    const shift = target - moving.bottom;
+    return shift + (shift >= 0 ? EPSILON : -EPSILON);
+  })();
+
+  const absHorizontal = Math.abs(horizontalShift);
+  const absVertical = Math.abs(verticalShift);
+
+  if (absHorizontal <= absVertical && absHorizontal > 0) {
+    return { x: horizontalShift, y: 0 };
+  }
+
+  if (absVertical > 0) {
+    return { x: 0, y: verticalShift };
+  }
+
+  return null;
 }
 
 function computeNodeAlignment(
@@ -543,6 +664,7 @@ function guidesEqual(a: AlignmentGuides, b: AlignmentGuides): boolean {
 export default function DiagramCanvas({
   diagram,
   onNodeMove,
+  onLayoutUpdate,
   onEdgeMove,
   selectedNodeId,
   selectedEdgeId,
@@ -557,6 +679,7 @@ export default function DiagramCanvas({
   const [dragState, setDragState] = useState<DragState>(null);
   const [draftNodes, setDraftNodes] = useState<DraftNodes>({});
   const [draftEdges, setDraftEdges] = useState<DraftEdges>({});
+  const [draftSubgraphs, setDraftSubgraphs] = useState<DraftSubgraphs>({});
   const [alignmentGuides, setAlignmentGuides] = useState<AlignmentGuides>({});
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
@@ -718,6 +841,27 @@ export default function DiagramCanvas({
       .filter((value): value is EdgeView => value !== null);
   }, [diagram.edges, draftEdges, finalPositions]);
 
+  const subgraphViews = useMemo(() => {
+    const items = diagram.subgraphs ?? [];
+    return [...items].sort((a, b) => {
+      if (a.depth !== b.depth) {
+        return a.depth - b.depth;
+      }
+      if (a.order !== b.order) {
+        return a.order - b.order;
+      }
+      return a.id.localeCompare(b.id);
+    });
+  }, [diagram.subgraphs]);
+
+  const subgraphById = useMemo(() => {
+    const map = new Map<string, (typeof subgraphViews)[number]>();
+    for (const subgraph of subgraphViews) {
+      map.set(subgraph.id, subgraph);
+    }
+    return map;
+  }, [subgraphViews]);
+
   const fitBounds = useMemo(() => {
     // Zoom-to-fit: include all nodes, edge control points, and label backgrounds.
     let minX = Infinity;
@@ -752,6 +896,22 @@ export default function DiagramCanvas({
       }
     }
 
+    for (const subgraph of subgraphViews) {
+      const offset = draftSubgraphs[subgraph.id];
+      const left = subgraph.x + (offset?.x ?? 0);
+      const top = subgraph.y + (offset?.y ?? 0);
+      const center = {
+        x: left + subgraph.width / 2,
+        y: top + subgraph.height / 2,
+      };
+      extend(center, subgraph.width / 2, subgraph.height / 2);
+      const labelPoint = {
+        x: subgraph.labelX + (offset?.x ?? 0),
+        y: subgraph.labelY + (offset?.y ?? 0),
+      };
+      extend(labelPoint, 0, 0);
+    }
+
     if (!Number.isFinite(minX)) {
       minX = -NODE_WIDTH / 2;
       maxX = NODE_WIDTH / 2;
@@ -765,7 +925,7 @@ export default function DiagramCanvas({
     const offsetY = LAYOUT_MARGIN - minY;
 
     return { width, height, offsetX, offsetY };
-  }, [edges, finalPositions]);
+  }, [draftSubgraphs, edges, finalPositions, subgraphViews]);
 
   const [bounds, setBounds] = useState(() => fitBounds);
 
@@ -824,6 +984,114 @@ export default function DiagramCanvas({
     return combined;
   }, [edges, nodeEntries]);
 
+  const nodesBySubgraph = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const node of diagram.nodes) {
+      const memberships = node.membership ?? [];
+      for (const subgraphId of memberships) {
+        let bucket = map.get(subgraphId);
+        if (!bucket) {
+          bucket = new Set<string>();
+          map.set(subgraphId, bucket);
+        }
+        bucket.add(node.id);
+      }
+    }
+    return map;
+  }, [diagram.nodes]);
+
+  const subgraphChildren = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const subgraph of diagram.subgraphs ?? []) {
+      if (!subgraph.parentId) {
+        continue;
+      }
+      const existing = map.get(subgraph.parentId);
+      if (existing) {
+        existing.push(subgraph.id);
+      } else {
+        map.set(subgraph.parentId, [subgraph.id]);
+      }
+    }
+    return map;
+  }, [diagram.subgraphs]);
+
+  const gatherSubgraphDescendants = useCallback(
+    (rootId: string) => {
+      const result: string[] = [];
+      const stack: string[] = [rootId];
+      while (stack.length > 0) {
+        const current = stack.pop();
+        if (!current) {
+          continue;
+        }
+        result.push(current);
+        const children = subgraphChildren.get(current);
+        if (children) {
+          for (const child of children) {
+            stack.push(child);
+          }
+        }
+      }
+      return result;
+    },
+    [subgraphChildren]
+  );
+
+  const resolveSubgraphDelta = useCallback(
+    (drag: SubgraphDragState, proposed: Point): Point => {
+      const root = subgraphById.get(drag.id);
+      if (!root) {
+        return { x: proposed.x, y: proposed.y };
+      }
+
+      const rootParent = root.parentId ?? null;
+      const excluded = new Set<string>(drag.subgraphIds);
+      const siblings = subgraphViews.filter((candidate) => {
+        if (excluded.has(candidate.id)) {
+          return false;
+        }
+        const candidateParent = candidate.parentId ?? null;
+        return candidateParent === rootParent;
+      });
+
+      if (siblings.length === 0) {
+        return { x: proposed.x, y: proposed.y };
+      }
+
+      let delta = { x: proposed.x, y: proposed.y };
+      const maxIterations = 6;
+
+      for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+        let adjusted = false;
+        const movingRect = createSubgraphRect(root, delta);
+
+        for (const candidate of siblings) {
+          const candidateOffset = draftSubgraphs[candidate.id];
+          const candidateRect = createSubgraphRect(candidate, candidateOffset);
+          const shift = computeSubgraphSeparationShift(
+            movingRect,
+            candidateRect,
+            SUBGRAPH_SEPARATION
+          );
+          if (!shift) {
+            continue;
+          }
+          delta = { x: delta.x + shift.x, y: delta.y + shift.y };
+          adjusted = true;
+          break;
+        }
+
+        if (!adjusted) {
+          break;
+        }
+      }
+
+      return delta;
+    },
+    [draftSubgraphs, subgraphById, subgraphViews]
+  );
+
   const toScreen = (point: Point) => ({
     x: point.x + bounds.offsetX,
     y: point.y + bounds.offsetY,
@@ -866,6 +1134,104 @@ export default function DiagramCanvas({
   const handleCanvasContextMenu = (event: ReactMouseEvent<SVGSVGElement>) => {
     event.preventDefault();
     closeContextMenu();
+  };
+
+  const handleSubgraphPointerDown = (id: string, event: ReactPointerEvent<SVGGElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeContextMenu();
+    const diagramPoint = clientToDiagram(event);
+    if (!diagramPoint) {
+      return;
+    }
+
+    const subgraph = subgraphViews.find((item) => item.id === id);
+    if (!subgraph) {
+      return;
+    }
+
+    const membership = nodesBySubgraph.get(id);
+    if (!membership || membership.size === 0) {
+      return;
+    }
+
+    const offsetEntry = draftSubgraphs[id];
+    const currentTopLeft = {
+      x: subgraph.x + (offsetEntry?.x ?? 0),
+      y: subgraph.y + (offsetEntry?.y ?? 0),
+    };
+
+    const members = Array.from(membership);
+    const initialNodePositions: Record<string, Point> = {};
+    const nodeOffsets: Record<string, Point> = {};
+    for (const nodeId of members) {
+      const position = finalPositions.get(nodeId);
+      if (position) {
+        initialNodePositions[nodeId] = { ...position };
+        nodeOffsets[nodeId] = {
+          x: position.x - currentTopLeft.x,
+          y: position.y - currentTopLeft.y,
+        };
+      }
+    }
+
+    if (Object.keys(initialNodePositions).length === 0) {
+      return;
+    }
+
+    const offset = {
+      x: diagramPoint.x - currentTopLeft.x,
+      y: diagramPoint.y - currentTopLeft.y,
+    };
+
+    const subgraphIds = gatherSubgraphDescendants(id);
+
+    const memberSet = new Set(members);
+    const edgeOverrides: Record<string, Point[]> = {};
+    for (const edge of diagram.edges) {
+      const baseOverride = draftEdges[edge.id] ?? edge.overridePoints;
+      if (!baseOverride || baseOverride.length === 0) {
+        continue;
+      }
+      if (!memberSet.has(edge.from) && !memberSet.has(edge.to)) {
+        continue;
+      }
+      edgeOverrides[edge.id] = baseOverride.map((point) => ({ x: point.x, y: point.y }));
+    }
+
+    onDragStateChange?.(true);
+    setDragState({
+      type: "subgraph",
+      id,
+      offset,
+      origin: currentTopLeft,
+      members,
+      nodeOffsets,
+      subgraphIds,
+      edgeOverrides,
+      delta: { x: 0, y: 0 },
+      moved: false,
+    });
+
+    setDraftNodes((prev: DraftNodes) => {
+      const next = { ...prev };
+      for (const [nodeId, base] of Object.entries(initialNodePositions)) {
+        next[nodeId] = base;
+      }
+      return next;
+    });
+
+    setDraftSubgraphs((prev: DraftSubgraphs) => {
+      const next = { ...prev };
+      for (const subgraphId of subgraphIds) {
+        next[subgraphId] = prev[subgraphId] ?? { x: 0, y: 0 };
+      }
+      return next;
+    });
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    onSelectNode(null);
+    onSelectEdge(null);
   };
 
   const handleNodePointerDown = (id: string, event: ReactPointerEvent<SVGGElement>) => {
@@ -1025,6 +1391,70 @@ export default function DiagramCanvas({
       );
       setDragState({ ...dragState, points: nextPoints, moved: true });
       setDraftEdges((prev: DraftEdges) => ({ ...prev, [dragState.id]: nextPoints }));
+    } else if (dragState.type === "subgraph") {
+      const targetTopLeft = {
+        x: diagramPoint.x - dragState.offset.x,
+        y: diagramPoint.y - dragState.offset.y,
+      };
+      const proposedDelta = {
+        x: targetTopLeft.x - dragState.origin.x,
+        y: targetTopLeft.y - dragState.origin.y,
+      };
+      const resolvedDelta = resolveSubgraphDelta(dragState, proposedDelta);
+      const newTopLeft = {
+        x: dragState.origin.x + resolvedDelta.x,
+        y: dragState.origin.y + resolvedDelta.y,
+      };
+      const moved =
+        dragState.moved ||
+        Math.abs(resolvedDelta.x) > EPSILON ||
+        Math.abs(resolvedDelta.y) > EPSILON;
+
+      setAlignmentGuides((prev) => (guidesEqual(prev, EMPTY_GUIDES) ? prev : EMPTY_GUIDES));
+      setDragState({
+        ...dragState,
+        delta: resolvedDelta,
+        moved,
+        offset: {
+          x: diagramPoint.x - newTopLeft.x,
+          y: diagramPoint.y - newTopLeft.y,
+        },
+      });
+
+      setDraftNodes((prev: DraftNodes) => {
+        const next: DraftNodes = { ...prev };
+        for (const nodeId of dragState.members) {
+          const offset = dragState.nodeOffsets[nodeId];
+          if (offset) {
+            next[nodeId] = {
+              x: newTopLeft.x + offset.x,
+              y: newTopLeft.y + offset.y,
+            };
+          }
+        }
+        return next;
+      });
+
+      setDraftSubgraphs((prev: DraftSubgraphs) => {
+        const next: DraftSubgraphs = { ...prev };
+        for (const subgraphId of dragState.subgraphIds) {
+          next[subgraphId] = { x: resolvedDelta.x, y: resolvedDelta.y };
+        }
+        return next;
+      });
+
+      if (Object.keys(dragState.edgeOverrides).length > 0) {
+        setDraftEdges((prev: DraftEdges) => {
+          const next: DraftEdges = { ...prev };
+          for (const [edgeId, basePoints] of Object.entries(dragState.edgeOverrides)) {
+            next[edgeId] = basePoints.map((point) => ({
+              x: point.x + resolvedDelta.x,
+              y: point.y + resolvedDelta.y,
+            }));
+          }
+          return next;
+        });
+      }
     }
   };
 
@@ -1061,6 +1491,90 @@ export default function DiagramCanvas({
         delete next[currentDrag.id];
         return next;
       });
+    } else if (currentDrag.type === "subgraph") {
+      if (currentDrag.moved) {
+  const nodeUpdates: Record<string, Point | null> = {};
+  const edgeUpdates: Record<string, Point[]> = {};
+        const finalTopLeft = {
+          x: currentDrag.origin.x + currentDrag.delta.x,
+          y: currentDrag.origin.y + currentDrag.delta.y,
+        };
+        for (const nodeId of currentDrag.members) {
+          const offset = currentDrag.nodeOffsets[nodeId];
+          if (!offset) {
+            continue;
+          }
+          const node = diagram.nodes.find((item) => item.id === nodeId);
+          const finalPoint = {
+            x: finalTopLeft.x + offset.x,
+            y: finalTopLeft.y + offset.y,
+          };
+          const auto = node?.autoPosition;
+          nodeUpdates[nodeId] = auto && isClose(finalPoint, auto) ? null : finalPoint;
+        }
+
+        for (const [edgeId, basePoints] of Object.entries(currentDrag.edgeOverrides)) {
+          if (!basePoints || basePoints.length === 0) {
+            continue;
+          }
+          const shifted = basePoints.map((point) => ({
+            x: point.x + currentDrag.delta.x,
+            y: point.y + currentDrag.delta.y,
+          }));
+          edgeUpdates[edgeId] = shifted;
+        }
+
+        if (onLayoutUpdate) {
+          const payload: LayoutUpdate = {};
+          if (Object.keys(nodeUpdates).length > 0) {
+            payload.nodes = nodeUpdates;
+          }
+          if (Object.keys(edgeUpdates).length > 0) {
+            payload.edges = {};
+            for (const [edgeId, points] of Object.entries(edgeUpdates)) {
+              payload.edges[edgeId] = { points };
+            }
+          }
+          if (payload.nodes || payload.edges) {
+            onLayoutUpdate(payload);
+          }
+        } else {
+          if (Object.keys(nodeUpdates).length > 0) {
+            for (const [nodeId, point] of Object.entries(nodeUpdates)) {
+              onNodeMove(nodeId, point);
+            }
+          }
+          for (const [edgeId, points] of Object.entries(edgeUpdates)) {
+            onEdgeMove(edgeId, points);
+          }
+        }
+      }
+
+      setDraftNodes((prev: DraftNodes) => {
+        const next = { ...prev };
+        for (const nodeId of currentDrag.members) {
+          delete next[nodeId];
+        }
+        return next;
+      });
+
+      if (Object.keys(currentDrag.edgeOverrides).length > 0) {
+        setDraftEdges((prev: DraftEdges) => {
+          const next = { ...prev };
+          for (const edgeId of Object.keys(currentDrag.edgeOverrides)) {
+            delete next[edgeId];
+          }
+          return next;
+        });
+      }
+
+      setDraftSubgraphs((prev: DraftSubgraphs) => {
+        const next = { ...prev };
+        for (const subgraphId of currentDrag.subgraphIds) {
+          delete next[subgraphId];
+        }
+        return next;
+      });
     }
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -1093,6 +1607,32 @@ export default function DiagramCanvas({
       setDraftEdges((prev: DraftEdges) => {
         const next = { ...prev };
         delete next[currentDrag.id];
+        return next;
+      });
+    } else if (currentDrag.type === "subgraph") {
+      setDraftNodes((prev: DraftNodes) => {
+        const next = { ...prev };
+        for (const nodeId of currentDrag.members) {
+          delete next[nodeId];
+        }
+        return next;
+      });
+
+      if (Object.keys(currentDrag.edgeOverrides).length > 0) {
+        setDraftEdges((prev: DraftEdges) => {
+          const next = { ...prev };
+          for (const edgeId of Object.keys(currentDrag.edgeOverrides)) {
+            delete next[edgeId];
+          }
+          return next;
+        });
+      }
+
+      setDraftSubgraphs((prev: DraftSubgraphs) => {
+        const next = { ...prev };
+        for (const subgraphId of currentDrag.subgraphIds) {
+          delete next[subgraphId];
+        }
         return next;
       });
     }
@@ -1187,7 +1727,7 @@ export default function DiagramCanvas({
   }, [selectedNodeId, dragState, finalPositions, onNodeMove]);
 
   useEffect(() => {
-    if (dragState && dragState.type === "node") {
+    if (dragState && (dragState.type === "node" || dragState.type === "subgraph")) {
       return;
     }
     setDraftNodes((prev: DraftNodes) => {
@@ -1213,6 +1753,21 @@ export default function DiagramCanvas({
     });
   }, [diagram.nodes, dragState]);
 
+  useEffect(() => {
+    if (dragState && dragState.type === "subgraph") {
+      return;
+    }
+    if (Object.keys(draftSubgraphs).length === 0) {
+      return;
+    }
+    setDraftSubgraphs((prev: DraftSubgraphs) => {
+      if (Object.keys(prev).length === 0) {
+        return prev;
+      }
+      return {};
+    });
+  }, [diagram.subgraphs, dragState, draftSubgraphs]);
+
   return (
     <div ref={wrapperRef} className="diagram-wrapper">
       <svg
@@ -1225,6 +1780,69 @@ export default function DiagramCanvas({
         onPointerCancel={handlePointerCancel}
         onContextMenu={handleCanvasContextMenu}
       >
+        {subgraphViews.map((subgraph) => {
+          const offset = draftSubgraphs[subgraph.id];
+          const offsetX = offset?.x ?? 0;
+          const offsetY = offset?.y ?? 0;
+          const effectiveTopLeft = { x: subgraph.x + offsetX, y: subgraph.y + offsetY };
+          const effectiveBottomRight = {
+            x: subgraph.x + subgraph.width + offsetX,
+            y: subgraph.y + subgraph.height + offsetY,
+          };
+          const effectiveLabelPoint = {
+            x: subgraph.labelX + offsetX,
+            y: subgraph.labelY + offsetY,
+          };
+          const topLeft = toScreen(effectiveTopLeft);
+          const bottomRight = toScreen({
+            x: effectiveBottomRight.x,
+            y: effectiveBottomRight.y,
+          });
+          const labelPoint = toScreen(effectiveLabelPoint);
+          const width = bottomRight.x - topLeft.x;
+          const height = bottomRight.y - topLeft.y;
+          const dragging = dragState?.type === "subgraph" && dragState.id === subgraph.id;
+          return (
+            <g
+              key={`subgraph-${subgraph.id}`}
+              className="subgraph"
+              data-id={subgraph.id}
+              style={{ cursor: dragging ? "grabbing" : "grab" }}
+              onPointerDown={(event: ReactPointerEvent<SVGGElement>) =>
+                handleSubgraphPointerDown(subgraph.id, event)
+              }
+              onContextMenu={(event: ReactMouseEvent<SVGGElement>) => {
+                event.preventDefault();
+                closeContextMenu();
+              }}
+            >
+              <rect
+                x={topLeft.x}
+                y={topLeft.y}
+                width={width}
+                height={height}
+                rx={SUBGRAPH_BORDER_RADIUS}
+                ry={SUBGRAPH_BORDER_RADIUS}
+                fill={SUBGRAPH_FILL}
+                fillOpacity={0.7}
+                stroke={SUBGRAPH_STROKE}
+                strokeWidth={1.5}
+              />
+              <text
+                x={labelPoint.x}
+                y={labelPoint.y}
+                fill={SUBGRAPH_LABEL_COLOR}
+                fontSize={14}
+                fontWeight={600}
+                textAnchor="start"
+                dominantBaseline="hanging"
+              >
+                {subgraph.label}
+              </text>
+            </g>
+          );
+        })}
+
         {edges.map((view: EdgeView) => {
           const {
             edge,
@@ -1453,6 +2071,276 @@ export default function DiagramCanvas({
             "--node-text": textColor,
           } as CSSProperties;
           const nodeSelected = selectedNodeId === id;
+          const halfWidth = NODE_WIDTH / 2;
+          const halfHeight = NODE_HEIGHT / 2;
+
+          const shapeElement = (() => {
+            switch (node.shape) {
+              case "rectangle":
+                return (
+                  <rect
+                    x={-halfWidth}
+                    y={-halfHeight}
+                    width={NODE_WIDTH}
+                    height={NODE_HEIGHT}
+                    rx={8}
+                    ry={8}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              case "stadium":
+                return (
+                  <rect
+                    x={-halfWidth}
+                    y={-halfHeight}
+                    width={NODE_WIDTH}
+                    height={NODE_HEIGHT}
+                    rx={30}
+                    ry={30}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              case "circle":
+                return (
+                  <ellipse
+                    cx={0}
+                    cy={0}
+                    rx={halfWidth}
+                    ry={halfHeight}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              case "double-circle": {
+                const innerRx = Math.max(halfWidth - 6, halfWidth * 0.65);
+                const innerRy = Math.max(halfHeight - 6, halfHeight * 0.65);
+                return (
+                  <>
+                    <ellipse
+                      cx={0}
+                      cy={0}
+                      rx={halfWidth}
+                      ry={halfHeight}
+                      fill={fillColor}
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                    <ellipse
+                      cx={0}
+                      cy={0}
+                      rx={innerRx}
+                      ry={innerRy}
+                      fill="none"
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                  </>
+                );
+              }
+              case "diamond": {
+                const points = polygonPoints([
+                  [0, -halfHeight],
+                  [halfWidth, 0],
+                  [0, halfHeight],
+                  [-halfWidth, 0],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              case "subroutine": {
+                const inset = 12;
+                return (
+                  <>
+                    <rect
+                      x={-halfWidth}
+                      y={-halfHeight}
+                      width={NODE_WIDTH}
+                      height={NODE_HEIGHT}
+                      rx={8}
+                      ry={8}
+                      fill={fillColor}
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                    <line
+                      x1={-halfWidth + inset}
+                      y1={-halfHeight}
+                      x2={-halfWidth + inset}
+                      y2={halfHeight}
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                    <line
+                      x1={halfWidth - inset}
+                      y1={-halfHeight}
+                      x2={halfWidth - inset}
+                      y2={halfHeight}
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                  </>
+                );
+              }
+              case "cylinder": {
+                const rx = halfWidth;
+                const ry = NODE_HEIGHT / 6;
+                const top = -halfHeight;
+                const bottom = halfHeight;
+                const topCenter = top + ry;
+                const bottomCenter = bottom - ry;
+                const bodyPath = `M ${-halfWidth},${topCenter} A ${rx},${ry} 0 0 1 ${halfWidth},${topCenter} L ${halfWidth},${bottomCenter} A ${rx},${ry} 0 0 1 ${-halfWidth},${bottomCenter} Z`;
+                const topPath = `M ${-halfWidth},${topCenter} A ${rx},${ry} 0 0 1 ${halfWidth},${topCenter}`;
+                return (
+                  <>
+                    <path
+                      d={bodyPath}
+                      fill={fillColor}
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                    <path
+                      d={topPath}
+                      fill="none"
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                  </>
+                );
+              }
+              case "hexagon": {
+                const offset = NODE_WIDTH * 0.25;
+                const points = polygonPoints([
+                  [-halfWidth + offset, -halfHeight],
+                  [halfWidth - offset, -halfHeight],
+                  [halfWidth, 0],
+                  [halfWidth - offset, halfHeight],
+                  [-halfWidth + offset, halfHeight],
+                  [-halfWidth, 0],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              case "parallelogram": {
+                const skew = NODE_HEIGHT * 0.35;
+                const points = polygonPoints([
+                  [-halfWidth + skew, -halfHeight],
+                  [halfWidth, -halfHeight],
+                  [halfWidth - skew, halfHeight],
+                  [-halfWidth, halfHeight],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              case "parallelogram-alt": {
+                const skew = NODE_HEIGHT * 0.35;
+                const points = polygonPoints([
+                  [-halfWidth, -halfHeight],
+                  [halfWidth - skew, -halfHeight],
+                  [halfWidth, halfHeight],
+                  [-halfWidth + skew, halfHeight],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              case "trapezoid": {
+                const topInset = NODE_WIDTH * 0.22;
+                const bottomInset = NODE_WIDTH * 0.08;
+                const points = polygonPoints([
+                  [-halfWidth + topInset, -halfHeight],
+                  [halfWidth - topInset, -halfHeight],
+                  [halfWidth - bottomInset, halfHeight],
+                  [-halfWidth + bottomInset, halfHeight],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              case "trapezoid-alt": {
+                const topInset = NODE_WIDTH * 0.08;
+                const bottomInset = NODE_WIDTH * 0.22;
+                const points = polygonPoints([
+                  [-halfWidth + topInset, -halfHeight],
+                  [halfWidth - topInset, -halfHeight],
+                  [halfWidth - bottomInset, halfHeight],
+                  [-halfWidth + bottomInset, halfHeight],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              case "asymmetric": {
+                const skew = NODE_HEIGHT * 0.45;
+                const points = polygonPoints([
+                  [-halfWidth, -halfHeight],
+                  [halfWidth - skew, -halfHeight],
+                  [halfWidth, 0],
+                  [halfWidth - skew, halfHeight],
+                  [-halfWidth, halfHeight],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              default:
+                return (
+                  <rect
+                    x={-halfWidth}
+                    y={-halfHeight}
+                    width={NODE_WIDTH}
+                    height={NODE_HEIGHT}
+                    rx={8}
+                    ry={8}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+            }
+          })();
 
           return (
             <g
@@ -1468,34 +2356,7 @@ export default function DiagramCanvas({
               }
               onDoubleClick={() => handleNodeDoubleClick(id)}
             >
-              {node.shape === "rectangle" && (
-                <rect
-                  x={-NODE_WIDTH / 2}
-                  y={-NODE_HEIGHT / 2}
-                  width={NODE_WIDTH}
-                  height={NODE_HEIGHT}
-                  rx={8}
-                  ry={8}
-                />
-              )}
-              {node.shape === "stadium" && (
-                <rect
-                  x={-NODE_WIDTH / 2}
-                  y={-NODE_HEIGHT / 2}
-                  width={NODE_WIDTH}
-                  height={NODE_HEIGHT}
-                  rx={30}
-                  ry={30}
-                />
-              )}
-              {node.shape === "circle" && (
-                <ellipse cx={0} cy={0} rx={NODE_WIDTH / 2} ry={NODE_HEIGHT / 2} />
-              )}
-              {node.shape === "diamond" && (
-                <polygon
-                  points={`0,${-NODE_HEIGHT / 2} ${NODE_WIDTH / 2},0 0,${NODE_HEIGHT / 2} ${-NODE_WIDTH / 2},0`}
-                />
-              )}
+              {shapeElement}
               <text textAnchor="middle" dominantBaseline="middle">
                 {node.label}
               </text>

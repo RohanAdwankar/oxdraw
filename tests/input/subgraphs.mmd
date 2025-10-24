@@ -1,0 +1,15 @@
+graph LR
+    subgraph RenderingPipeline
+        API[(HTTP API)] --> Queue((Task Queue))
+        Queue --> Renderer>Renderer Service]
+        Renderer --> Storage[(S3 Bucket)]
+    end
+
+    subgraph ErrorHandling
+        Renderer -->|failure| Retry{Retry Budget?}
+        Retry -->|exhausted| Alert[PagerDuty Alert]
+        Retry -->|available| Queue
+    end
+
+    Storage --> CDN[CDN]
+    CDN --> User

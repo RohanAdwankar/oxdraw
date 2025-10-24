@@ -35,7 +35,16 @@ const DEFAULT_NODE_COLORS: Record<NodeData["shape"], string> = {
   rectangle: "#FDE68A",
   stadium: "#C4F1F9",
   circle: "#E9D8FD",
+  "double-circle": "#BFDBFE",
   diamond: "#FBCFE8",
+  subroutine: "#FED7AA",
+  cylinder: "#BBF7D0",
+  hexagon: "#FCA5A5",
+  parallelogram: "#C7D2FE",
+  "parallelogram-alt": "#A5F3FC",
+  trapezoid: "#FCE7F3",
+  "trapezoid-alt": "#FCD5CE",
+  asymmetric: "#F5D0FE",
 };
 
 const DEFAULT_EDGE_COLOR = "#2d3748";
@@ -388,6 +397,18 @@ export default function Home() {
           [id]: position,
         },
       });
+    },
+    [applyUpdate]
+  );
+
+  const handleLayoutUpdate = useCallback(
+    (update: LayoutUpdate) => {
+      const hasNodes = update.nodes && Object.keys(update.nodes).length > 0;
+      const hasEdges = update.edges && Object.keys(update.edges).length > 0;
+      if (!hasNodes && !hasEdges) {
+        return;
+      }
+      void applyUpdate(update);
     },
     [applyUpdate]
   );
@@ -808,6 +829,7 @@ export default function Home() {
             <DiagramCanvas
               diagram={diagram}
               onNodeMove={handleNodeMove}
+              onLayoutUpdate={handleLayoutUpdate}
               onEdgeMove={handleEdgeMove}
               selectedNodeId={selectedNodeId}
               selectedEdgeId={selectedEdgeId}

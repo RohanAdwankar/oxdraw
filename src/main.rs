@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::io::Write;
 
 mod cli;
@@ -37,6 +37,11 @@ const EDGE_SINGLE_STUB_STEP: f32 = 20.0;
 const EDGE_ARROW_EXTENSION: f32 = 1.0;
 const LAYOUT_BLOCK_START: &str = "%% OXDRAW LAYOUT START";
 const LAYOUT_BLOCK_END: &str = "%% OXDRAW LAYOUT END";
+const SUBGRAPH_PADDING: f32 = 48.0;
+const SUBGRAPH_LABEL_AREA: f32 = 36.0;
+const SUBGRAPH_LABEL_TEXT_BASELINE: f32 = 20.0;
+const SUBGRAPH_LABEL_INSET_X: f32 = 20.0;
+const SUBGRAPH_SEPARATION: f32 = 140.0;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct EdgeOverride {
@@ -86,12 +91,21 @@ struct Node {
     shape: NodeShape,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NodeShape {
     Rectangle,
     Stadium,
     Circle,
+    DoubleCircle,
     Diamond,
+    Subroutine,
+    Cylinder,
+    Hexagon,
+    Parallelogram,
+    ParallelogramAlt,
+    Trapezoid,
+    TrapezoidAlt,
+    Asymmetric,
 }
 
 #[derive(Debug, Clone)]
@@ -143,8 +157,24 @@ struct LayoutComputation {
 struct Geometry {
     positions: HashMap<String, Point>,
     edges: HashMap<String, Vec<Point>>,
+    subgraphs: Vec<SubgraphVisual>,
     width: f32,
     height: f32,
+}
+
+#[derive(Debug, Clone)]
+struct SubgraphVisual {
+    id: String,
+    label: String,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    label_x: f32,
+    label_y: f32,
+    depth: usize,
+    order: usize,
+    parent_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
