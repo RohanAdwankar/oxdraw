@@ -17,6 +17,7 @@ import {
   EdgeArrowDirection,
   EdgeData,
   EdgeKind,
+  LayoutUpdate,
   Size,
   Point,
 } from "../lib/types";
@@ -67,10 +68,12 @@ const SUBGRAPH_FILL = "#edf2f7";
 const SUBGRAPH_STROKE = "#a0aec0";
 const SUBGRAPH_LABEL_COLOR = "#2d3748";
 const SUBGRAPH_BORDER_RADIUS = 16;
+const SUBGRAPH_SEPARATION = 140;
 
 interface DiagramCanvasProps {
   diagram: DiagramData;
   onNodeMove: (id: string, position: Point | null) => void;
+  onLayoutUpdate?: (update: LayoutUpdate) => void;
   onEdgeMove: (id: string, points: Point[] | null) => void;
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
@@ -98,10 +101,24 @@ interface EdgeDragState {
   hasOverride: boolean;
 }
 
-type DragState = NodeDragState | EdgeDragState | null;
+interface SubgraphDragState {
+  type: "subgraph";
+  id: string;
+  offset: Point;
+  origin: Point;
+  members: string[];
+  nodeOffsets: Record<string, Point>;
+  subgraphIds: string[];
+  edgeOverrides: Record<string, Point[]>;
+  delta: Point;
+  moved: boolean;
+}
+
+type DragState = NodeDragState | EdgeDragState | SubgraphDragState | null;
 
 type DraftNodes = Record<string, Point>;
 type DraftEdges = Record<string, Point[]>;
+type DraftSubgraphs = Record<string, Point>;
 
 interface NodeBox {
   left: number;
@@ -110,6 +127,17 @@ interface NodeBox {
   top: number;
   bottom: number;
   centerY: number;
+}
+
+interface SubgraphRect {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  centerX: number;
+  centerY: number;
+  width: number;
+  height: number;
 }
 
 interface VerticalGuide {
@@ -301,6 +329,83 @@ function createNodeBox(position: Point): NodeBox {
     bottom: position.y + NODE_HEIGHT / 2,
     centerY: position.y,
   };
+}
+
+function createSubgraphRect(
+  subgraph: NonNullable<DiagramData["subgraphs"]>[number],
+  offset?: Point
+): SubgraphRect {
+  const dx = offset?.x ?? 0;
+  const dy = offset?.y ?? 0;
+  const left = subgraph.x + dx;
+  const top = subgraph.y + dy;
+  const width = subgraph.width;
+  const height = subgraph.height;
+  return {
+    left,
+    right: left + width,
+    top,
+    bottom: top + height,
+    centerX: left + width / 2,
+    centerY: top + height / 2,
+    width,
+    height,
+  };
+}
+
+function computeSubgraphSeparationShift(
+  moving: SubgraphRect,
+  stationary: SubgraphRect,
+  margin: number
+): Point | null {
+  const expanded = {
+    left: stationary.left - margin,
+    right: stationary.right + margin,
+    top: stationary.top - margin,
+    bottom: stationary.bottom + margin,
+  };
+
+  const overlapX = Math.min(moving.right, expanded.right) - Math.max(moving.left, expanded.left);
+  const overlapY = Math.min(moving.bottom, expanded.bottom) - Math.max(moving.top, expanded.top);
+
+  if (overlapX <= 0 || overlapY <= 0) {
+    return null;
+  }
+
+  const horizontalShift = (() => {
+    if (moving.centerX >= stationary.centerX) {
+      const target = expanded.right;
+      const shift = target - moving.left;
+      return shift + (shift >= 0 ? EPSILON : -EPSILON);
+    }
+    const target = expanded.left;
+    const shift = target - moving.right;
+    return shift + (shift >= 0 ? EPSILON : -EPSILON);
+  })();
+
+  const verticalShift = (() => {
+    if (moving.centerY >= stationary.centerY) {
+      const target = expanded.bottom;
+      const shift = target - moving.top;
+      return shift + (shift >= 0 ? EPSILON : -EPSILON);
+    }
+    const target = expanded.top;
+    const shift = target - moving.bottom;
+    return shift + (shift >= 0 ? EPSILON : -EPSILON);
+  })();
+
+  const absHorizontal = Math.abs(horizontalShift);
+  const absVertical = Math.abs(verticalShift);
+
+  if (absHorizontal <= absVertical && absHorizontal > 0) {
+    return { x: horizontalShift, y: 0 };
+  }
+
+  if (absVertical > 0) {
+    return { x: 0, y: verticalShift };
+  }
+
+  return null;
 }
 
 function computeNodeAlignment(
@@ -559,6 +664,7 @@ function guidesEqual(a: AlignmentGuides, b: AlignmentGuides): boolean {
 export default function DiagramCanvas({
   diagram,
   onNodeMove,
+  onLayoutUpdate,
   onEdgeMove,
   selectedNodeId,
   selectedEdgeId,
@@ -573,6 +679,7 @@ export default function DiagramCanvas({
   const [dragState, setDragState] = useState<DragState>(null);
   const [draftNodes, setDraftNodes] = useState<DraftNodes>({});
   const [draftEdges, setDraftEdges] = useState<DraftEdges>({});
+  const [draftSubgraphs, setDraftSubgraphs] = useState<DraftSubgraphs>({});
   const [alignmentGuides, setAlignmentGuides] = useState<AlignmentGuides>({});
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
@@ -734,6 +841,27 @@ export default function DiagramCanvas({
       .filter((value): value is EdgeView => value !== null);
   }, [diagram.edges, draftEdges, finalPositions]);
 
+  const subgraphViews = useMemo(() => {
+    const items = diagram.subgraphs ?? [];
+    return [...items].sort((a, b) => {
+      if (a.depth !== b.depth) {
+        return a.depth - b.depth;
+      }
+      if (a.order !== b.order) {
+        return a.order - b.order;
+      }
+      return a.id.localeCompare(b.id);
+    });
+  }, [diagram.subgraphs]);
+
+  const subgraphById = useMemo(() => {
+    const map = new Map<string, (typeof subgraphViews)[number]>();
+    for (const subgraph of subgraphViews) {
+      map.set(subgraph.id, subgraph);
+    }
+    return map;
+  }, [subgraphViews]);
+
   const fitBounds = useMemo(() => {
     // Zoom-to-fit: include all nodes, edge control points, and label backgrounds.
     let minX = Infinity;
@@ -768,6 +896,22 @@ export default function DiagramCanvas({
       }
     }
 
+    for (const subgraph of subgraphViews) {
+      const offset = draftSubgraphs[subgraph.id];
+      const left = subgraph.x + (offset?.x ?? 0);
+      const top = subgraph.y + (offset?.y ?? 0);
+      const center = {
+        x: left + subgraph.width / 2,
+        y: top + subgraph.height / 2,
+      };
+      extend(center, subgraph.width / 2, subgraph.height / 2);
+      const labelPoint = {
+        x: subgraph.labelX + (offset?.x ?? 0),
+        y: subgraph.labelY + (offset?.y ?? 0),
+      };
+      extend(labelPoint, 0, 0);
+    }
+
     if (!Number.isFinite(minX)) {
       minX = -NODE_WIDTH / 2;
       maxX = NODE_WIDTH / 2;
@@ -781,7 +925,7 @@ export default function DiagramCanvas({
     const offsetY = LAYOUT_MARGIN - minY;
 
     return { width, height, offsetX, offsetY };
-  }, [edges, finalPositions]);
+  }, [draftSubgraphs, edges, finalPositions, subgraphViews]);
 
   const [bounds, setBounds] = useState(() => fitBounds);
 
@@ -840,18 +984,113 @@ export default function DiagramCanvas({
     return combined;
   }, [edges, nodeEntries]);
 
-  const subgraphViews = useMemo(() => {
-    const items = diagram.subgraphs ?? [];
-    return [...items].sort((a, b) => {
-      if (a.depth !== b.depth) {
-        return a.depth - b.depth;
+  const nodesBySubgraph = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const node of diagram.nodes) {
+      const memberships = node.membership ?? [];
+      for (const subgraphId of memberships) {
+        let bucket = map.get(subgraphId);
+        if (!bucket) {
+          bucket = new Set<string>();
+          map.set(subgraphId, bucket);
+        }
+        bucket.add(node.id);
       }
-      if (a.order !== b.order) {
-        return a.order - b.order;
+    }
+    return map;
+  }, [diagram.nodes]);
+
+  const subgraphChildren = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const subgraph of diagram.subgraphs ?? []) {
+      if (!subgraph.parentId) {
+        continue;
       }
-      return a.id.localeCompare(b.id);
-    });
+      const existing = map.get(subgraph.parentId);
+      if (existing) {
+        existing.push(subgraph.id);
+      } else {
+        map.set(subgraph.parentId, [subgraph.id]);
+      }
+    }
+    return map;
   }, [diagram.subgraphs]);
+
+  const gatherSubgraphDescendants = useCallback(
+    (rootId: string) => {
+      const result: string[] = [];
+      const stack: string[] = [rootId];
+      while (stack.length > 0) {
+        const current = stack.pop();
+        if (!current) {
+          continue;
+        }
+        result.push(current);
+        const children = subgraphChildren.get(current);
+        if (children) {
+          for (const child of children) {
+            stack.push(child);
+          }
+        }
+      }
+      return result;
+    },
+    [subgraphChildren]
+  );
+
+  const resolveSubgraphDelta = useCallback(
+    (drag: SubgraphDragState, proposed: Point): Point => {
+      const root = subgraphById.get(drag.id);
+      if (!root) {
+        return { x: proposed.x, y: proposed.y };
+      }
+
+      const rootParent = root.parentId ?? null;
+      const excluded = new Set<string>(drag.subgraphIds);
+      const siblings = subgraphViews.filter((candidate) => {
+        if (excluded.has(candidate.id)) {
+          return false;
+        }
+        const candidateParent = candidate.parentId ?? null;
+        return candidateParent === rootParent;
+      });
+
+      if (siblings.length === 0) {
+        return { x: proposed.x, y: proposed.y };
+      }
+
+      let delta = { x: proposed.x, y: proposed.y };
+      const maxIterations = 6;
+
+      for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+        let adjusted = false;
+        const movingRect = createSubgraphRect(root, delta);
+
+        for (const candidate of siblings) {
+          const candidateOffset = draftSubgraphs[candidate.id];
+          const candidateRect = createSubgraphRect(candidate, candidateOffset);
+          const shift = computeSubgraphSeparationShift(
+            movingRect,
+            candidateRect,
+            SUBGRAPH_SEPARATION
+          );
+          if (!shift) {
+            continue;
+          }
+          delta = { x: delta.x + shift.x, y: delta.y + shift.y };
+          adjusted = true;
+          break;
+        }
+
+        if (!adjusted) {
+          break;
+        }
+      }
+
+      return delta;
+    },
+    [draftSubgraphs, subgraphById, subgraphViews]
+  );
 
   const toScreen = (point: Point) => ({
     x: point.x + bounds.offsetX,
@@ -895,6 +1134,104 @@ export default function DiagramCanvas({
   const handleCanvasContextMenu = (event: ReactMouseEvent<SVGSVGElement>) => {
     event.preventDefault();
     closeContextMenu();
+  };
+
+  const handleSubgraphPointerDown = (id: string, event: ReactPointerEvent<SVGGElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeContextMenu();
+    const diagramPoint = clientToDiagram(event);
+    if (!diagramPoint) {
+      return;
+    }
+
+    const subgraph = subgraphViews.find((item) => item.id === id);
+    if (!subgraph) {
+      return;
+    }
+
+    const membership = nodesBySubgraph.get(id);
+    if (!membership || membership.size === 0) {
+      return;
+    }
+
+    const offsetEntry = draftSubgraphs[id];
+    const currentTopLeft = {
+      x: subgraph.x + (offsetEntry?.x ?? 0),
+      y: subgraph.y + (offsetEntry?.y ?? 0),
+    };
+
+    const members = Array.from(membership);
+    const initialNodePositions: Record<string, Point> = {};
+    const nodeOffsets: Record<string, Point> = {};
+    for (const nodeId of members) {
+      const position = finalPositions.get(nodeId);
+      if (position) {
+        initialNodePositions[nodeId] = { ...position };
+        nodeOffsets[nodeId] = {
+          x: position.x - currentTopLeft.x,
+          y: position.y - currentTopLeft.y,
+        };
+      }
+    }
+
+    if (Object.keys(initialNodePositions).length === 0) {
+      return;
+    }
+
+    const offset = {
+      x: diagramPoint.x - currentTopLeft.x,
+      y: diagramPoint.y - currentTopLeft.y,
+    };
+
+    const subgraphIds = gatherSubgraphDescendants(id);
+
+    const memberSet = new Set(members);
+    const edgeOverrides: Record<string, Point[]> = {};
+    for (const edge of diagram.edges) {
+      const baseOverride = draftEdges[edge.id] ?? edge.overridePoints;
+      if (!baseOverride || baseOverride.length === 0) {
+        continue;
+      }
+      if (!memberSet.has(edge.from) && !memberSet.has(edge.to)) {
+        continue;
+      }
+      edgeOverrides[edge.id] = baseOverride.map((point) => ({ x: point.x, y: point.y }));
+    }
+
+    onDragStateChange?.(true);
+    setDragState({
+      type: "subgraph",
+      id,
+      offset,
+      origin: currentTopLeft,
+      members,
+      nodeOffsets,
+      subgraphIds,
+      edgeOverrides,
+      delta: { x: 0, y: 0 },
+      moved: false,
+    });
+
+    setDraftNodes((prev: DraftNodes) => {
+      const next = { ...prev };
+      for (const [nodeId, base] of Object.entries(initialNodePositions)) {
+        next[nodeId] = base;
+      }
+      return next;
+    });
+
+    setDraftSubgraphs((prev: DraftSubgraphs) => {
+      const next = { ...prev };
+      for (const subgraphId of subgraphIds) {
+        next[subgraphId] = prev[subgraphId] ?? { x: 0, y: 0 };
+      }
+      return next;
+    });
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    onSelectNode(null);
+    onSelectEdge(null);
   };
 
   const handleNodePointerDown = (id: string, event: ReactPointerEvent<SVGGElement>) => {
@@ -1054,6 +1391,70 @@ export default function DiagramCanvas({
       );
       setDragState({ ...dragState, points: nextPoints, moved: true });
       setDraftEdges((prev: DraftEdges) => ({ ...prev, [dragState.id]: nextPoints }));
+    } else if (dragState.type === "subgraph") {
+      const targetTopLeft = {
+        x: diagramPoint.x - dragState.offset.x,
+        y: diagramPoint.y - dragState.offset.y,
+      };
+      const proposedDelta = {
+        x: targetTopLeft.x - dragState.origin.x,
+        y: targetTopLeft.y - dragState.origin.y,
+      };
+      const resolvedDelta = resolveSubgraphDelta(dragState, proposedDelta);
+      const newTopLeft = {
+        x: dragState.origin.x + resolvedDelta.x,
+        y: dragState.origin.y + resolvedDelta.y,
+      };
+      const moved =
+        dragState.moved ||
+        Math.abs(resolvedDelta.x) > EPSILON ||
+        Math.abs(resolvedDelta.y) > EPSILON;
+
+      setAlignmentGuides((prev) => (guidesEqual(prev, EMPTY_GUIDES) ? prev : EMPTY_GUIDES));
+      setDragState({
+        ...dragState,
+        delta: resolvedDelta,
+        moved,
+        offset: {
+          x: diagramPoint.x - newTopLeft.x,
+          y: diagramPoint.y - newTopLeft.y,
+        },
+      });
+
+      setDraftNodes((prev: DraftNodes) => {
+        const next: DraftNodes = { ...prev };
+        for (const nodeId of dragState.members) {
+          const offset = dragState.nodeOffsets[nodeId];
+          if (offset) {
+            next[nodeId] = {
+              x: newTopLeft.x + offset.x,
+              y: newTopLeft.y + offset.y,
+            };
+          }
+        }
+        return next;
+      });
+
+      setDraftSubgraphs((prev: DraftSubgraphs) => {
+        const next: DraftSubgraphs = { ...prev };
+        for (const subgraphId of dragState.subgraphIds) {
+          next[subgraphId] = { x: resolvedDelta.x, y: resolvedDelta.y };
+        }
+        return next;
+      });
+
+      if (Object.keys(dragState.edgeOverrides).length > 0) {
+        setDraftEdges((prev: DraftEdges) => {
+          const next: DraftEdges = { ...prev };
+          for (const [edgeId, basePoints] of Object.entries(dragState.edgeOverrides)) {
+            next[edgeId] = basePoints.map((point) => ({
+              x: point.x + resolvedDelta.x,
+              y: point.y + resolvedDelta.y,
+            }));
+          }
+          return next;
+        });
+      }
     }
   };
 
@@ -1090,6 +1491,90 @@ export default function DiagramCanvas({
         delete next[currentDrag.id];
         return next;
       });
+    } else if (currentDrag.type === "subgraph") {
+      if (currentDrag.moved) {
+  const nodeUpdates: Record<string, Point | null> = {};
+  const edgeUpdates: Record<string, Point[]> = {};
+        const finalTopLeft = {
+          x: currentDrag.origin.x + currentDrag.delta.x,
+          y: currentDrag.origin.y + currentDrag.delta.y,
+        };
+        for (const nodeId of currentDrag.members) {
+          const offset = currentDrag.nodeOffsets[nodeId];
+          if (!offset) {
+            continue;
+          }
+          const node = diagram.nodes.find((item) => item.id === nodeId);
+          const finalPoint = {
+            x: finalTopLeft.x + offset.x,
+            y: finalTopLeft.y + offset.y,
+          };
+          const auto = node?.autoPosition;
+          nodeUpdates[nodeId] = auto && isClose(finalPoint, auto) ? null : finalPoint;
+        }
+
+        for (const [edgeId, basePoints] of Object.entries(currentDrag.edgeOverrides)) {
+          if (!basePoints || basePoints.length === 0) {
+            continue;
+          }
+          const shifted = basePoints.map((point) => ({
+            x: point.x + currentDrag.delta.x,
+            y: point.y + currentDrag.delta.y,
+          }));
+          edgeUpdates[edgeId] = shifted;
+        }
+
+        if (onLayoutUpdate) {
+          const payload: LayoutUpdate = {};
+          if (Object.keys(nodeUpdates).length > 0) {
+            payload.nodes = nodeUpdates;
+          }
+          if (Object.keys(edgeUpdates).length > 0) {
+            payload.edges = {};
+            for (const [edgeId, points] of Object.entries(edgeUpdates)) {
+              payload.edges[edgeId] = { points };
+            }
+          }
+          if (payload.nodes || payload.edges) {
+            onLayoutUpdate(payload);
+          }
+        } else {
+          if (Object.keys(nodeUpdates).length > 0) {
+            for (const [nodeId, point] of Object.entries(nodeUpdates)) {
+              onNodeMove(nodeId, point);
+            }
+          }
+          for (const [edgeId, points] of Object.entries(edgeUpdates)) {
+            onEdgeMove(edgeId, points);
+          }
+        }
+      }
+
+      setDraftNodes((prev: DraftNodes) => {
+        const next = { ...prev };
+        for (const nodeId of currentDrag.members) {
+          delete next[nodeId];
+        }
+        return next;
+      });
+
+      if (Object.keys(currentDrag.edgeOverrides).length > 0) {
+        setDraftEdges((prev: DraftEdges) => {
+          const next = { ...prev };
+          for (const edgeId of Object.keys(currentDrag.edgeOverrides)) {
+            delete next[edgeId];
+          }
+          return next;
+        });
+      }
+
+      setDraftSubgraphs((prev: DraftSubgraphs) => {
+        const next = { ...prev };
+        for (const subgraphId of currentDrag.subgraphIds) {
+          delete next[subgraphId];
+        }
+        return next;
+      });
     }
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -1122,6 +1607,32 @@ export default function DiagramCanvas({
       setDraftEdges((prev: DraftEdges) => {
         const next = { ...prev };
         delete next[currentDrag.id];
+        return next;
+      });
+    } else if (currentDrag.type === "subgraph") {
+      setDraftNodes((prev: DraftNodes) => {
+        const next = { ...prev };
+        for (const nodeId of currentDrag.members) {
+          delete next[nodeId];
+        }
+        return next;
+      });
+
+      if (Object.keys(currentDrag.edgeOverrides).length > 0) {
+        setDraftEdges((prev: DraftEdges) => {
+          const next = { ...prev };
+          for (const edgeId of Object.keys(currentDrag.edgeOverrides)) {
+            delete next[edgeId];
+          }
+          return next;
+        });
+      }
+
+      setDraftSubgraphs((prev: DraftSubgraphs) => {
+        const next = { ...prev };
+        for (const subgraphId of currentDrag.subgraphIds) {
+          delete next[subgraphId];
+        }
         return next;
       });
     }
@@ -1216,7 +1727,7 @@ export default function DiagramCanvas({
   }, [selectedNodeId, dragState, finalPositions, onNodeMove]);
 
   useEffect(() => {
-    if (dragState && dragState.type === "node") {
+    if (dragState && (dragState.type === "node" || dragState.type === "subgraph")) {
       return;
     }
     setDraftNodes((prev: DraftNodes) => {
@@ -1242,6 +1753,21 @@ export default function DiagramCanvas({
     });
   }, [diagram.nodes, dragState]);
 
+  useEffect(() => {
+    if (dragState && dragState.type === "subgraph") {
+      return;
+    }
+    if (Object.keys(draftSubgraphs).length === 0) {
+      return;
+    }
+    setDraftSubgraphs((prev: DraftSubgraphs) => {
+      if (Object.keys(prev).length === 0) {
+        return prev;
+      }
+      return {};
+    });
+  }, [diagram.subgraphs, dragState, draftSubgraphs]);
+
   return (
     <div ref={wrapperRef} className="diagram-wrapper">
       <svg
@@ -1255,20 +1781,40 @@ export default function DiagramCanvas({
         onContextMenu={handleCanvasContextMenu}
       >
         {subgraphViews.map((subgraph) => {
-          const topLeft = toScreen({ x: subgraph.x, y: subgraph.y });
+          const offset = draftSubgraphs[subgraph.id];
+          const offsetX = offset?.x ?? 0;
+          const offsetY = offset?.y ?? 0;
+          const effectiveTopLeft = { x: subgraph.x + offsetX, y: subgraph.y + offsetY };
+          const effectiveBottomRight = {
+            x: subgraph.x + subgraph.width + offsetX,
+            y: subgraph.y + subgraph.height + offsetY,
+          };
+          const effectiveLabelPoint = {
+            x: subgraph.labelX + offsetX,
+            y: subgraph.labelY + offsetY,
+          };
+          const topLeft = toScreen(effectiveTopLeft);
           const bottomRight = toScreen({
-            x: subgraph.x + subgraph.width,
-            y: subgraph.y + subgraph.height,
+            x: effectiveBottomRight.x,
+            y: effectiveBottomRight.y,
           });
-          const labelPoint = toScreen({ x: subgraph.labelX, y: subgraph.labelY });
+          const labelPoint = toScreen(effectiveLabelPoint);
           const width = bottomRight.x - topLeft.x;
           const height = bottomRight.y - topLeft.y;
+          const dragging = dragState?.type === "subgraph" && dragState.id === subgraph.id;
           return (
             <g
               key={`subgraph-${subgraph.id}`}
               className="subgraph"
               data-id={subgraph.id}
-              style={{ pointerEvents: "none" }}
+              style={{ cursor: dragging ? "grabbing" : "grab" }}
+              onPointerDown={(event: ReactPointerEvent<SVGGElement>) =>
+                handleSubgraphPointerDown(subgraph.id, event)
+              }
+              onContextMenu={(event: ReactMouseEvent<SVGGElement>) => {
+                event.preventDefault();
+                closeContextMenu();
+              }}
             >
               <rect
                 x={topLeft.x}

@@ -42,24 +42,24 @@
   </g>
   <polyline points="380.0,965.8 392.4,960.8 526.8,781.6 661.2,602.4 666.9,545.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <line x1="165.0" y1="1024.0" x2="214.6" y2="1123.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <rect x="600.0" y="484.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="670.0" y="514.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Queue Job</text>
-  <rect x="160.0" y="1124.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
-  <text x="230.0" y="1154.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Send 200 OK</text>
+  <rect x="520.0" y="164.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="590.0" y="194.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Client Request</text>
   <rect x="440.0" y="484.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
   <text x="510.0" y="514.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Reject</text>
-  <polygon points="590.0,324.0 660.0,354.0 590.0,384.0 520.0,354.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="590.0" y="354.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Payload Valid?</text>
-  <polygon points="230.0,804.0 300.0,834.0 230.0,864.0 160.0,834.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="230.0" y="834.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Render Success?</text>
-  <rect x="240.0" y="964.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="310.0" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Retry</text>
   <rect x="160.0" y="644.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fed7aa" stroke="#2d3748" stroke-width="2" />
   <line x1="172.0" y1="644.0" x2="172.0" y2="704.0" stroke="#2d3748" stroke-width="2" />
   <line x1="288.0" y1="644.0" x2="288.0" y2="704.0" stroke="#2d3748" stroke-width="2" />
   <text x="230.0" y="674.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Worker</text>
-  <rect x="520.0" y="164.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="590.0" y="194.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Client Request</text>
+  <rect x="600.0" y="484.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="670.0" y="514.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Queue Job</text>
+  <polygon points="230.0,804.0 300.0,834.0 230.0,864.0 160.0,834.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="230.0" y="834.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Render Success?</text>
+  <rect x="160.0" y="1124.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="230.0" y="1154.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Send 200 OK</text>
   <rect x="80.0" y="964.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="150.0" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Generate SVG</text>
+  <polygon points="590.0,324.0 660.0,354.0 590.0,384.0 520.0,354.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="590.0" y="354.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Payload Valid?</text>
+  <rect x="240.0" y="964.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="310.0" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Retry</text>
 </svg>

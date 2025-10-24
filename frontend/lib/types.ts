@@ -35,6 +35,7 @@ export interface NodeData {
   fillColor?: string;
   strokeColor?: string;
   textColor?: string;
+  membership?: string[];
 }
 
 export interface EdgeData {
@@ -61,6 +62,7 @@ export interface SubgraphData {
   labelY: number;
   depth: number;
   order: number;
+  parentId?: string;
 }
 
 export interface DiagramData {

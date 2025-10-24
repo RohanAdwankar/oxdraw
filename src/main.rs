@@ -174,6 +174,7 @@ struct SubgraphVisual {
     label_y: f32,
     depth: usize,
     order: usize,
+    parent_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]

@@ -57,6 +57,8 @@ struct NodePayload {
     stroke_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     text_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    membership: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -72,6 +74,8 @@ struct SubgraphPayload {
     label_y: f32,
     depth: usize,
     order: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    parent_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -451,6 +455,7 @@ async fn get_diagram(
             fill_color,
             stroke_color,
             text_color,
+            membership: diagram.node_membership.get(id).cloned().unwrap_or_default(),
         });
     }
 
@@ -509,6 +514,7 @@ async fn get_diagram(
             label_y: sg.label_y,
             depth: sg.depth,
             order: sg.order,
+            parent_id: sg.parent_id.clone(),
         });
     }
 

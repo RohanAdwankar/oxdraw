@@ -2562,7 +2562,7 @@ fn compute_subgraph_visuals(
 ) -> Vec<SubgraphVisual> {
     let mut visuals = Vec::new();
     for subgraph in subgraphs {
-        collect_subgraph_visual(subgraph, positions, &mut visuals, 0);
+        collect_subgraph_visual(subgraph, positions, &mut visuals, 0, None);
     }
 
     visuals.sort_by(|a, b| {
@@ -2579,11 +2579,14 @@ fn collect_subgraph_visual(
     positions: &HashMap<String, Point>,
     visuals: &mut Vec<SubgraphVisual>,
     depth: usize,
+    parent_id: Option<&str>,
 ) -> Option<Rect> {
     let mut bounds: Option<Rect> = None;
 
     for child in &subgraph.children {
-        if let Some(child_bounds) = collect_subgraph_visual(child, positions, visuals, depth + 1) {
+        if let Some(child_bounds) =
+            collect_subgraph_visual(child, positions, visuals, depth + 1, Some(&subgraph.id))
+        {
             expand_bounds(&mut bounds, child_bounds);
         }
     }
@@ -2638,6 +2641,7 @@ fn collect_subgraph_visual(
         label_y: outer.min_y + SUBGRAPH_LABEL_TEXT_BASELINE,
         depth,
         order: subgraph.order,
+        parent_id: parent_id.map(|value| value.to_string()),
     };
 
     visuals.push(visual);

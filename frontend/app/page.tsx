@@ -401,6 +401,18 @@ export default function Home() {
     [applyUpdate]
   );
 
+  const handleLayoutUpdate = useCallback(
+    (update: LayoutUpdate) => {
+      const hasNodes = update.nodes && Object.keys(update.nodes).length > 0;
+      const hasEdges = update.edges && Object.keys(update.edges).length > 0;
+      if (!hasNodes && !hasEdges) {
+        return;
+      }
+      void applyUpdate(update);
+    },
+    [applyUpdate]
+  );
+
   const handleEdgeMove = useCallback(
     (id: string, points: Point[] | null) => {
       void applyUpdate({
@@ -817,6 +829,7 @@ export default function Home() {
             <DiagramCanvas
               diagram={diagram}
               onNodeMove={handleNodeMove}
+              onLayoutUpdate={handleLayoutUpdate}
               onEdgeMove={handleEdgeMove}
               selectedNodeId={selectedNodeId}
               selectedEdgeId={selectedEdgeId}
