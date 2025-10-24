@@ -1,0 +1,21 @@
+graph TB
+    subgraph Ingestion
+        SourceA[[Kafka]] --> ParserA[Parse Avro]
+        SourceB[[SQS]] --> ParserB[Parse JSON]
+        ParserA --> Normalizer[Normalize Events]
+        ParserB --> Normalizer
+    end
+
+    subgraph Processing
+        Normalizer --> Router{Route By Type}
+        Router -->|analytics| Analytics[Run Analytics Pipeline]
+        Router -->|alerts| Alerts[Trigger Alerts]
+        Router -->|archive| Archive[Archive Event]
+    end
+
+    subgraph Outputs
+        Analytics --> Dashboard
+        Alerts --> Pager
+        Archive --> Glacier[(Glacier Storage)]
+        Dashboard --> Users
+    end
