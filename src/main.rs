@@ -91,12 +91,21 @@ struct Node {
     shape: NodeShape,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NodeShape {
     Rectangle,
     Stadium,
     Circle,
+    DoubleCircle,
     Diamond,
+    Subroutine,
+    Cylinder,
+    Hexagon,
+    Parallelogram,
+    ParallelogramAlt,
+    Trapezoid,
+    TrapezoidAlt,
+    Asymmetric,
 }
 
 #[derive(Debug, Clone)]

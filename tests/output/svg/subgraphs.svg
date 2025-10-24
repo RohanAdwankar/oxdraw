@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1708" height="624" viewBox="0 0 1708 624" font-family="Inter, system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1708" height="588" viewBox="0 0 1708 588" font-family="Inter, system-ui, sans-serif">
   <defs>
         <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
             <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
@@ -10,49 +10,49 @@
   </defs>
   <rect width="100%" height="100%" fill="white" />
   <g class="subgraph" data-id="RenderingPipeline">
-    <rect x="472.0" y="80.0" width="716.0" height="432.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
-    <text x="492.0" y="100.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">RenderingPipeline</text>
+    <rect x="472.0" y="156.0" width="716.0" height="272.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <text x="492.0" y="176.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">RenderingPipeline</text>
   </g>
   <g class="subgraph" data-id="ErrorHandling">
-    <rect x="1232.0" y="240.0" width="396.0" height="272.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
-    <text x="1252.0" y="260.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">ErrorHandling</text>
+    <rect x="1232.0" y="156.0" width="396.0" height="352.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <text x="1252.0" y="176.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">ErrorHandling</text>
   </g>
-  <polyline points="643.6,304.0 712.8,342.7 773.4,327.6 834.0,312.4 890.9,223.8" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <line x1="955.6" y1="216.8" x2="1009.1" y2="243.6" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <line x1="620.0" y1="404.0" x2="719.3" y2="304.7" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <line x1="660.0" y1="434.0" x2="1279.0" y2="434.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="660.0" y1="350.0" x2="679.0" y2="350.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="820.0" y1="350.0" x2="839.0" y2="350.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="970.0" y1="320.0" x2="1009.1" y2="300.4" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="980.0" y1="362.7" x2="1299.9" y2="420.9" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="935.6" y="410.0" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="969.5" y="424.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">failure</text>
+    <rect x="1106.0" y="367.8" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="1139.9" y="381.8" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">failure</text>
   </g>
-  <polyline points="1389.4,447.1 1462.0,471.3 1467.3,468.6 1472.7,466.0 1499.7,384.9" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1371.0" y1="409.0" x2="1479.3" y2="300.7" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="1426.0" y="454.6" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="1467.3" y="468.6" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">exhausted</text>
+    <rect x="1383.8" y="330.9" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="1425.1" y="344.9" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">exhausted</text>
   </g>
-  <polyline points="1342.2,407.4 1300.0,264.0 1190.0,204.0 1080.0,144.0 968.7,176.7" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="1331.8,407.8 1184.1,227.0 1073.7,212.2 963.3,197.5 786.8,323.7" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="1148.7" y="190.0" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="1190.0" y="204.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">available</text>
+    <rect x="1032.4" y="198.2" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="1073.7" y="212.2" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">available</text>
   </g>
-  <polyline points="750.0,244.0 750.0,190.0 150.0,190.0 150.0,483.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <line x1="210.0" y1="484.0" x2="249.1" y2="464.4" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <polygon points="1350.0,404.0 1420.0,434.0 1350.0,464.0 1280.0,434.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="1350.0" y="434.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Retry Budget?</text>
-  <rect x="240.0" y="404.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="310.0" y="434.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">User</text>
-  <rect x="1440.0" y="324.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1510.0" y="354.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">PagerDuty Alert</text>
-  <rect x="520.0" y="244.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="590.0" y="274.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">(HTTP API)</text>
-  <ellipse cx="910.0" cy="194.0" rx="70.0" ry="30.0" fill="#e9d8fd" stroke="#2d3748" stroke-width="2" />
-  <text x="910.0" y="194.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Task Queue</text>
-  <rect x="520.0" y="404.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="590.0" y="434.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Renderer</text>
-  <rect x="680.0" y="244.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="750.0" y="274.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">(S3 Bucket)</text>
-  <rect x="80.0" y="484.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="514.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">CDN</text>
-  <rect x="1000.0" y="244.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1070.0" y="274.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Renderer&gt;Renderer Service]</text>
+  <polyline points="1027.4,240.0 800.0,80.0 570.0,120.0 340.0,160.0 171.7,399.2" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="210.0" y1="400.0" x2="249.1" y2="380.4" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <path d="M1000.0,250.0 A70.0,10.0 0 0 1 1140.0,250.0 L1140.0,290.0 A70.0,10.0 0 0 1 1000.0,290.0 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
+  <path d="M1000.0,250.0 A70.0,10.0 0 0 1 1140.0,250.0" fill="none" stroke="#2d3748" stroke-width="2" />
+  <text x="1070.0" y="270.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">S3 Bucket</text>
+  <path d="M520.0,330.0 A70.0,10.0 0 0 1 660.0,330.0 L660.0,370.0 A70.0,10.0 0 0 1 520.0,370.0 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
+  <path d="M520.0,330.0 A70.0,10.0 0 0 1 660.0,330.0" fill="none" stroke="#2d3748" stroke-width="2" />
+  <text x="590.0" y="350.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">HTTP API</text>
+  <rect x="1440.0" y="240.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1510.0" y="270.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">PagerDuty Alert</text>
+  <rect x="240.0" y="320.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="310.0" y="350.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">User</text>
+  <polygon points="840.0,320.0 953.0,320.0 980.0,350.0 953.0,380.0 840.0,380.0" fill="#f5d0fe" stroke="#2d3748" stroke-width="2" />
+  <text x="910.0" y="350.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Renderer Service</text>
+  <polygon points="1350.0,400.0 1420.0,430.0 1350.0,460.0 1280.0,430.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="1350.0" y="430.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Retry Budget?</text>
+  <ellipse cx="750.0" cy="350.0" rx="70.0" ry="30.0" fill="#e9d8fd" stroke="#2d3748" stroke-width="2" />
+  <text x="750.0" y="350.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Task Queue</text>
+  <rect x="80.0" y="400.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="150.0" y="430.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">CDN</text>
 </svg>

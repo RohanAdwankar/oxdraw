@@ -183,9 +183,9 @@ body > div:first-of-type {
 
 .node rect,
 .node ellipse,
-.node polygon {
-  fill: var(--node-fill, #ffffff);
-  stroke: var(--node-stroke, #2d3748);
+.node polygon,
+.node path,
+.node line {
   stroke-width: 2;
   filter: drop-shadow(0 6px 18px rgba(15, 23, 42, 0.08));
   transition: stroke 0.2s ease, filter 0.2s ease;
@@ -193,14 +193,18 @@ body > div:first-of-type {
 
 .node.selected rect,
 .node.selected ellipse,
-.node.selected polygon {
+.node.selected polygon,
+.node.selected path,
+.node.selected line {
   stroke: #f472b6;
   filter: drop-shadow(0 16px 30px rgba(236, 72, 153, 0.2));
 }
 
 .node:hover rect,
 .node:hover ellipse,
-.node:hover polygon {
+.node:hover polygon,
+.node:hover path,
+.node:hover line {
   stroke: #38b2ac;
   filter: drop-shadow(0 16px 30px rgba(59, 130, 246, 0.2));
 }

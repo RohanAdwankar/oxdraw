@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
-use std::fmt::Write as FmtWrite;
+use std::fmt::Write;
 use tiny_skia::{Pixmap, Transform};
 
 use crate::*;
@@ -376,56 +376,8 @@ impl Diagram {
                 }
             }
 
-            match node.shape {
-                NodeShape::Rectangle => write!(
-                    svg,
-                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    position.x - NODE_WIDTH / 2.0,
-                    position.y - NODE_HEIGHT / 2.0,
-                    NODE_WIDTH,
-                    NODE_HEIGHT,
-                    fill_color,
-                    stroke_color
-                )?,
-                NodeShape::Stadium => write!(
-                    svg,
-                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    position.x - NODE_WIDTH / 2.0,
-                    position.y - NODE_HEIGHT / 2.0,
-                    NODE_WIDTH,
-                    NODE_HEIGHT,
-                    fill_color,
-                    stroke_color
-                )?,
-                NodeShape::Circle => write!(
-                    svg,
-                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    position.x,
-                    position.y,
-                    NODE_WIDTH / 2.0,
-                    NODE_HEIGHT / 2.0,
-                    fill_color,
-                    stroke_color
-                )?,
-                NodeShape::Diamond => {
-                    let half_w = NODE_WIDTH / 2.0;
-                    let half_h = NODE_HEIGHT / 2.0;
-                    write!(
-                        svg,
-                        "  <polygon points=\"{:.1},{:.1} {:.1},{:.1} {:.1},{:.1} {:.1},{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                        position.x,
-                        position.y - half_h,
-                        position.x + half_w,
-                        position.y,
-                        position.x,
-                        position.y + half_h,
-                        position.x - half_w,
-                        position.y,
-                        fill_color,
-                        stroke_color
-                    )?;
-                }
-            }
+            node.shape
+                .render_svg_shape(&mut svg, position, &fill_color, &stroke_color)?;
 
             write!(
                 svg,
@@ -1584,13 +1536,30 @@ fn generate_axis_detours(from: Point, to: Point) -> Vec<Vec<Point>> {
     candidates
 }
 
+fn format_points(points: &[(f32, f32)]) -> String {
+    points
+        .iter()
+        .map(|(x, y)| format!("{:.1},{:.1}", x, y))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 impl NodeShape {
     pub fn as_str(&self) -> &'static str {
         match self {
             NodeShape::Rectangle => "rectangle",
             NodeShape::Stadium => "stadium",
             NodeShape::Circle => "circle",
+            NodeShape::DoubleCircle => "double-circle",
             NodeShape::Diamond => "diamond",
+            NodeShape::Subroutine => "subroutine",
+            NodeShape::Cylinder => "cylinder",
+            NodeShape::Hexagon => "hexagon",
+            NodeShape::Parallelogram => "parallelogram",
+            NodeShape::ParallelogramAlt => "parallelogram-alt",
+            NodeShape::Trapezoid => "trapezoid",
+            NodeShape::TrapezoidAlt => "trapezoid-alt",
+            NodeShape::Asymmetric => "asymmetric",
         }
     }
 
@@ -1599,7 +1568,16 @@ impl NodeShape {
             NodeShape::Rectangle => "#fde68a",
             NodeShape::Stadium => "#c4f1f9",
             NodeShape::Circle => "#e9d8fd",
+            NodeShape::DoubleCircle => "#bfdbfe",
             NodeShape::Diamond => "#fbcfe8",
+            NodeShape::Subroutine => "#fed7aa",
+            NodeShape::Cylinder => "#bbf7d0",
+            NodeShape::Hexagon => "#fca5a5",
+            NodeShape::Parallelogram => "#c7d2fe",
+            NodeShape::ParallelogramAlt => "#a5f3fc",
+            NodeShape::Trapezoid => "#fce7f3",
+            NodeShape::TrapezoidAlt => "#fcd5ce",
+            NodeShape::Asymmetric => "#f5d0fe",
         }
     }
 
@@ -1614,7 +1592,235 @@ impl NodeShape {
             }
             NodeShape::Stadium => format!("{id}({label})"),
             NodeShape::Circle => format!("{id}(({label}))"),
+            NodeShape::DoubleCircle => format!("{id}((({label})))"),
             NodeShape::Diamond => format!("{id}{{{label}}}"),
+            NodeShape::Subroutine => format!("{id}[[{label}]]"),
+            NodeShape::Cylinder => format!("{id}[({label})]"),
+            NodeShape::Hexagon => format!("{id}{{{{{label}}}}}"),
+            NodeShape::Parallelogram => format!("{id}[/{label}/]"),
+            NodeShape::ParallelogramAlt => format!("{id}[\\{label}\\]"),
+            NodeShape::Trapezoid => format!("{id}[/{label}\\]"),
+            NodeShape::TrapezoidAlt => format!("{id}[\\{label}/]"),
+            NodeShape::Asymmetric => format!("{id}>{label}]"),
+        }
+    }
+
+    fn render_svg_shape(
+        &self,
+        svg: &mut String,
+        position: Point,
+        fill_color: &str,
+        stroke_color: &str,
+    ) -> std::fmt::Result {
+        let half_w = NODE_WIDTH / 2.0;
+        let half_h = NODE_HEIGHT / 2.0;
+        match self {
+            NodeShape::Rectangle => write!(
+                svg,
+                "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                position.x - half_w,
+                position.y - half_h,
+                NODE_WIDTH,
+                NODE_HEIGHT,
+                fill_color,
+                stroke_color
+            ),
+            NodeShape::Stadium => write!(
+                svg,
+                "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                position.x - half_w,
+                position.y - half_h,
+                NODE_WIDTH,
+                NODE_HEIGHT,
+                fill_color,
+                stroke_color
+            ),
+            NodeShape::Circle => write!(
+                svg,
+                "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                position.x, position.y, half_w, half_h, fill_color, stroke_color
+            ),
+            NodeShape::DoubleCircle => {
+                write!(
+                    svg,
+                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    position.x, position.y, half_w, half_h, fill_color, stroke_color
+                )?;
+                write!(
+                    svg,
+                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    position.x,
+                    position.y,
+                    (half_w - 6.0).max(half_w * 0.65),
+                    (half_h - 6.0).max(half_h * 0.65),
+                    stroke_color
+                )
+            }
+            NodeShape::Diamond => {
+                let points = format_points(&[
+                    (position.x, position.y - half_h),
+                    (position.x + half_w, position.y),
+                    (position.x, position.y + half_h),
+                    (position.x - half_w, position.y),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
+            NodeShape::Subroutine => {
+                let left = position.x - half_w;
+                let top = position.y - half_h;
+                let right = position.x + half_w;
+                let bottom = position.y + half_h;
+                let inset = 12.0;
+                write!(
+                    svg,
+                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    left, top, NODE_WIDTH, NODE_HEIGHT, fill_color, stroke_color
+                )?;
+                write!(
+                    svg,
+                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    left + inset,
+                    top,
+                    left + inset,
+                    bottom,
+                    stroke_color
+                )?;
+                write!(
+                    svg,
+                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    right - inset,
+                    top,
+                    right - inset,
+                    bottom,
+                    stroke_color
+                )
+            }
+            NodeShape::Cylinder => {
+                let left = position.x - half_w;
+                let right = position.x + half_w;
+                let top = position.y - half_h;
+                let bottom = position.y + half_h;
+                let rx = half_w;
+                let ry = NODE_HEIGHT / 6.0;
+                let top_center = top + ry;
+                let bottom_center = bottom - ry;
+                write!(
+                    svg,
+                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} L{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    left,
+                    top_center,
+                    rx,
+                    ry,
+                    right,
+                    top_center,
+                    right,
+                    bottom_center,
+                    rx,
+                    ry,
+                    left,
+                    bottom_center,
+                    fill_color,
+                    stroke_color
+                )?;
+                write!(
+                    svg,
+                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    left, top_center, rx, ry, right, top_center, stroke_color
+                )
+            }
+            NodeShape::Hexagon => {
+                let offset = NODE_WIDTH * 0.25;
+                let points = format_points(&[
+                    (position.x - half_w + offset, position.y - half_h),
+                    (position.x + half_w - offset, position.y - half_h),
+                    (position.x + half_w, position.y),
+                    (position.x + half_w - offset, position.y + half_h),
+                    (position.x - half_w + offset, position.y + half_h),
+                    (position.x - half_w, position.y),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
+            NodeShape::Parallelogram => {
+                let skew = NODE_HEIGHT * 0.35;
+                let points = format_points(&[
+                    (position.x - half_w + skew, position.y - half_h),
+                    (position.x + half_w, position.y - half_h),
+                    (position.x + half_w - skew, position.y + half_h),
+                    (position.x - half_w, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
+            NodeShape::ParallelogramAlt => {
+                let skew = NODE_HEIGHT * 0.35;
+                let points = format_points(&[
+                    (position.x - half_w, position.y - half_h),
+                    (position.x + half_w - skew, position.y - half_h),
+                    (position.x + half_w, position.y + half_h),
+                    (position.x - half_w + skew, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
+            NodeShape::Trapezoid => {
+                let top_inset = NODE_WIDTH * 0.22;
+                let bottom_inset = NODE_WIDTH * 0.08;
+                let points = format_points(&[
+                    (position.x - half_w + top_inset, position.y - half_h),
+                    (position.x + half_w - top_inset, position.y - half_h),
+                    (position.x + half_w - bottom_inset, position.y + half_h),
+                    (position.x - half_w + bottom_inset, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
+            NodeShape::TrapezoidAlt => {
+                let top_inset = NODE_WIDTH * 0.08;
+                let bottom_inset = NODE_WIDTH * 0.22;
+                let points = format_points(&[
+                    (position.x - half_w + top_inset, position.y - half_h),
+                    (position.x + half_w - top_inset, position.y - half_h),
+                    (position.x + half_w - bottom_inset, position.y + half_h),
+                    (position.x - half_w + bottom_inset, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
+            NodeShape::Asymmetric => {
+                let skew = NODE_HEIGHT * 0.45;
+                let points = format_points(&[
+                    (position.x - half_w, position.y - half_h),
+                    (position.x + half_w - skew, position.y - half_h),
+                    (position.x + half_w, position.y),
+                    (position.x + half_w - skew, position.y + half_h),
+                    (position.x - half_w, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points, fill_color, stroke_color
+                )
+            }
         }
     }
 }
@@ -1869,8 +2075,7 @@ impl NodeBoundary {
 
     fn contains_point(&self, point: Point) -> bool {
         match self.shape {
-            NodeShape::Rectangle | NodeShape::Stadium => self.rect.contains(point),
-            NodeShape::Circle => {
+            NodeShape::Circle | NodeShape::DoubleCircle => {
                 let rx = NODE_WIDTH / 2.0;
                 let ry = NODE_HEIGHT / 2.0;
                 if rx <= 0.0 || ry <= 0.0 {
@@ -1890,6 +2095,7 @@ impl NodeBoundary {
                 let dy = (point.y - self.center.y).abs() / half_h;
                 dx + dy <= 1.0 + 1e-3_f32
             }
+            _ => self.rect.contains(point),
         }
     }
 }
@@ -1930,11 +2136,11 @@ fn clip_segment_exit_with_shape(
     extend_outward: bool,
 ) -> Option<Point> {
     match bounds.shape {
-        NodeShape::Rectangle | NodeShape::Stadium => {
-            clip_segment_exit_rect(start, next, bounds.rect, extend_outward)
+        NodeShape::Circle | NodeShape::DoubleCircle => {
+            clip_segment_exit_circle(start, next, bounds, extend_outward)
         }
-        NodeShape::Circle => clip_segment_exit_circle(start, next, bounds, extend_outward),
         NodeShape::Diamond => clip_segment_exit_diamond(start, next, bounds, extend_outward),
+        _ => clip_segment_exit_rect(start, next, bounds.rect, extend_outward),
     }
 }
 
@@ -2773,7 +2979,7 @@ impl NodeSpec {
 
         let mut id_end = trimmed.len();
         for (idx, ch) in trimmed.char_indices() {
-            if matches!(ch, '[' | '(' | '{') {
+            if matches!(ch, '[' | '(' | '{' | '>') {
                 id_end = idx;
                 break;
             }
@@ -2787,26 +2993,8 @@ impl NodeSpec {
         let remainder = trimmed[id_end..].trim();
         let (label, shape) = if remainder.is_empty() {
             (id.to_string(), NodeShape::Rectangle)
-        } else if remainder.starts_with("((") && remainder.ends_with("))") && remainder.len() >= 4 {
-            (
-                remainder[2..remainder.len() - 2].trim().to_string(),
-                NodeShape::Circle,
-            )
-        } else if remainder.starts_with('(') && remainder.ends_with(')') && remainder.len() >= 2 {
-            (
-                remainder[1..remainder.len() - 1].trim().to_string(),
-                NodeShape::Stadium,
-            )
-        } else if remainder.starts_with('[') && remainder.ends_with(']') && remainder.len() >= 2 {
-            (
-                remainder[1..remainder.len() - 1].trim().to_string(),
-                NodeShape::Rectangle,
-            )
-        } else if remainder.starts_with('{') && remainder.ends_with('}') && remainder.len() >= 2 {
-            (
-                remainder[1..remainder.len() - 1].trim().to_string(),
-                NodeShape::Diamond,
-            )
+        } else if let Some((label, shape)) = Self::parse_shape_spec(remainder) {
+            (label, shape)
         } else {
             (trimmed.to_string(), NodeShape::Rectangle)
         };
@@ -2820,5 +3008,147 @@ impl NodeSpec {
             },
             shape,
         })
+    }
+
+    fn parse_shape_spec(spec: &str) -> Option<(String, NodeShape)> {
+        let trimmed = spec.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        if trimmed.starts_with("(((") && trimmed.ends_with(")))") && trimmed.len() >= 6 {
+            let inner = trimmed[3..trimmed.len() - 3].trim();
+            return Some((inner.to_string(), NodeShape::DoubleCircle));
+        }
+
+        if trimmed.starts_with("((") && trimmed.ends_with("))") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::Circle));
+        }
+
+        if trimmed.starts_with("[[") && trimmed.ends_with("]]") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::Subroutine));
+        }
+
+        if trimmed.starts_with("[(") && trimmed.ends_with(")]") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::Cylinder));
+        }
+
+        if trimmed.starts_with("{{") && trimmed.ends_with("}}") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::Hexagon));
+        }
+
+        if trimmed.starts_with("[/") && trimmed.ends_with("/]") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::Parallelogram));
+        }
+
+        if trimmed.starts_with("[\\") && trimmed.ends_with("\\]") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::ParallelogramAlt));
+        }
+
+        if trimmed.starts_with("[/") && trimmed.ends_with("\\]") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::Trapezoid));
+        }
+
+        if trimmed.starts_with("[\\") && trimmed.ends_with("/]") && trimmed.len() >= 4 {
+            let inner = trimmed[2..trimmed.len() - 2].trim();
+            return Some((inner.to_string(), NodeShape::TrapezoidAlt));
+        }
+
+        if trimmed.starts_with('(') && trimmed.ends_with(')') && trimmed.len() >= 2 {
+            let mut inner = trimmed[1..trimmed.len() - 1].trim().to_string();
+            if inner.starts_with('[') && inner.ends_with(']') && inner.len() >= 2 {
+                inner = inner[1..inner.len() - 1].trim().to_string();
+            }
+            return Some((inner, NodeShape::Stadium));
+        }
+
+        if trimmed.starts_with('[') && trimmed.ends_with(']') && trimmed.len() >= 2 {
+            let inner = trimmed[1..trimmed.len() - 1].trim();
+            return Some((inner.to_string(), NodeShape::Rectangle));
+        }
+
+        if trimmed.starts_with('{') && trimmed.ends_with('}') && trimmed.len() >= 2 {
+            let inner = trimmed[1..trimmed.len() - 1].trim();
+            return Some((inner.to_string(), NodeShape::Diamond));
+        }
+
+        if trimmed.starts_with('>') && trimmed.ends_with(']') && trimmed.len() >= 2 {
+            let inner = trimmed[1..trimmed.len() - 1].trim();
+            return Some((inner.to_string(), NodeShape::Asymmetric));
+        }
+
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_extended_shape_syntax() {
+        let cases = [
+            ("sub[[Subroutine]]", NodeShape::Subroutine, "Subroutine"),
+            ("db[(Database)]", NodeShape::Cylinder, "Database"),
+            ("hex{{Prep}}", NodeShape::Hexagon, "Prep"),
+            ("stop(((Stop)))", NodeShape::DoubleCircle, "Stop"),
+            ("lean[/Tilt/]", NodeShape::Parallelogram, "Tilt"),
+            ("leanAlt[\\Lean\\]", NodeShape::ParallelogramAlt, "Lean"),
+            ("prio[/Priority\\]", NodeShape::Trapezoid, "Priority"),
+            ("manual[\\Manual/]", NodeShape::TrapezoidAlt, "Manual"),
+            ("asym>Skewed]", NodeShape::Asymmetric, "Skewed"),
+            ("term([Terminal])", NodeShape::Stadium, "Terminal"),
+        ];
+
+        for (input, expected_shape, expected_label) in cases {
+            let spec = NodeSpec::parse(input).unwrap();
+            assert_eq!(spec.shape, expected_shape, "shape mismatch for {input}");
+            assert_eq!(spec.label, expected_label, "label mismatch for {input}");
+        }
+    }
+
+    #[test]
+    fn formats_extended_shapes() {
+        let cases = [
+            (NodeShape::Subroutine, "sub", "Task", "sub[[Task]]"),
+            (NodeShape::Cylinder, "db", "Data", "db[(Data)]"),
+            (NodeShape::Hexagon, "hex", "Prep", "hex{{Prep}}"),
+            (NodeShape::DoubleCircle, "stop", "Stop", "stop(((Stop)))"),
+            (NodeShape::Parallelogram, "lean", "Tilt", "lean[/Tilt/]"),
+            (
+                NodeShape::ParallelogramAlt,
+                "leanAlt",
+                "Tilt",
+                "leanAlt[\\Tilt\\]",
+            ),
+            (
+                NodeShape::Trapezoid,
+                "prio",
+                "Priority",
+                "prio[/Priority\\]",
+            ),
+            (
+                NodeShape::TrapezoidAlt,
+                "manual",
+                "Manual",
+                "manual[\\Manual/]",
+            ),
+            (NodeShape::Asymmetric, "asym", "Skewed", "asym>Skewed]"),
+        ];
+
+        for (shape, id, label, expected) in cases {
+            assert_eq!(
+                shape.format_spec(id, label),
+                expected,
+                "format mismatch for {id}"
+            );
+        }
     }
 }

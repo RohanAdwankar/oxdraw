@@ -42,11 +42,23 @@ const EDGE_LABEL_BACKGROUND = "white";
 const EDGE_LABEL_BACKGROUND_OPACITY = 0.96;
 
 const SHAPE_COLORS: Record<DiagramData["nodes"][number]["shape"], string> = {
-  rectangle: "#FDE68A", // pastel amber
-  stadium: "#C4F1F9", // pastel cyan
-  circle: "#E9D8FD", // pastel purple
-  diamond: "#FBCFE8", // pastel pink
+  rectangle: "#FDE68A",
+  stadium: "#C4F1F9",
+  circle: "#E9D8FD",
+  "double-circle": "#BFDBFE",
+  diamond: "#FBCFE8",
+  subroutine: "#FED7AA",
+  cylinder: "#BBF7D0",
+  hexagon: "#FCA5A5",
+  parallelogram: "#C7D2FE",
+  "parallelogram-alt": "#A5F3FC",
+  trapezoid: "#FCE7F3",
+  "trapezoid-alt": "#FCD5CE",
+  asymmetric: "#F5D0FE",
 };
+
+const polygonPoints = (points: [number, number][]) =>
+  points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
 
 const DEFAULT_NODE_STROKE = "#2d3748";
 const DEFAULT_NODE_TEXT = "#1a202c";
@@ -1513,6 +1525,276 @@ export default function DiagramCanvas({
             "--node-text": textColor,
           } as CSSProperties;
           const nodeSelected = selectedNodeId === id;
+          const halfWidth = NODE_WIDTH / 2;
+          const halfHeight = NODE_HEIGHT / 2;
+
+          const shapeElement = (() => {
+            switch (node.shape) {
+              case "rectangle":
+                return (
+                  <rect
+                    x={-halfWidth}
+                    y={-halfHeight}
+                    width={NODE_WIDTH}
+                    height={NODE_HEIGHT}
+                    rx={8}
+                    ry={8}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              case "stadium":
+                return (
+                  <rect
+                    x={-halfWidth}
+                    y={-halfHeight}
+                    width={NODE_WIDTH}
+                    height={NODE_HEIGHT}
+                    rx={30}
+                    ry={30}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              case "circle":
+                return (
+                  <ellipse
+                    cx={0}
+                    cy={0}
+                    rx={halfWidth}
+                    ry={halfHeight}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              case "double-circle": {
+                const innerRx = Math.max(halfWidth - 6, halfWidth * 0.65);
+                const innerRy = Math.max(halfHeight - 6, halfHeight * 0.65);
+                return (
+                  <>
+                    <ellipse
+                      cx={0}
+                      cy={0}
+                      rx={halfWidth}
+                      ry={halfHeight}
+                      fill={fillColor}
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                    <ellipse
+                      cx={0}
+                      cy={0}
+                      rx={innerRx}
+                      ry={innerRy}
+                      fill="none"
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                  </>
+                );
+              }
+              case "diamond": {
+                const points = polygonPoints([
+                  [0, -halfHeight],
+                  [halfWidth, 0],
+                  [0, halfHeight],
+                  [-halfWidth, 0],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              case "subroutine": {
+                const inset = 12;
+                return (
+                  <>
+                    <rect
+                      x={-halfWidth}
+                      y={-halfHeight}
+                      width={NODE_WIDTH}
+                      height={NODE_HEIGHT}
+                      rx={8}
+                      ry={8}
+                      fill={fillColor}
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                    <line
+                      x1={-halfWidth + inset}
+                      y1={-halfHeight}
+                      x2={-halfWidth + inset}
+                      y2={halfHeight}
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                    <line
+                      x1={halfWidth - inset}
+                      y1={-halfHeight}
+                      x2={halfWidth - inset}
+                      y2={halfHeight}
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                  </>
+                );
+              }
+              case "cylinder": {
+                const rx = halfWidth;
+                const ry = NODE_HEIGHT / 6;
+                const top = -halfHeight;
+                const bottom = halfHeight;
+                const topCenter = top + ry;
+                const bottomCenter = bottom - ry;
+                const bodyPath = `M ${-halfWidth},${topCenter} A ${rx},${ry} 0 0 1 ${halfWidth},${topCenter} L ${halfWidth},${bottomCenter} A ${rx},${ry} 0 0 1 ${-halfWidth},${bottomCenter} Z`;
+                const topPath = `M ${-halfWidth},${topCenter} A ${rx},${ry} 0 0 1 ${halfWidth},${topCenter}`;
+                return (
+                  <>
+                    <path
+                      d={bodyPath}
+                      fill={fillColor}
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                    <path
+                      d={topPath}
+                      fill="none"
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                  </>
+                );
+              }
+              case "hexagon": {
+                const offset = NODE_WIDTH * 0.25;
+                const points = polygonPoints([
+                  [-halfWidth + offset, -halfHeight],
+                  [halfWidth - offset, -halfHeight],
+                  [halfWidth, 0],
+                  [halfWidth - offset, halfHeight],
+                  [-halfWidth + offset, halfHeight],
+                  [-halfWidth, 0],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              case "parallelogram": {
+                const skew = NODE_HEIGHT * 0.35;
+                const points = polygonPoints([
+                  [-halfWidth + skew, -halfHeight],
+                  [halfWidth, -halfHeight],
+                  [halfWidth - skew, halfHeight],
+                  [-halfWidth, halfHeight],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              case "parallelogram-alt": {
+                const skew = NODE_HEIGHT * 0.35;
+                const points = polygonPoints([
+                  [-halfWidth, -halfHeight],
+                  [halfWidth - skew, -halfHeight],
+                  [halfWidth, halfHeight],
+                  [-halfWidth + skew, halfHeight],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              case "trapezoid": {
+                const topInset = NODE_WIDTH * 0.22;
+                const bottomInset = NODE_WIDTH * 0.08;
+                const points = polygonPoints([
+                  [-halfWidth + topInset, -halfHeight],
+                  [halfWidth - topInset, -halfHeight],
+                  [halfWidth - bottomInset, halfHeight],
+                  [-halfWidth + bottomInset, halfHeight],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              case "trapezoid-alt": {
+                const topInset = NODE_WIDTH * 0.08;
+                const bottomInset = NODE_WIDTH * 0.22;
+                const points = polygonPoints([
+                  [-halfWidth + topInset, -halfHeight],
+                  [halfWidth - topInset, -halfHeight],
+                  [halfWidth - bottomInset, halfHeight],
+                  [-halfWidth + bottomInset, halfHeight],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              case "asymmetric": {
+                const skew = NODE_HEIGHT * 0.45;
+                const points = polygonPoints([
+                  [-halfWidth, -halfHeight],
+                  [halfWidth - skew, -halfHeight],
+                  [halfWidth, 0],
+                  [halfWidth - skew, halfHeight],
+                  [-halfWidth, halfHeight],
+                ]);
+                return (
+                  <polygon
+                    points={points}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              default:
+                return (
+                  <rect
+                    x={-halfWidth}
+                    y={-halfHeight}
+                    width={NODE_WIDTH}
+                    height={NODE_HEIGHT}
+                    rx={8}
+                    ry={8}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                  />
+                );
+            }
+          })();
 
           return (
             <g
@@ -1528,34 +1810,7 @@ export default function DiagramCanvas({
               }
               onDoubleClick={() => handleNodeDoubleClick(id)}
             >
-              {node.shape === "rectangle" && (
-                <rect
-                  x={-NODE_WIDTH / 2}
-                  y={-NODE_HEIGHT / 2}
-                  width={NODE_WIDTH}
-                  height={NODE_HEIGHT}
-                  rx={8}
-                  ry={8}
-                />
-              )}
-              {node.shape === "stadium" && (
-                <rect
-                  x={-NODE_WIDTH / 2}
-                  y={-NODE_HEIGHT / 2}
-                  width={NODE_WIDTH}
-                  height={NODE_HEIGHT}
-                  rx={30}
-                  ry={30}
-                />
-              )}
-              {node.shape === "circle" && (
-                <ellipse cx={0} cy={0} rx={NODE_WIDTH / 2} ry={NODE_HEIGHT / 2} />
-              )}
-              {node.shape === "diamond" && (
-                <polygon
-                  points={`0,${-NODE_HEIGHT / 2} ${NODE_WIDTH / 2},0 0,${NODE_HEIGHT / 2} ${-NODE_WIDTH / 2},0`}
-                />
-              )}
+              {shapeElement}
               <text textAnchor="middle" dominantBaseline="middle">
                 {node.label}
               </text>

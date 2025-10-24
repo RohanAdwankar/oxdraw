@@ -1,4 +1,17 @@
-export type NodeShape = "rectangle" | "stadium" | "circle" | "diamond";
+export type NodeShape =
+  | "rectangle"
+  | "stadium"
+  | "circle"
+  | "double-circle"
+  | "diamond"
+  | "subroutine"
+  | "cylinder"
+  | "hexagon"
+  | "parallelogram"
+  | "parallelogram-alt"
+  | "trapezoid"
+  | "trapezoid-alt"
+  | "asymmetric";
 export type EdgeKind = "solid" | "dashed";
 export type EdgeArrowDirection = "forward" | "backward" | "both" | "none";
 
