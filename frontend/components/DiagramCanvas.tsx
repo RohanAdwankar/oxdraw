@@ -786,16 +786,16 @@ export default function DiagramCanvas({
         const renderedRoute = edge.renderedPoints.length >= 2
           ? edge.renderedPoints.map((point) => ({ x: point.x, y: point.y }))
           : [
-              { x: from.x, y: from.y },
-              { x: to.x, y: to.y },
-            ];
+            { x: from.x, y: from.y },
+            { x: to.x, y: to.y },
+          ];
 
         const route = hasDraftOverride
           ? [
-              { x: from.x, y: from.y },
-              ...overridePoints,
-              { x: to.x, y: to.y },
-            ]
+            { x: from.x, y: from.y },
+            ...overridePoints,
+            { x: to.x, y: to.y },
+          ]
           : renderedRoute;
 
         const handlePoints = hasOverride
@@ -1493,8 +1493,8 @@ export default function DiagramCanvas({
       });
     } else if (currentDrag.type === "subgraph") {
       if (currentDrag.moved) {
-  const nodeUpdates: Record<string, Point | null> = {};
-  const edgeUpdates: Record<string, Point[]> = {};
+        const nodeUpdates: Record<string, Point | null> = {};
+        const edgeUpdates: Record<string, Point[]> = {};
         const finalTopLeft = {
           x: currentDrag.origin.x + currentDrag.delta.x,
           y: currentDrag.origin.y + currentDrag.delta.y,
@@ -1712,9 +1712,9 @@ export default function DiagramCanvas({
       };
       const adjusted = event.shiftKey
         ? {
-            x: snapToGrid(next.x),
-            y: snapToGrid(next.y),
-          }
+          x: snapToGrid(next.x),
+          y: snapToGrid(next.y),
+        }
         : next;
 
       setDraftNodes((prev: DraftNodes) => ({ ...prev, [selectedNodeId]: adjusted }));
@@ -2033,21 +2033,21 @@ export default function DiagramCanvas({
                 .filter(({ index }) => labelHandleIndex === null || index !== labelHandleIndex)
                 .map(({ point, index }) => {
                   const screen = toScreen(point);
-                return (
-                  <circle
-                    key={`${edge.id}-handle-${index}`}
-                    className={hasOverride ? "handle active" : "handle"}
-                    cx={screen.x}
-                    cy={screen.y}
-                    r={HANDLE_RADIUS}
-                    onPointerDown={(event: ReactPointerEvent<SVGCircleElement>) =>
-                      handleHandlePointerDown(edge.id, index, handlePoints, hasOverride, event)
-                    }
-                    onDoubleClick={(event: ReactMouseEvent<SVGCircleElement>) => {
-                      event.stopPropagation();
-                      handleHandleDoubleClick(edge.id);
-                    }}
-                  />
+                  return (
+                    <circle
+                      key={`${edge.id}-handle-${index}`}
+                      className={hasOverride ? "handle active" : "handle"}
+                      cx={screen.x}
+                      cy={screen.y}
+                      r={HANDLE_RADIUS}
+                      onPointerDown={(event: ReactPointerEvent<SVGCircleElement>) =>
+                        handleHandlePointerDown(edge.id, index, handlePoints, hasOverride, event)
+                      }
+                      onDoubleClick={(event: ReactMouseEvent<SVGCircleElement>) => {
+                        event.stopPropagation();
+                        handleHandleDoubleClick(edge.id);
+                      }}
+                    />
                   );
                 })}
             </g>
@@ -2366,35 +2366,35 @@ export default function DiagramCanvas({
 
         {verticalGuide
           ? (() => {
-              const start = toScreen({ x: verticalGuide.x, y: verticalGuide.y1 });
-              const end = toScreen({ x: verticalGuide.x, y: verticalGuide.y2 });
-              return (
-                <line
-                  key="vertical-guide"
-                  className={`alignment-guide alignment-guide-vertical alignment-guide-${verticalGuide.kind}`}
-                  x1={start.x}
-                  y1={start.y}
-                  x2={end.x}
-                  y2={end.y}
-                />
-              );
-            })()
+            const start = toScreen({ x: verticalGuide.x, y: verticalGuide.y1 });
+            const end = toScreen({ x: verticalGuide.x, y: verticalGuide.y2 });
+            return (
+              <line
+                key="vertical-guide"
+                className={`alignment-guide alignment-guide-vertical alignment-guide-${verticalGuide.kind}`}
+                x1={start.x}
+                y1={start.y}
+                x2={end.x}
+                y2={end.y}
+              />
+            );
+          })()
           : null}
         {horizontalGuide
           ? (() => {
-              const start = toScreen({ x: horizontalGuide.x1, y: horizontalGuide.y });
-              const end = toScreen({ x: horizontalGuide.x2, y: horizontalGuide.y });
-              return (
-                <line
-                  key="horizontal-guide"
-                  className={`alignment-guide alignment-guide-horizontal alignment-guide-${horizontalGuide.kind}`}
-                  x1={start.x}
-                  y1={start.y}
-                  x2={end.x}
-                  y2={end.y}
-                />
-              );
-            })()
+            const start = toScreen({ x: horizontalGuide.x1, y: horizontalGuide.y });
+            const end = toScreen({ x: horizontalGuide.x2, y: horizontalGuide.y });
+            return (
+              <line
+                key="horizontal-guide"
+                className={`alignment-guide alignment-guide-horizontal alignment-guide-${horizontalGuide.kind}`}
+                x1={start.x}
+                y1={start.y}
+                x2={end.x}
+                y2={end.y}
+              />
+            );
+          })()
           : null}
 
         <defs>
