@@ -2,6 +2,20 @@
 name = "oxdraw"
 version = "0.1.0"
 edition = "2024"
+include = [
+	"Cargo.toml",
+	"build.rs",
+	"README.md",
+	"src/**",
+	"tests/**",
+	"frontend/out/**"
+]
+authors = ["Rohan Adwankar <rohan.adwankar@gmail.com>"]
+description = "CLI and Web View for Declaritive Diagramming"
+repository = "https://github.com/RohanAdwankar/oxdraw"
+license = "MIT"
+keywords = ["task","vim","neovim","todo"]
+
 
 [dependencies]
 anyhow = "1"

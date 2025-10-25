@@ -256,6 +256,10 @@ fn locate_ui_dist() -> Result<PathBuf> {
 
     let mut candidates = Vec::new();
 
+    if let Some(bundled) = ensure_bundled_ui_dist()? {
+        candidates.push(bundled);
+    }
+
     if let Ok(cwd) = std::env::current_dir() {
         candidates.push(cwd.join("frontend/out"));
     }
@@ -266,6 +270,10 @@ fn locate_ui_dist() -> Result<PathBuf> {
         }
     }
 
+    if let Some(source) = bundled_source_dir() {
+        candidates.push(source);
+    }
+
     for candidate in candidates {
         if candidate.join("index.html").is_file() {
             return Ok(candidate);
@@ -273,8 +281,103 @@ fn locate_ui_dist() -> Result<PathBuf> {
     }
 
     bail!(
-        "unable to find built web UI assets; run 'npm install' and 'npm run build' in the frontend/ directory or set OXDRAW_WEB_DIST"
+        "unable to find built web UI assets; set OXDRAW_WEB_DIST or run 'npm install' and 'npm run build' in frontend/"
     );
+}
+
+fn bundled_source_dir() -> Option<PathBuf> {
+    option_env!("OXDRAW_BUNDLED_WEB_DIST").map(PathBuf::from)
+}
+
+fn ensure_bundled_ui_dist() -> Result<Option<PathBuf>> {
+    let source = match bundled_source_dir() {
+        Some(path) => path,
+        None => return Ok(None),
+    };
+
+    let index_file = source.join("index.html");
+    if !index_file.is_file() {
+        return Ok(None);
+    }
+
+    let temp_root = std::env::temp_dir()
+        .join("oxdraw-ui")
+        .join(env!("CARGO_PKG_VERSION"));
+
+    let target = temp_root;
+
+    let source_index_signature = std::fs::read_to_string(source.join("index.txt")).unwrap_or_default();
+    let target_index_path = target.join("index.txt");
+
+    if target_index_path.is_file() {
+        if let Ok(existing) = std::fs::read_to_string(&target_index_path) {
+            if existing == source_index_signature {
+                return Ok(Some(target));
+            }
+        }
+    }
+
+    if target.exists() {
+        std::fs::remove_dir_all(&target)
+            .with_context(|| format!("failed to clear cached UI at '{}'", target.display()))?;
+    }
+
+    copy_dir_recursive(&source, &target)?;
+
+    Ok(Some(target))
+}
+
+fn copy_dir_recursive(source: &Path, dest: &Path) -> Result<()> {
+    std::fs::create_dir_all(dest)
+        .with_context(|| format!("failed to create directory '{}'", dest.display()))?;
+
+    for entry in std::fs::read_dir(source).with_context(|| {
+        format!("failed to list directory '{}'", source.display())
+    })? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let src_path = entry.path();
+        let dest_path = dest.join(entry.file_name());
+
+        if file_type.is_dir() {
+            copy_dir_recursive(&src_path, &dest_path)?;
+        } else if file_type.is_file() {
+            if let Some(parent) = dest_path.parent() {
+                std::fs::create_dir_all(parent).with_context(|| {
+                    format!("failed to create directory '{}'", parent.display())
+                })?;
+            }
+            std::fs::copy(&src_path, &dest_path).with_context(|| {
+                format!(
+                    "failed to copy '{}' to '{}'",
+                    src_path.display(),
+                    dest_path.display()
+                )
+            })?;
+        } else if file_type.is_symlink() {
+            let resolved = std::fs::canonicalize(&src_path).with_context(|| {
+                format!("failed to resolve symlink '{}'", src_path.display())
+            })?;
+            if resolved.is_dir() {
+                copy_dir_recursive(&resolved, &dest_path)?;
+            } else {
+                if let Some(parent) = dest_path.parent() {
+                    std::fs::create_dir_all(parent).with_context(|| {
+                        format!("failed to create directory '{}'", parent.display())
+                    })?;
+                }
+                std::fs::copy(&resolved, &dest_path).with_context(|| {
+                    format!(
+                        "failed to copy '{}' to '{}'",
+                        resolved.display(),
+                        dest_path.display()
+                    )
+                })?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn parse_output(

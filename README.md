@@ -28,15 +28,6 @@ cargo build --release
 
 ### Launch the interactive editor
 
-Build the Next.js bundle once (rerun after UI changes):
-
-```bash
-cd frontend
-npm install
-npm run build
-cd ..
-```
-
 Then start the editor against a specific diagram:
 
 ```bash
