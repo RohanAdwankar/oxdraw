@@ -331,7 +331,7 @@ impl Diagram {
                         label_center.y - EDGE_LABEL_LINE_HEIGHT * (lines.len() as f32 - 1.0) / 2.0;
                     write!(
                         svg,
-                        "    <text x=\"{:.1}\" fill=\"#2d3748\" font-size=\"13\" text-anchor=\"middle\" xml:space=\"preserve\">\n",
+                        "    <text x=\"{:.1}\" fill=\"#2d3748\" font-size=\"13\" text-anchor=\"middle\">\n",
                         label_center.x
                     )?;
                     for (idx, line_text) in lines.iter().enumerate() {
@@ -379,14 +379,46 @@ impl Diagram {
             node.shape
                 .render_svg_shape(&mut svg, position, &fill_color, &stroke_color)?;
 
-            write!(
-                svg,
-                "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
-                position.x,
-                position.y,
-                text_color,
-                escape_xml(&node.label)
-            )?;
+            // Render node label with multi-line support
+            let lines = normalize_label_lines(&node.label);
+            
+            if lines.is_empty() {
+                // Skip rendering if no label
+            } else if lines.len() == 1 {
+                // Single line - render as before
+                write!(
+                    svg,
+                    "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+                    position.x,
+                    position.y,
+                    text_color,
+                    escape_xml(&lines[0])
+                )?;
+            } else {
+                // Multi-line - use tspan elements
+                const NODE_LINE_HEIGHT: f32 = 16.0;
+                let start_y = position.y - NODE_LINE_HEIGHT * (lines.len() as f32 - 1.0) / 2.0;
+                
+                write!(
+                    svg,
+                    "  <text x=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\">\n",
+                    position.x,
+                    text_color
+                )?;
+                
+                for (idx, line_text) in lines.iter().enumerate() {
+                    let line_y = start_y + NODE_LINE_HEIGHT * idx as f32;
+                    write!(
+                        svg,
+                        "    <tspan x=\"{:.1}\" y=\"{:.1}\" dominant-baseline=\"middle\">{}</tspan>\n",
+                        position.x,
+                        line_y,
+                        escape_xml(line_text)
+                    )?;
+                }
+                
+                svg.push_str("  </text>\n");
+            }
         }
 
         svg.push_str("</svg>\n");
@@ -1853,7 +1885,19 @@ impl EdgeKind {
 }
 
 fn normalize_label_lines(label: &str) -> Vec<String> {
-    label
+    let mut normalized = label.to_string();
+    for (pattern, replacement) in [
+        ("<br/>", "\n"),
+        ("<br />", "\n"),
+        ("<br>", "\n"),
+        ("<BR/>", "\n"),
+        ("<BR />", "\n"),
+        ("<BR>", "\n"),
+    ] {
+        normalized = normalized.replace(pattern, replacement);
+    }
+    
+    normalized
         .split('\n')
         .map(|line| {
             if line.is_empty() {
