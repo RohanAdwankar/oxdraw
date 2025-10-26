@@ -1,0 +1,7 @@
+graph TD
+    Start[Single Line] --> Process[Two Lines<br>Second Line]
+    Process -->|Edge<br>label| Decision{Three<br>Lines<br>Here}
+    Decision -->|Yes<br />Option| Success(Uppercase<br />Also Works)
+    Decision -.->|No<br />Path| Retry[With Space<br />Still Works]
+    Success --> End([Final])
+    Retry --> Process
