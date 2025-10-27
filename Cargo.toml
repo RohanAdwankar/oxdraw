@@ -11,10 +11,18 @@ include = [
 	"frontend/out/**"
 ]
 authors = ["Rohan Adwankar <rohan.adwankar@gmail.com>"]
-description = "CLI and Web View for Declaritive Diagramming"
+description = "Library, CLI and Web View for Declarative Diagramming"
 repository = "https://github.com/RohanAdwankar/oxdraw"
 license = "MIT"
-keywords = ["task","vim","neovim","todo"]
+keywords = ["diagram", "svg", "visualization", "mermaid", "render"]
+
+[lib]
+name = "oxdraw"
+path = "src/lib.rs"
+
+[[bin]]
+name = "oxdraw"
+path = "src/main.rs"
 
 
 [dependencies]

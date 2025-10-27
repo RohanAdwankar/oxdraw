@@ -1,14 +1,11 @@
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{ArgAction, Parser, ValueEnum};
 use std::fs;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
-use crate::diagram::*;
-use crate::serve::run_serve;
-use crate::serve::split_source_and_overrides;
-
-use crate::*;
+use oxdraw::serve::{ServeArgs, run_serve, split_source_and_overrides};
+use oxdraw::{Diagram, LayoutOverrides};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum InputSource {
@@ -72,26 +69,6 @@ pub struct RenderArgs {
     /// Suppress informational output.
     #[arg(short = 'q', long = "quiet", action = ArgAction::SetTrue)]
     quiet: bool,
-}
-
-#[derive(Debug, Parser)]
-#[command(name = "oxdraw serve", about = "Start the oxdraw web sync API server.")]
-pub struct ServeArgs {
-    /// Path to the diagram definition that should be served.
-    #[arg(short = 'i', long = "input")]
-    pub input: PathBuf,
-
-    /// Address to bind the HTTP server to.
-    #[arg(long, default_value = "127.0.0.1")]
-    pub host: String,
-
-    /// Port to listen on.
-    #[arg(long, default_value_t = 5151)]
-    pub port: u16,
-
-    /// Background color for rendered SVG previews.
-    #[arg(long = "background-color", default_value = "white")]
-    pub background_color: String,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
@@ -306,7 +283,8 @@ fn ensure_bundled_ui_dist() -> Result<Option<PathBuf>> {
 
     let target = temp_root;
 
-    let source_index_signature = std::fs::read_to_string(source.join("index.txt")).unwrap_or_default();
+    let source_index_signature =
+        std::fs::read_to_string(source.join("index.txt")).unwrap_or_default();
     let target_index_path = target.join("index.txt");
 
     if target_index_path.is_file() {
@@ -331,9 +309,9 @@ fn copy_dir_recursive(source: &Path, dest: &Path) -> Result<()> {
     std::fs::create_dir_all(dest)
         .with_context(|| format!("failed to create directory '{}'", dest.display()))?;
 
-    for entry in std::fs::read_dir(source).with_context(|| {
-        format!("failed to list directory '{}'", source.display())
-    })? {
+    for entry in std::fs::read_dir(source)
+        .with_context(|| format!("failed to list directory '{}'", source.display()))?
+    {
         let entry = entry?;
         let file_type = entry.file_type()?;
         let src_path = entry.path();
@@ -355,9 +333,8 @@ fn copy_dir_recursive(source: &Path, dest: &Path) -> Result<()> {
                 )
             })?;
         } else if file_type.is_symlink() {
-            let resolved = std::fs::canonicalize(&src_path).with_context(|| {
-                format!("failed to resolve symlink '{}'", src_path.display())
-            })?;
+            let resolved = std::fs::canonicalize(&src_path)
+                .with_context(|| format!("failed to resolve symlink '{}'", src_path.display()))?;
             if resolved.is_dir() {
                 copy_dir_recursive(&resolved, &dest_path)?;
             } else {

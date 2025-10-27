@@ -11,6 +11,7 @@ use axum::response::IntoResponse;
 use axum::response::Response;
 use axum::routing::{delete, get, put};
 use axum::{Json, Router};
+use clap::Parser;
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
 use tower::ServiceExt;
@@ -19,6 +20,27 @@ use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::*;
+
+/// Arguments for running the oxdraw web server
+#[derive(Debug, Clone, Parser)]
+#[command(name = "oxdraw serve", about = "Start the oxdraw web sync API server.")]
+pub struct ServeArgs {
+    /// Path to the diagram definition that should be served.
+    #[arg(short = 'i', long = "input")]
+    pub input: PathBuf,
+
+    /// Address to bind the HTTP server to.
+    #[arg(long, default_value = "127.0.0.1")]
+    pub host: String,
+
+    /// Port to listen on.
+    #[arg(long, default_value_t = 5151)]
+    pub port: u16,
+
+    /// Background color for rendered SVG previews.
+    #[arg(long = "background-color", default_value = "white")]
+    pub background_color: String,
+}
 
 struct ServeState {
     source_path: PathBuf,
