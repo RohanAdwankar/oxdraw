@@ -4,10 +4,13 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
 pub mod diagram;
+#[cfg(feature = "server")]
 pub mod serve;
 pub mod utils;
 
 pub use diagram::*;
+#[cfg(feature = "server")]
+pub use serve::*;
 pub use utils::*;
 
 pub const NODE_WIDTH: f32 = 140.0;
