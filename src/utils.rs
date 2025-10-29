@@ -1,3 +1,6 @@
+use crate::{LAYOUT_BLOCK_END, LAYOUT_BLOCK_START};
+use anyhow::Context;
+
 pub fn escape_xml(input: &str) -> String {
     let mut escaped = String::new();
     for ch in input.chars() {
@@ -13,10 +16,9 @@ pub fn escape_xml(input: &str) -> String {
     escaped
 }
 
-pub const LAYOUT_BLOCK_START: &str = "%% oxdraw-layout";
-pub const LAYOUT_BLOCK_END: &str = "%% oxdraw-layout-end";
-
-pub fn split_source_and_overrides(source: &str) -> anyhow::Result<(String, crate::LayoutOverrides)> {
+pub fn split_source_and_overrides(
+    source: &str,
+) -> anyhow::Result<(String, crate::LayoutOverrides)> {
     let mut definition_lines = Vec::new();
     let mut layout_lines = Vec::new();
     let mut in_block = false;
@@ -83,5 +85,3 @@ pub fn split_source_and_overrides(source: &str) -> anyhow::Result<(String, crate
 
     Ok((definition, overrides))
 }
-
-use anyhow::Context;
