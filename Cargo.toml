@@ -8,7 +8,7 @@ include = [
 	"README.md",
 	"src/**",
 	"tests/**",
-	"frontend/out/**"
+	"frontend/out/**",
 ]
 authors = ["Rohan Adwankar <rohan.adwankar@gmail.com>"]
 description = "Library, CLI and Web View for Declarative Diagramming"
@@ -28,14 +28,24 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1"
 clap = { version = "4.5", features = ["derive"] }
-axum = { version = "0.7", features = ["json"] }
+axum = { version = "0.7", features = ["json"], optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "fs"] }
-tower-http = { version = "0.5", features = ["cors", "fs"] }
-tower = "0.5"
+tokio = { version = "1", features = [
+	"macros",
+	"rt-multi-thread",
+	"signal",
+	"sync",
+	"fs",
+], optional = true }
+tower-http = { version = "0.5", features = ["cors", "fs"], optional = true }
+tower = { version = "0.5", optional = true }
 resvg = { version = "0.43", features = ["text"] }
 tiny-skia = { version = "0.11", features = ["png"], default-features = false }
+
+[features]
+default = ["server"]
+server = ["axum", "tokio", "tower-http", "tower"]
 
 [dev-dependencies]
 assert_cmd = "2"

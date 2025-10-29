@@ -4,7 +4,9 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
-use oxdraw::serve::{ServeArgs, run_serve, split_source_and_overrides};
+#[cfg(feature = "server")]
+use oxdraw::serve::{ServeArgs, run_serve};
+use oxdraw::utils::split_source_and_overrides;
 use oxdraw::{Diagram, LayoutOverrides};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,12 +102,27 @@ impl OutputFormat {
 
 pub async fn run_render_or_edit(cli: RenderArgs) -> Result<()> {
     if cli.edit {
-        run_edit(cli).await
+        #[cfg(feature = "server")]
+        run_edit(cli).await?;
+        #[cfg(not(feature = "server"))]
+        bail!("--edit requires the 'server' feature to be enabled");
     } else {
-        run_render(cli)
+        run_render(cli)?;
     }
+    Ok(())
 }
 
+#[cfg(not(feature = "server"))]
+pub fn run_render_or_edit_sync(cli: RenderArgs) -> Result<()> {
+    if cli.edit {
+        bail!("--edit requires the 'server' feature to be enabled");
+    } else {
+        run_render(cli)?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "server")]
 async fn run_edit(cli: RenderArgs) -> Result<()> {
     let input_source = parse_input(cli.input.as_deref())?;
     let input_path = match input_source {
@@ -186,10 +203,19 @@ pub async fn dispatch() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(|s| s.as_str()) {
         Some("serve") => {
-            let serve_args = ServeArgs::parse_from(
-                std::iter::once(args[0].clone()).chain(args.iter().skip(2).cloned()),
-            );
-            run_serve(serve_args, None).await
+            #[cfg(feature = "server")]
+            {
+                let serve_args = ServeArgs::parse_from(
+                    std::iter::once(args[0].clone()).chain(args.iter().skip(2).cloned()),
+                );
+                run_serve(serve_args, None).await
+            }
+            #[cfg(not(feature = "server"))]
+            {
+                return Err(anyhow!(
+                    "'serve' command requires the 'server' feature to be enabled"
+                ));
+            }
         }
         Some("render") => {
             let render_args = RenderArgs::parse_from(
@@ -200,6 +226,23 @@ pub async fn dispatch() -> Result<()> {
         _ => {
             let render_args = RenderArgs::parse_from(args);
             run_render_or_edit(render_args).await
+        }
+    }
+}
+
+#[cfg(not(feature = "server"))]
+pub fn dispatch_sync() -> Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+    match args.get(1).map(|s| s.as_str()) {
+        Some("render") => {
+            let render_args = RenderArgs::parse_from(
+                std::iter::once(args[0].clone()).chain(args.iter().skip(2).cloned()),
+            );
+            run_render_or_edit_sync(render_args)
+        }
+        _ => {
+            let render_args = RenderArgs::parse_from(args);
+            run_render_or_edit_sync(render_args)
         }
     }
 }
