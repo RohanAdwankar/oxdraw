@@ -18,6 +18,7 @@ keywords = ["diagram", "svg", "visualization", "mermaid", "render"]
 
 [lib]
 name = "oxdraw"
+crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
 
 [[bin]]
@@ -49,7 +50,10 @@ default = ["server"]
 server = ["axum", "tokio", "tower-http", "tower"]
 
 [dev-dependencies]
-assert_cmd = "2"
+wasm-bindgen-test = "0.3"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+assert_cmd = { version = "2", default-features = false }
 predicates = "3"
 tempfile = "3"
 
