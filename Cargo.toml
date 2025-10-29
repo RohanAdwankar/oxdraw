@@ -18,6 +18,7 @@ keywords = ["diagram", "svg", "visualization", "mermaid", "render"]
 
 [lib]
 name = "oxdraw"
+crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
 
 [[bin]]
