@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{ArgAction, Parser, ValueEnum};
+use dialoguer::Select;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -8,6 +9,8 @@ use std::path::{Path, PathBuf};
 use oxdraw::serve::{ServeArgs, run_serve};
 use oxdraw::utils::split_source_and_overrides;
 use oxdraw::{Diagram, LayoutOverrides};
+
+const DEFAULT_NEW_DIAGRAM_NAME: &str = "diagram.mmd";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum InputSource {
@@ -56,12 +59,21 @@ pub struct RenderArgs {
     )]
     edit: bool,
 
-    /// Override the host binding when using --edit.
-    #[arg(long = "serve-host", requires = "edit")]
+    /// Create a new Mermaid diagram and immediately launch the editor.
+    #[arg(
+        short = 'n',
+        long = "new",
+        action = ArgAction::SetTrue,
+        conflicts_with_all = ["output", "output_format", "png", "edit"]
+    )]
+    new: bool,
+
+    /// Override the host binding when using --edit or --new.
+    #[arg(long = "serve-host")]
     serve_host: Option<String>,
 
-    /// Override the port binding when using --edit.
-    #[arg(long = "serve-port", requires = "edit")]
+    /// Override the port binding when using --edit or --new.
+    #[arg(long = "serve-port")]
     serve_port: Option<u16>,
 
     /// Background color for the rendered diagram (svg only at the moment).
@@ -100,15 +112,98 @@ impl OutputFormat {
     }
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+enum GraphType {
+    Flowchart,
+}
+
+impl GraphType {
+    fn label(self) -> &'static str {
+        match self {
+            GraphType::Flowchart => "flowchart",
+        }
+    }
+
+    fn initial_contents(self) -> &'static str {
+        match self {
+            GraphType::Flowchart => "graph TD\nHello World!",
+        }
+    }
+}
+
+fn select_graph_type() -> Result<GraphType> {
+    let variants = GraphType::value_variants();
+
+    if variants.len() == 1 {
+        return Ok(variants[0]);
+    }
+
+    let options: Vec<String> = variants
+        .iter()
+        .map(|variant| format!("{} diagram", variant.label()))
+        .collect();
+
+    let selection = Select::new()
+        .with_prompt("Select Mermaid graph type")
+        .items(&options)
+        .default(0)
+        .interact()
+        .context("graph type selection was cancelled")?;
+
+    Ok(variants[selection])
+}
+
+fn ensure_unique_path(path: PathBuf) -> PathBuf {
+    if !path.exists() {
+        return path;
+    }
+
+    let stem = path
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "diagram".to_string());
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(String::from);
+
+    let mut counter = 1;
+    loop {
+        let mut candidate = path.clone();
+        let name = match &extension {
+            Some(ext) => format!("{stem}{counter}.{ext}"),
+            None => format!("{stem}{counter}"),
+        };
+        candidate.set_file_name(&name);
+        if !candidate.exists() {
+            return candidate;
+        }
+        counter += 1;
+    }
+}
+
 pub async fn run_render_or_edit(cli: RenderArgs) -> Result<()> {
     if cli.edit {
         #[cfg(feature = "server")]
-        run_edit(cli).await?;
+        {
+            return run_edit(cli).await;
+        }
         #[cfg(not(feature = "server"))]
-        bail!("--edit requires the 'server' feature to be enabled");
-    } else {
-        run_render(cli)?;
+        {
+            bail!("--edit requires the 'server' feature to be enabled");
+        }
+    } else if cli.new {
+        #[cfg(feature = "server")]
+        {
+            return run_new(cli).await;
+        }
+        #[cfg(not(feature = "server"))]
+        {
+            bail!("--new requires the 'server' feature to be enabled");
+        }
     }
+
+    run_render(cli)?;
     Ok(())
 }
 
@@ -159,7 +254,118 @@ async fn run_edit(cli: RenderArgs) -> Result<()> {
     run_serve(serve_args, Some(ui_root)).await
 }
 
+#[cfg(feature = "server")]
+async fn run_new(cli: RenderArgs) -> Result<()> {
+    let RenderArgs {
+        input,
+        output,
+        output_format,
+        png,
+        scale,
+        serve_host,
+        serve_port,
+        background_color,
+        quiet,
+        ..
+    } = cli;
+
+    if output.is_some() {
+        bail!("--new does not support specifying an output file");
+    }
+
+    if output_format.is_some() {
+        bail!("--new does not support selecting an output format");
+    }
+
+    if png {
+        bail!("--new does not support the --png flag");
+    }
+
+    let graph_type = select_graph_type()?;
+
+    let mut target_path = match input {
+        Some(path_str) => {
+            if path_str == "-" {
+                bail!("--new requires a file path, not stdin");
+            }
+            PathBuf::from(path_str)
+        }
+        None => PathBuf::from(DEFAULT_NEW_DIAGRAM_NAME),
+    };
+
+    if target_path.extension().is_none() {
+        target_path.set_extension("mmd");
+    }
+
+    if let Some(parent) = target_path.parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create directory '{}'", parent.display()))?;
+        }
+    }
+
+    target_path = ensure_unique_path(target_path);
+
+    let mut file = match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&target_path)
+    {
+        Ok(file) => file,
+        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
+            bail!(
+                "diagram '{}' already exists; refusing to overwrite",
+                target_path.display()
+            );
+        }
+        Err(err) => {
+            return Err(err)
+                .with_context(|| format!("failed to create '{}'", target_path.display()));
+        }
+    };
+
+    file.write_all(graph_type.initial_contents().as_bytes())?;
+    file.flush()?;
+
+    drop(file);
+
+    let canonical_path = target_path
+        .canonicalize()
+        .with_context(|| format!("failed to canonicalize '{}'", target_path.display()))?;
+
+    let display_name = target_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(DEFAULT_NEW_DIAGRAM_NAME);
+
+    if !quiet {
+        println!("Creating Mermaid graph '{display_name}'.");
+        println!("Location: {}", canonical_path.display());
+        println!("Graph type: {}", graph_type.label());
+    }
+
+    let edit_args = RenderArgs {
+        input: Some(canonical_path.to_string_lossy().into_owned()),
+        output: None,
+        output_format: None,
+        png: false,
+        scale,
+        edit: true,
+        new: false,
+        serve_host,
+        serve_port,
+        background_color,
+        quiet,
+    };
+
+    run_edit(edit_args).await
+}
+
 fn run_render(cli: RenderArgs) -> Result<()> {
+    if cli.serve_host.is_some() || cli.serve_port.is_some() {
+        bail!("--serve-host/--serve-port require --edit or --new");
+    }
+
     let input_source = parse_input(cli.input.as_deref())?;
     let format_preference = if cli.png {
         Some(OutputFormat::Png)
