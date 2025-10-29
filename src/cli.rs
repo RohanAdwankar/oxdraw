@@ -202,18 +202,20 @@ fn run_render(cli: RenderArgs) -> Result<()> {
 pub async fn dispatch() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(|s| s.as_str()) {
-        #[cfg(feature = "server")]
         Some("serve") => {
-            let serve_args = ServeArgs::parse_from(
-                std::iter::once(args[0].clone()).chain(args.iter().skip(2).cloned()),
-            );
-            run_serve(serve_args, None).await
-        }
-        #[cfg(not(feature = "server"))]
-        Some("serve") => {
-            return Err(anyhow!(
-                "'serve' command requires the 'server' feature to be enabled"
-            ));
+            #[cfg(feature = "server")]
+            {
+                let serve_args = ServeArgs::parse_from(
+                    std::iter::once(args[0].clone()).chain(args.iter().skip(2).cloned()),
+                );
+                run_serve(serve_args, None).await
+            }
+            #[cfg(not(feature = "server"))]
+            {
+                return Err(anyhow!(
+                    "'serve' command requires the 'server' feature to be enabled"
+                ));
+            }
         }
         Some("render") => {
             let render_args = RenderArgs::parse_from(
