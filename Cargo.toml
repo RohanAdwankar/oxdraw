@@ -51,3 +51,7 @@ server = ["axum", "tokio", "tower-http", "tower"]
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"
+
+[profile.release]
+codegen-units = 1
+lto = true
