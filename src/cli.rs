@@ -209,6 +209,12 @@ pub async fn dispatch() -> Result<()> {
             );
             run_serve(serve_args, None).await
         }
+        #[cfg(not(feature = "server"))]
+        Some("serve") => {
+            return Err(anyhow!(
+                "'serve' command requires the 'server' feature to be enabled"
+            ));
+        }
         Some("render") => {
             let render_args = RenderArgs::parse_from(
                 std::iter::once(args[0].clone()).chain(args.iter().skip(2).cloned()),
