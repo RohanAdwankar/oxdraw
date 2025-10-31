@@ -47,6 +47,7 @@ oxdraw --input flow.mmd --edit
 | `--serve-port <PORT>` | Override the HTTP port while `--edit` is active (default `5151`). |
 | `-b, --background-color <COLOR>` | Background fill passed to the renderer (currently SVG only). Applies to both one-off renders and the editor preview. |
 | `-q, --quiet` | Suppress informational stdout such as the success message after rendering to disk. |
+| `-n, --new` | Create new mermaid file and serves for editing. |
 
 ### Frontend Features
 
@@ -78,3 +79,9 @@ Some prefer smooth lines because there is less total line but I prefer strong ed
 Some prefer no overlapping lines but I sometimes prefer an overlap rather than letting the lines get super long and string out of the diagram very far.
 This is an example of using the delete key to remove one relationship and then using the arrow keys to move around one the nodes and seeing how the algorithm recomputes the positioning.
 There's definitely some improvements to be made to this algorithm so I imagine this will keep getting better :)
+
+## Community
+If you do end up using oxdraw, please let me know! You can open issues or discussion posts on GitHub or reach out to me on one of the socials from my Github profile. I would love to hear how you are using it, any feedback you have, and/or add your project to this section!
+
+Check out these projects using oxdraw:
+- [Typst-Oxdraw](https://github.com/hongjr03/typst-oxdraw/) is a repo that integrates oxdraw diagrams into Typst documents. 
