@@ -4,8 +4,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow, bail};
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use base64::Engine;
 use axum::extract::{Path as AxumPath, State};
 use axum::http::StatusCode;
 use axum::http::{HeaderValue, header};
@@ -13,6 +11,8 @@ use axum::response::IntoResponse;
 use axum::response::Response;
 use axum::routing::{delete, get, put};
 use axum::{Json, Router};
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use clap::Parser;
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
@@ -21,6 +21,7 @@ use tower::service_fn;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
+use crate::diagram::decode_image_dimensions;
 use crate::*;
 
 /// Arguments for running the oxdraw web server
@@ -83,6 +84,8 @@ struct NodePayload {
     text_color: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     membership: Vec<String>,
+    width: f32,
+    height: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
     image: Option<NodeImagePayload>,
 }
@@ -92,6 +95,8 @@ struct NodePayload {
 struct NodeImagePayload {
     mime_type: String,
     data: String,
+    width: u32,
+    height: u32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -483,6 +488,7 @@ async fn get_diagram(
         &layout.final_routes,
         &diagram.edges,
         &diagram.subgraphs,
+        &diagram.nodes,
     )
     .map_err(internal_error)?;
 
@@ -510,6 +516,8 @@ async fn get_diagram(
         let image_payload = node.image.as_ref().map(|image| NodeImagePayload {
             mime_type: image.mime_type.clone(),
             data: BASE64_STANDARD.encode(&image.data),
+            width: image.width,
+            height: image.height,
         });
         nodes.push(NodePayload {
             id: id.clone(),
@@ -522,6 +530,8 @@ async fn get_diagram(
             stroke_color,
             text_color,
             membership: diagram.node_membership.get(id).cloned().unwrap_or_default(),
+            width: node.width,
+            height: node.height,
             image: image_payload,
         });
     }
@@ -731,13 +741,25 @@ async fn put_node_image(
             )
         })?;
 
-    let data = BASE64_STANDARD
-        .decode(data_str.as_bytes())
-        .map_err(|err| (StatusCode::BAD_REQUEST, format!("invalid base64 payload: {err}")))?;
+    let data = BASE64_STANDARD.decode(data_str.as_bytes()).map_err(|err| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("invalid base64 payload: {err}"),
+        )
+    })?;
+
+    let (width, height) = decode_image_dimensions(&mime_type, &data).map_err(|err| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("unsupported image payload: {err}"),
+        )
+    })?;
 
     let image = NodeImage {
         mime_type,
         data,
+        width,
+        height,
     };
 
     state

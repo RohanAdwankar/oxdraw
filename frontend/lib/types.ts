@@ -37,11 +37,15 @@ export interface NodeData {
   textColor?: string;
   membership?: string[];
   image?: NodeImageData;
+  width: number;
+  height: number;
 }
 
 export interface NodeImageData {
   mimeType: string;
   data: string;
+  width: number;
+  height: number;
 }
 
 export interface EdgeData {

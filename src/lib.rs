@@ -43,6 +43,8 @@ pub const SUBGRAPH_LABEL_AREA: f32 = 36.0;
 pub const SUBGRAPH_LABEL_TEXT_BASELINE: f32 = 20.0;
 pub const SUBGRAPH_LABEL_INSET_X: f32 = 20.0;
 pub const SUBGRAPH_SEPARATION: f32 = 140.0;
+pub const NODE_LABEL_HEIGHT: f32 = 28.0;
+pub const NODE_TEXT_LINE_HEIGHT: f32 = 16.0;
 pub const IMAGE_COMMENT_PREFIX: &str = "%% OXDRAW IMAGE";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -84,12 +86,16 @@ pub struct Node {
     pub label: String,
     pub shape: NodeShape,
     pub image: Option<NodeImage>,
+    pub width: f32,
+    pub height: f32,
 }
 
 #[derive(Debug, Clone)]
 pub struct NodeImage {
     pub mime_type: String,
     pub data: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

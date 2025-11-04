@@ -1,7 +1,8 @@
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::convert::TryInto;
 use std::fmt::Write;
 use tiny_skia::{Pixmap, Transform};
 
@@ -182,7 +183,7 @@ impl Diagram {
             let Some(node) = nodes.get_mut(&node_id) else {
                 bail!("image comment references unknown node '{node_id}'");
             };
-            node.image = Some(image);
+            apply_image_to_node(node, image);
         }
 
         if nodes.is_empty() {
@@ -213,6 +214,7 @@ impl Diagram {
             &layout.final_routes,
             &self.edges,
             &self.subgraphs,
+            &self.nodes,
         )?;
 
         let mut clip_defs = String::new();
@@ -230,7 +232,8 @@ impl Diagram {
                 .ok_or_else(|| anyhow!("missing geometry for node '{id}'"))?;
             let clip_id = svg_safe_id("oxdraw-node-clip-", id);
             write!(clip_defs, "    <clipPath id=\"{}\">\n", clip_id)?;
-            node.shape.render_svg_clip_shape(&mut clip_defs, position)?;
+            node.shape
+                .render_svg_clip_shape(&mut clip_defs, position, node.width, node.height)?;
             clip_defs.push_str("    </clipPath>\n");
         }
 
@@ -247,10 +250,7 @@ impl Diagram {
             <path d="M7,1 L2,4 L7,7 z" fill="context-stroke" />
         </marker>
 "##,
-            geometry.width,
-            geometry.height,
-            geometry.width,
-            geometry.height,
+            geometry.width, geometry.height, geometry.width, geometry.height,
         )?;
         svg.push_str(&clip_defs);
         write!(
@@ -424,67 +424,115 @@ impl Diagram {
                 }
             }
 
-            node.shape
-                .render_svg_shape(&mut svg, position, &fill_color, &stroke_color)?;
+            node.shape.render_svg_shape(
+                &mut svg,
+                position,
+                node.width,
+                node.height,
+                &fill_color,
+                &stroke_color,
+            )?;
+
+            let lines = normalize_label_lines(&node.label);
+            let mut label_area_height = 0.0_f32;
 
             if let Some(image) = &node.image {
+                let label_line_count = lines.len().max(1);
+                label_area_height =
+                    NODE_LABEL_HEIGHT.max(label_line_count as f32 * NODE_TEXT_LINE_HEIGHT);
+                let available_height = (node.height - label_area_height).max(0.0);
+
                 let clip_id = svg_safe_id("oxdraw-node-clip-", id);
                 let encoded = BASE64_STANDARD.encode(&image.data);
                 let data_uri = format!("data:{};base64,{}", image.mime_type, encoded);
-                write!(
-                    svg,
-                    "  <image x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" href=\"{}\" xlink:href=\"{}\" clip-path=\"url(#{})\" preserveAspectRatio=\"xMidYMid slice\" />\n",
-                    position.x - NODE_WIDTH / 2.0,
-                    position.y - NODE_HEIGHT / 2.0,
-                    NODE_WIDTH,
-                    NODE_HEIGHT,
-                    data_uri,
-                    data_uri,
-                    clip_id
-                )?;
-                node.shape
-                    .render_svg_outline(&mut svg, position, &stroke_color)?;
-            }
-
-            // Render node label with multi-line support
-            let lines = normalize_label_lines(&node.label);
-            
-            if lines.is_empty() {
-                // Skip rendering if no label
-            } else if lines.len() == 1 {
-                // Single line - render as before
-                write!(
-                    svg,
-                    "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
-                    position.x,
-                    position.y,
-                    text_color,
-                    escape_xml(&lines[0])
-                )?;
-            } else {
-                // Multi-line - use tspan elements
-                const NODE_LINE_HEIGHT: f32 = 16.0;
-                let start_y = position.y - NODE_LINE_HEIGHT * (lines.len() as f32 - 1.0) / 2.0;
-                
-                write!(
-                    svg,
-                    "  <text x=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\">\n",
-                    position.x,
-                    text_color
-                )?;
-                
-                for (idx, line_text) in lines.iter().enumerate() {
-                    let line_y = start_y + NODE_LINE_HEIGHT * idx as f32;
+                if available_height > 0.5 {
+                    let image_top = position.y - node.height / 2.0 + label_area_height;
                     write!(
                         svg,
-                        "    <tspan x=\"{:.1}\" y=\"{:.1}\" dominant-baseline=\"middle\">{}</tspan>\n",
-                        position.x,
-                        line_y,
-                        escape_xml(line_text)
+                        "  <image x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" href=\"{}\" xlink:href=\"{}\" clip-path=\"url(#{})\" preserveAspectRatio=\"xMidYMid slice\" />\n",
+                        position.x - node.width / 2.0,
+                        image_top,
+                        node.width,
+                        available_height,
+                        data_uri,
+                        data_uri,
+                        clip_id
                     )?;
                 }
-                
-                svg.push_str("  </text>\n");
+                node.shape.render_svg_outline(
+                    &mut svg,
+                    position,
+                    node.width,
+                    node.height,
+                    &stroke_color,
+                )?;
+            }
+
+            if !lines.is_empty() {
+                if node.image.is_some() {
+                    let text_anchor_x = position.x;
+                    if lines.len() == 1 {
+                        let baseline = position.y - node.height / 2.0 + label_area_height / 2.0;
+                        write!(
+                            svg,
+                            "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+                            text_anchor_x,
+                            baseline,
+                            text_color,
+                            escape_xml(&lines[0])
+                        )?;
+                    } else {
+                        let total_text_height = NODE_TEXT_LINE_HEIGHT * lines.len() as f32;
+                        let label_top = position.y - node.height / 2.0;
+                        let start_y = label_top
+                            + (label_area_height - total_text_height) / 2.0
+                            + NODE_TEXT_LINE_HEIGHT / 2.0;
+                        write!(
+                            svg,
+                            "  <text x=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\">\n",
+                            text_anchor_x, text_color
+                        )?;
+                        for (idx, line_text) in lines.iter().enumerate() {
+                            let line_y = start_y + NODE_TEXT_LINE_HEIGHT * idx as f32;
+                            write!(
+                                svg,
+                                "    <tspan x=\"{:.1}\" y=\"{:.1}\" dominant-baseline=\"middle\">{}</tspan>\n",
+                                text_anchor_x,
+                                line_y,
+                                escape_xml(line_text)
+                            )?;
+                        }
+                        svg.push_str("  </text>\n");
+                    }
+                } else if lines.len() == 1 {
+                    write!(
+                        svg,
+                        "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+                        position.x,
+                        position.y,
+                        text_color,
+                        escape_xml(&lines[0])
+                    )?;
+                } else {
+                    let start_y =
+                        position.y - NODE_TEXT_LINE_HEIGHT * (lines.len() as f32 - 1.0) / 2.0;
+                    write!(
+                        svg,
+                        "  <text x=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\">\n",
+                        position.x, text_color
+                    )?;
+                    for (idx, line_text) in lines.iter().enumerate() {
+                        let line_y = start_y + NODE_TEXT_LINE_HEIGHT * idx as f32;
+                        write!(
+                            svg,
+                            "    <tspan x=\"{:.1}\" y=\"{:.1}\" dominant-baseline=\"middle\">{}</tspan>\n",
+                            position.x,
+                            line_y,
+                            escape_xml(line_text)
+                        )?;
+                    }
+                    svg.push_str("  </text>\n");
+                }
             }
         }
 
@@ -550,7 +598,7 @@ impl Diagram {
     pub fn layout(&self, overrides: Option<&LayoutOverrides>) -> Result<LayoutComputation> {
         let mut auto = self.compute_auto_layout();
         self.separate_top_level_subgraphs(&mut auto.positions);
-        auto.size = compute_canvas_size_for_positions(&auto.positions);
+        auto.size = compute_canvas_size_for_positions(&auto.positions, &self.nodes);
         let mut final_positions = auto.positions.clone();
 
         if let Some(overrides) = overrides {
@@ -661,16 +709,23 @@ impl Diagram {
             .unwrap_or(1)
             .max(1);
 
+        let max_node_height = self
+            .nodes
+            .values()
+            .map(|node| node.height)
+            .fold(NODE_HEIGHT, f32::max);
+        let vertical_step = NODE_SPACING.max(max_node_height + EDGE_COLLISION_MARGIN * 4.0);
+
         let mut positions = HashMap::new();
 
         let (width, height) = match self.direction {
             Direction::TopDown | Direction::BottomTop => {
                 let inner_width = NODE_WIDTH + NODE_SPACING * ((max_per_level - 1) as f32);
-                let inner_height = NODE_HEIGHT + NODE_SPACING * ((level_count - 1) as f32);
+                let inner_height = max_node_height + vertical_step * ((level_count - 1) as f32);
                 let width = inner_width + START_OFFSET * 2.0;
                 let height = inner_height + START_OFFSET * 2.0;
 
-                let vertical_span = NODE_SPACING * ((level_count - 1) as f32);
+                let vertical_span = vertical_step * ((level_count - 1) as f32);
                 let start_y = START_OFFSET + (inner_height - vertical_span) / 2.0;
 
                 for (idx, nodes) in layers.iter().enumerate() {
@@ -679,7 +734,7 @@ impl Diagram {
                     } else {
                         idx
                     } as f32;
-                    let y = start_y + row_index * NODE_SPACING;
+                    let y = start_y + row_index * vertical_step;
 
                     let span = NODE_SPACING * ((nodes.len().saturating_sub(1)) as f32);
                     let start_x = START_OFFSET + (inner_width - span) / 2.0;
@@ -694,7 +749,7 @@ impl Diagram {
             }
             Direction::LeftRight | Direction::RightLeft => {
                 let inner_width = NODE_WIDTH + NODE_SPACING * ((level_count - 1) as f32);
-                let inner_height = NODE_HEIGHT + NODE_SPACING * ((max_per_level - 1) as f32);
+                let inner_height = max_node_height + vertical_step * ((max_per_level - 1) as f32);
                 let width = inner_width + START_OFFSET * 2.0;
                 let height = inner_height + START_OFFSET * 2.0;
 
@@ -709,11 +764,11 @@ impl Diagram {
                     } as f32;
                     let x = start_x + column_index * NODE_SPACING;
 
-                    let span = NODE_SPACING * ((nodes.len().saturating_sub(1)) as f32);
+                    let span = vertical_step * ((nodes.len().saturating_sub(1)) as f32);
                     let start_y = START_OFFSET + (inner_height - span) / 2.0;
 
                     for (row_idx, id) in nodes.iter().enumerate() {
-                        let y = start_y + row_idx as f32 * NODE_SPACING;
+                        let y = start_y + row_idx as f32 * vertical_step;
                         positions.insert(id.clone(), Point { x, y });
                     }
                 }
@@ -739,7 +794,9 @@ impl Diagram {
             .filter_map(|(id, point)| {
                 let membership = self.node_membership.get(id);
                 if membership.map_or(true, |path| path.is_empty()) {
-                    Some((id.clone(), node_rect(*point)))
+                    self.nodes
+                        .get(id)
+                        .map(|node| (id.clone(), node_rect(*point, node.width, node.height)))
                 } else {
                     None
                 }
@@ -752,7 +809,7 @@ impl Diagram {
                 continue;
             }
 
-            let mut bounds = match compute_group_bounds(&nodes, positions) {
+            let mut bounds = match compute_group_bounds(&nodes, positions, &self.nodes) {
                 Some(bounds) => bounds,
                 None => continue,
             };
@@ -818,7 +875,7 @@ impl Diagram {
                 .nodes
                 .get(id)
                 .ok_or_else(|| anyhow!("node '{id}' missing definition"))?;
-            node_bounds.insert(id.clone(), NodeBoundary::new(*point, node.shape));
+            node_bounds.insert(id.clone(), NodeBoundary::new(*point, node));
         }
 
         for (idx, edge) in self.edges.iter().enumerate() {
@@ -1063,8 +1120,17 @@ impl Diagram {
             return None;
         }
 
-        let from_rect = node_rect(from).inflate(EDGE_COLLISION_MARGIN);
-        let to_rect = node_rect(to).inflate(EDGE_COLLISION_MARGIN);
+        let (from_node, to_node) = match (
+            self.nodes.get(&forward_edge.from),
+            self.nodes.get(&forward_edge.to),
+        ) {
+            (Some(a), Some(b)) => (a, b),
+            _ => return None,
+        };
+
+        let from_rect =
+            node_rect(from, from_node.width, from_node.height).inflate(EDGE_COLLISION_MARGIN);
+        let to_rect = node_rect(to, to_node.width, to_node.height).inflate(EDGE_COLLISION_MARGIN);
 
         let mut fallback: Option<(Vec<Point>, Vec<Point>)> = None;
 
@@ -1143,6 +1209,12 @@ impl Diagram {
             return None;
         }
 
+        let (from_bounds, to_bounds) =
+            match (node_bounds.get(&edge.from), node_bounds.get(&edge.to)) {
+                (Some(a), Some(b)) => (a, b),
+                _ => return None,
+            };
+
         let dx = to.x - from.x;
         let dy = to.y - from.y;
         let distance = (dx * dx + dy * dy).sqrt();
@@ -1209,7 +1281,7 @@ impl Diagram {
             return best_points;
         }
 
-        for candidate in generate_axis_detours(from, to) {
+        for candidate in generate_axis_detours(from, to, from_bounds, to_bounds) {
             if evaluate_candidate_route(
                 self,
                 edge,
@@ -1604,16 +1676,23 @@ fn evaluate_candidate_route(
     *best_metric == (0_u8, 0_u8, 0_usize)
 }
 
-fn generate_axis_detours(from: Point, to: Point) -> Vec<Vec<Point>> {
+fn generate_axis_detours(
+    from: Point,
+    to: Point,
+    from_bounds: &NodeBoundary,
+    to_bounds: &NodeBoundary,
+) -> Vec<Vec<Point>> {
     let mut candidates = Vec::new();
 
     let horizontal_span = (from.x - to.x).abs();
     let vertical_span = (from.y - to.y).abs();
 
-    let vertical_clearance = NODE_HEIGHT + EDGE_COLLISION_MARGIN * 4.0;
-    let horizontal_clearance = NODE_WIDTH + EDGE_COLLISION_MARGIN * 4.0;
+    let max_height = from_bounds.height.max(to_bounds.height);
+    let max_width = from_bounds.width.max(to_bounds.width);
+    let vertical_clearance = max_height + EDGE_COLLISION_MARGIN * 4.0;
+    let horizontal_clearance = max_width + EDGE_COLLISION_MARGIN * 4.0;
 
-    if horizontal_span > NODE_WIDTH * 0.5 {
+    if horizontal_span > max_width * 0.5 {
         let above = from.y.min(to.y) - vertical_clearance;
         candidates.push(vec![
             Point {
@@ -1633,7 +1712,7 @@ fn generate_axis_detours(from: Point, to: Point) -> Vec<Vec<Point>> {
         ]);
     }
 
-    if vertical_span > NODE_HEIGHT * 0.5 {
+    if vertical_span > max_height * 0.5 {
         let left = from.x.min(to.x) - horizontal_clearance;
         candidates.push(vec![
             Point { x: left, y: from.y },
@@ -1739,19 +1818,21 @@ impl NodeShape {
         &self,
         svg: &mut String,
         position: Point,
+        width: f32,
+        height: f32,
         fill_color: &str,
         stroke_color: &str,
     ) -> std::fmt::Result {
-        let half_w = NODE_WIDTH / 2.0;
-        let half_h = NODE_HEIGHT / 2.0;
+        let half_w = width / 2.0;
+        let half_h = height / 2.0;
         match self {
             NodeShape::Rectangle => write!(
                 svg,
                 "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
                 position.x - half_w,
                 position.y - half_h,
-                NODE_WIDTH,
-                NODE_HEIGHT,
+                width,
+                height,
                 fill_color,
                 stroke_color
             ),
@@ -1760,8 +1841,8 @@ impl NodeShape {
                 "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
                 position.x - half_w,
                 position.y - half_h,
-                NODE_WIDTH,
-                NODE_HEIGHT,
+                width,
+                height,
                 fill_color,
                 stroke_color
             ),
@@ -1808,7 +1889,7 @@ impl NodeShape {
                 write!(
                     svg,
                     "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    left, top, NODE_WIDTH, NODE_HEIGHT, fill_color, stroke_color
+                    left, top, width, height, fill_color, stroke_color
                 )?;
                 write!(
                     svg,
@@ -1835,7 +1916,7 @@ impl NodeShape {
                 let top = position.y - half_h;
                 let bottom = position.y + half_h;
                 let rx = half_w;
-                let ry = NODE_HEIGHT / 6.0;
+                let ry = height / 6.0;
                 let top_center = top + ry;
                 let bottom_center = bottom - ry;
                 write!(
@@ -1863,7 +1944,7 @@ impl NodeShape {
                 )
             }
             NodeShape::Hexagon => {
-                let offset = NODE_WIDTH * 0.25;
+                let offset = width * 0.25;
                 let points = format_points(&[
                     (position.x - half_w + offset, position.y - half_h),
                     (position.x + half_w - offset, position.y - half_h),
@@ -1879,7 +1960,7 @@ impl NodeShape {
                 )
             }
             NodeShape::Parallelogram => {
-                let skew = NODE_HEIGHT * 0.35;
+                let skew = height * 0.35;
                 let points = format_points(&[
                     (position.x - half_w + skew, position.y - half_h),
                     (position.x + half_w, position.y - half_h),
@@ -1893,7 +1974,7 @@ impl NodeShape {
                 )
             }
             NodeShape::ParallelogramAlt => {
-                let skew = NODE_HEIGHT * 0.35;
+                let skew = height * 0.35;
                 let points = format_points(&[
                     (position.x - half_w, position.y - half_h),
                     (position.x + half_w - skew, position.y - half_h),
@@ -1907,8 +1988,8 @@ impl NodeShape {
                 )
             }
             NodeShape::Trapezoid => {
-                let top_inset = NODE_WIDTH * 0.22;
-                let bottom_inset = NODE_WIDTH * 0.08;
+                let top_inset = width * 0.22;
+                let bottom_inset = width * 0.08;
                 let points = format_points(&[
                     (position.x - half_w + top_inset, position.y - half_h),
                     (position.x + half_w - top_inset, position.y - half_h),
@@ -1922,8 +2003,8 @@ impl NodeShape {
                 )
             }
             NodeShape::TrapezoidAlt => {
-                let top_inset = NODE_WIDTH * 0.08;
-                let bottom_inset = NODE_WIDTH * 0.22;
+                let top_inset = width * 0.08;
+                let bottom_inset = width * 0.22;
                 let points = format_points(&[
                     (position.x - half_w + top_inset, position.y - half_h),
                     (position.x + half_w - top_inset, position.y - half_h),
@@ -1937,7 +2018,7 @@ impl NodeShape {
                 )
             }
             NodeShape::Asymmetric => {
-                let skew = NODE_HEIGHT * 0.45;
+                let skew = height * 0.45;
                 let points = format_points(&[
                     (position.x - half_w, position.y - half_h),
                     (position.x + half_w - skew, position.y - half_h),
@@ -1958,33 +2039,32 @@ impl NodeShape {
         &self,
         svg: &mut String,
         position: Point,
+        width: f32,
+        height: f32,
     ) -> std::fmt::Result {
-        let half_w = NODE_WIDTH / 2.0;
-        let half_h = NODE_HEIGHT / 2.0;
+        let half_w = width / 2.0;
+        let half_h = height / 2.0;
         match self {
             NodeShape::Rectangle | NodeShape::Subroutine => write!(
                 svg,
                 "      <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" />\n",
                 position.x - half_w,
                 position.y - half_h,
-                NODE_WIDTH,
-                NODE_HEIGHT
+                width,
+                height
             ),
             NodeShape::Stadium => write!(
                 svg,
                 "      <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" />\n",
                 position.x - half_w,
                 position.y - half_h,
-                NODE_WIDTH,
-                NODE_HEIGHT
+                width,
+                height
             ),
             NodeShape::Circle | NodeShape::DoubleCircle => write!(
                 svg,
                 "      <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" />\n",
-                position.x,
-                position.y,
-                half_w,
-                half_h
+                position.x, position.y, half_w, half_h
             ),
             NodeShape::Diamond => {
                 let points = format_points(&[
@@ -1993,11 +2073,7 @@ impl NodeShape {
                     (position.x, position.y + half_h),
                     (position.x - half_w, position.y),
                 ]);
-                write!(
-                    svg,
-                    "      <polygon points=\"{}\" />\n",
-                    points
-                )
+                write!(svg, "      <polygon points=\"{}\" />\n", points)
             }
             NodeShape::Cylinder => {
                 let left = position.x - half_w;
@@ -2005,7 +2081,7 @@ impl NodeShape {
                 let top = position.y - half_h;
                 let bottom = position.y + half_h;
                 let rx = half_w;
-                let ry = NODE_HEIGHT / 6.0;
+                let ry = height / 6.0;
                 let top_center = top + ry;
                 let bottom_center = bottom - ry;
                 write!(
@@ -2038,7 +2114,7 @@ impl NodeShape {
                 write!(svg, "      <polygon points=\"{}\" />\n", points)
             }
             NodeShape::Parallelogram => {
-                let skew = NODE_HEIGHT * 0.35;
+                let skew = height * 0.35;
                 let points = format_points(&[
                     (position.x - half_w + skew, position.y - half_h),
                     (position.x + half_w, position.y - half_h),
@@ -2048,7 +2124,7 @@ impl NodeShape {
                 write!(svg, "      <polygon points=\"{}\" />\n", points)
             }
             NodeShape::ParallelogramAlt => {
-                let skew = NODE_HEIGHT * 0.35;
+                let skew = height * 0.35;
                 let points = format_points(&[
                     (position.x - half_w, position.y - half_h),
                     (position.x + half_w - skew, position.y - half_h),
@@ -2058,8 +2134,8 @@ impl NodeShape {
                 write!(svg, "      <polygon points=\"{}\" />\n", points)
             }
             NodeShape::Trapezoid => {
-                let top_inset = NODE_WIDTH * 0.22;
-                let bottom_inset = NODE_WIDTH * 0.08;
+                let top_inset = width * 0.22;
+                let bottom_inset = width * 0.08;
                 let points = format_points(&[
                     (position.x - half_w + top_inset, position.y - half_h),
                     (position.x + half_w - top_inset, position.y - half_h),
@@ -2069,8 +2145,8 @@ impl NodeShape {
                 write!(svg, "      <polygon points=\"{}\" />\n", points)
             }
             NodeShape::TrapezoidAlt => {
-                let top_inset = NODE_WIDTH * 0.08;
-                let bottom_inset = NODE_WIDTH * 0.22;
+                let top_inset = width * 0.08;
+                let bottom_inset = width * 0.22;
                 let points = format_points(&[
                     (position.x - half_w + top_inset, position.y - half_h),
                     (position.x + half_w - top_inset, position.y - half_h),
@@ -2080,7 +2156,7 @@ impl NodeShape {
                 write!(svg, "      <polygon points=\"{}\" />\n", points)
             }
             NodeShape::Asymmetric => {
-                let skew = NODE_HEIGHT * 0.45;
+                let skew = height * 0.45;
                 let points = format_points(&[
                     (position.x - half_w, position.y - half_h),
                     (position.x + half_w - skew, position.y - half_h),
@@ -2097,10 +2173,12 @@ impl NodeShape {
         &self,
         svg: &mut String,
         position: Point,
+        width: f32,
+        height: f32,
         stroke_color: &str,
     ) -> std::fmt::Result {
-        let half_w = NODE_WIDTH / 2.0;
-        let half_h = NODE_HEIGHT / 2.0;
+        let half_w = width / 2.0;
+        let half_h = height / 2.0;
         match self {
             NodeShape::Rectangle | NodeShape::Subroutine => {
                 write!(
@@ -2108,8 +2186,8 @@ impl NodeShape {
                     "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
                     position.x - half_w,
                     position.y - half_h,
-                    NODE_WIDTH,
-                    NODE_HEIGHT,
+                    width,
+                    height,
                     stroke_color
                 )?;
                 if matches!(self, NodeShape::Subroutine) {
@@ -2140,19 +2218,15 @@ impl NodeShape {
                 "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
                 position.x - half_w,
                 position.y - half_h,
-                NODE_WIDTH,
-                NODE_HEIGHT,
+                width,
+                height,
                 stroke_color
             ),
             NodeShape::Circle | NodeShape::DoubleCircle => {
                 write!(
                     svg,
                     "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    position.x,
-                    position.y,
-                    half_w,
-                    half_h,
-                    stroke_color
+                    position.x, position.y, half_w, half_h, stroke_color
                 )?;
                 if matches!(self, NodeShape::DoubleCircle) {
                     let inner_rx = (half_w - 6.0).max(half_w * 0.65);
@@ -2160,11 +2234,7 @@ impl NodeShape {
                     write!(
                         svg,
                         "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                        position.x,
-                        position.y,
-                        inner_rx,
-                        inner_ry,
-                        stroke_color
+                        position.x, position.y, inner_rx, inner_ry, stroke_color
                     )?;
                 }
                 Ok(())
@@ -2179,8 +2249,7 @@ impl NodeShape {
                 write!(
                     svg,
                     "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    points,
-                    stroke_color
+                    points, stroke_color
                 )
             }
             NodeShape::Cylinder => {
@@ -2189,7 +2258,7 @@ impl NodeShape {
                 let top = position.y - half_h;
                 let bottom = position.y + half_h;
                 let rx = half_w;
-                let ry = NODE_HEIGHT / 6.0;
+                let ry = height / 6.0;
                 let top_center = top + ry;
                 let bottom_center = bottom - ry;
                 write!(
@@ -2212,17 +2281,11 @@ impl NodeShape {
                 write!(
                     svg,
                     "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    left,
-                    top_center,
-                    rx,
-                    ry,
-                    right,
-                    top_center,
-                    stroke_color
+                    left, top_center, rx, ry, right, top_center, stroke_color
                 )
             }
             NodeShape::Hexagon => {
-                let offset = NODE_WIDTH * 0.25;
+                let offset = width * 0.25;
                 let points = format_points(&[
                     (position.x - half_w + offset, position.y - half_h),
                     (position.x + half_w - offset, position.y - half_h),
@@ -2234,12 +2297,11 @@ impl NodeShape {
                 write!(
                     svg,
                     "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    points,
-                    stroke_color
+                    points, stroke_color
                 )
             }
             NodeShape::Parallelogram => {
-                let skew = NODE_HEIGHT * 0.35;
+                let skew = height * 0.35;
                 let points = format_points(&[
                     (position.x - half_w + skew, position.y - half_h),
                     (position.x + half_w, position.y - half_h),
@@ -2249,12 +2311,11 @@ impl NodeShape {
                 write!(
                     svg,
                     "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    points,
-                    stroke_color
+                    points, stroke_color
                 )
             }
             NodeShape::ParallelogramAlt => {
-                let skew = NODE_HEIGHT * 0.35;
+                let skew = height * 0.35;
                 let points = format_points(&[
                     (position.x - half_w, position.y - half_h),
                     (position.x + half_w - skew, position.y - half_h),
@@ -2264,13 +2325,12 @@ impl NodeShape {
                 write!(
                     svg,
                     "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    points,
-                    stroke_color
+                    points, stroke_color
                 )
             }
             NodeShape::Trapezoid => {
-                let top_inset = NODE_WIDTH * 0.22;
-                let bottom_inset = NODE_WIDTH * 0.08;
+                let top_inset = width * 0.22;
+                let bottom_inset = width * 0.08;
                 let points = format_points(&[
                     (position.x - half_w + top_inset, position.y - half_h),
                     (position.x + half_w - top_inset, position.y - half_h),
@@ -2280,13 +2340,12 @@ impl NodeShape {
                 write!(
                     svg,
                     "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    points,
-                    stroke_color
+                    points, stroke_color
                 )
             }
             NodeShape::TrapezoidAlt => {
-                let top_inset = NODE_WIDTH * 0.08;
-                let bottom_inset = NODE_WIDTH * 0.22;
+                let top_inset = width * 0.08;
+                let bottom_inset = width * 0.22;
                 let points = format_points(&[
                     (position.x - half_w + top_inset, position.y - half_h),
                     (position.x + half_w - top_inset, position.y - half_h),
@@ -2296,12 +2355,11 @@ impl NodeShape {
                 write!(
                     svg,
                     "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    points,
-                    stroke_color
+                    points, stroke_color
                 )
             }
             NodeShape::Asymmetric => {
-                let skew = NODE_HEIGHT * 0.45;
+                let skew = height * 0.45;
                 let points = format_points(&[
                     (position.x - half_w, position.y - half_h),
                     (position.x + half_w - skew, position.y - half_h),
@@ -2312,8 +2370,7 @@ impl NodeShape {
                 write!(
                     svg,
                     "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
-                    points,
-                    stroke_color
+                    points, stroke_color
                 )
             }
         }
@@ -2359,7 +2416,7 @@ fn normalize_label_lines(label: &str) -> Vec<String> {
     ] {
         normalized = normalized.replace(pattern, replacement);
     }
-    
+
     normalized
         .split('\n')
         .map(|line| {
@@ -2487,12 +2544,12 @@ fn label_rect_for_route(edge: &Edge, route: &[Point]) -> Option<Rect> {
     })
 }
 
-fn node_rect(center: Point) -> Rect {
+fn node_rect(center: Point, width: f32, height: f32) -> Rect {
     Rect {
-        min_x: center.x - NODE_WIDTH / 2.0,
-        max_x: center.x + NODE_WIDTH / 2.0,
-        min_y: center.y - NODE_HEIGHT / 2.0,
-        max_y: center.y + NODE_HEIGHT / 2.0,
+        min_x: center.x - width / 2.0,
+        max_x: center.x + width / 2.0,
+        min_y: center.y - height / 2.0,
+        max_y: center.y + height / 2.0,
     }
 }
 
@@ -2569,22 +2626,26 @@ struct NodeBoundary {
     center: Point,
     shape: NodeShape,
     rect: Rect,
+    width: f32,
+    height: f32,
 }
 
 impl NodeBoundary {
-    fn new(center: Point, shape: NodeShape) -> Self {
+    fn new(center: Point, node: &Node) -> Self {
         Self {
             center,
-            shape,
-            rect: node_rect(center),
+            shape: node.shape,
+            rect: node_rect(center, node.width, node.height),
+            width: node.width,
+            height: node.height,
         }
     }
 
     fn contains_point(&self, point: Point) -> bool {
         match self.shape {
             NodeShape::Circle | NodeShape::DoubleCircle => {
-                let rx = NODE_WIDTH / 2.0;
-                let ry = NODE_HEIGHT / 2.0;
+                let rx = self.width / 2.0;
+                let ry = self.height / 2.0;
                 if rx <= 0.0 || ry <= 0.0 {
                     return false;
                 }
@@ -2593,8 +2654,8 @@ impl NodeBoundary {
                 norm_x * norm_x + norm_y * norm_y <= 1.0 + 1e-3_f32
             }
             NodeShape::Diamond => {
-                let half_w = NODE_WIDTH / 2.0;
-                let half_h = NODE_HEIGHT / 2.0;
+                let half_w = self.width / 2.0;
+                let half_h = self.height / 2.0;
                 if half_w <= 0.0 || half_h <= 0.0 {
                     return false;
                 }
@@ -2723,8 +2784,8 @@ fn clip_segment_exit_circle(
         return None;
     }
 
-    let rx = NODE_WIDTH / 2.0;
-    let ry = NODE_HEIGHT / 2.0;
+    let rx = bounds.width / 2.0;
+    let ry = bounds.height / 2.0;
     let sx = start.x - bounds.center.x;
     let sy = start.y - bounds.center.y;
 
@@ -2789,8 +2850,8 @@ fn clip_segment_exit_diamond(
         return None;
     }
 
-    let half_w = NODE_WIDTH / 2.0;
-    let half_h = NODE_HEIGHT / 2.0;
+    let half_w = bounds.width / 2.0;
+    let half_h = bounds.height / 2.0;
     let top = Point {
         x: bounds.center.x,
         y: bounds.center.y - half_h,
@@ -2952,6 +3013,7 @@ pub fn align_geometry(
     routes: &HashMap<String, Vec<Point>>,
     edges: &[Edge],
     subgraphs: &[Subgraph],
+    nodes: &HashMap<String, Node>,
 ) -> Result<Geometry> {
     if positions.is_empty() {
         bail!("diagram does not declare any nodes");
@@ -2962,11 +3024,24 @@ pub fn align_geometry(
     let mut min_y = f32::MAX;
     let mut max_y = f32::MIN;
 
-    for point in positions.values() {
-        min_x = min_x.min(point.x - NODE_WIDTH / 2.0);
-        max_x = max_x.max(point.x + NODE_WIDTH / 2.0);
-        min_y = min_y.min(point.y - NODE_HEIGHT / 2.0);
-        max_y = max_y.max(point.y + NODE_HEIGHT / 2.0);
+    let fallback_width = nodes
+        .values()
+        .map(|node| node.width)
+        .fold(NODE_WIDTH, f32::max);
+    let fallback_height = nodes
+        .values()
+        .map(|node| node.height)
+        .fold(NODE_HEIGHT, f32::max);
+
+    for (id, point) in positions {
+        let (width, height) = nodes
+            .get(id)
+            .map(|node| (node.width, node.height))
+            .unwrap_or((fallback_width, fallback_height));
+        min_x = min_x.min(point.x - width / 2.0);
+        max_x = max_x.max(point.x + width / 2.0);
+        min_y = min_y.min(point.y - height / 2.0);
+        max_y = max_y.max(point.y + height / 2.0);
     }
 
     for path in routes.values() {
@@ -3002,7 +3077,7 @@ pub fn align_geometry(
         }
     }
 
-    let unshifted_subgraphs = compute_subgraph_visuals(subgraphs, positions);
+    let unshifted_subgraphs = compute_subgraph_visuals(subgraphs, positions, nodes);
     for sg in &unshifted_subgraphs {
         min_x = min_x.min(sg.x);
         max_x = max_x.max(sg.x + sg.width);
@@ -3014,8 +3089,8 @@ pub fn align_geometry(
         bail!("unable to compute diagram bounds");
     }
 
-    let width = (max_x - min_x).max(NODE_WIDTH) + LAYOUT_MARGIN * 2.0;
-    let height = (max_y - min_y).max(NODE_HEIGHT) + LAYOUT_MARGIN * 2.0;
+    let width = (max_x - min_x).max(fallback_width) + LAYOUT_MARGIN * 2.0;
+    let height = (max_y - min_y).max(fallback_height) + LAYOUT_MARGIN * 2.0;
 
     let shift_x = LAYOUT_MARGIN - min_x;
     let shift_y = LAYOUT_MARGIN - min_y;
@@ -3066,10 +3141,23 @@ pub fn align_geometry(
 fn compute_subgraph_visuals(
     subgraphs: &[Subgraph],
     positions: &HashMap<String, Point>,
+    definitions: &HashMap<String, Node>,
 ) -> Vec<SubgraphVisual> {
     let mut visuals = Vec::new();
+    let fallback_height = definitions
+        .values()
+        .map(|node| node.height)
+        .fold(NODE_HEIGHT, f32::max);
     for subgraph in subgraphs {
-        collect_subgraph_visual(subgraph, positions, &mut visuals, 0, None);
+        collect_subgraph_visual(
+            subgraph,
+            positions,
+            definitions,
+            fallback_height,
+            &mut visuals,
+            0,
+            None,
+        );
     }
 
     visuals.sort_by(|a, b| {
@@ -3084,6 +3172,8 @@ fn compute_subgraph_visuals(
 fn collect_subgraph_visual(
     subgraph: &Subgraph,
     positions: &HashMap<String, Point>,
+    definitions: &HashMap<String, Node>,
+    fallback_height: f32,
     visuals: &mut Vec<SubgraphVisual>,
     depth: usize,
     parent_id: Option<&str>,
@@ -3091,16 +3181,22 @@ fn collect_subgraph_visual(
     let mut bounds: Option<Rect> = None;
 
     for child in &subgraph.children {
-        if let Some(child_bounds) =
-            collect_subgraph_visual(child, positions, visuals, depth + 1, Some(&subgraph.id))
-        {
+        if let Some(child_bounds) = collect_subgraph_visual(
+            child,
+            positions,
+            definitions,
+            fallback_height,
+            visuals,
+            depth + 1,
+            Some(&subgraph.id),
+        ) {
             expand_bounds(&mut bounds, child_bounds);
         }
     }
 
     for node_id in &subgraph.nodes {
-        if let Some(position) = positions.get(node_id) {
-            expand_bounds(&mut bounds, node_rect(*position));
+        if let (Some(position), Some(node)) = (positions.get(node_id), definitions.get(node_id)) {
+            expand_bounds(&mut bounds, node_rect(*position, node.width, node.height));
         }
     }
 
@@ -3127,7 +3223,7 @@ fn collect_subgraph_visual(
         outer.max_x += delta;
     }
 
-    let min_height = NODE_HEIGHT + SUBGRAPH_PADDING * 2.0 + SUBGRAPH_LABEL_AREA;
+    let min_height = fallback_height + SUBGRAPH_PADDING * 2.0 + SUBGRAPH_LABEL_AREA;
     if height < min_height {
         let delta = (min_height - height) / 2.0;
         outer.min_y -= delta;
@@ -3172,11 +3268,23 @@ fn expand_bounds(target: &mut Option<Rect>, rect: Rect) {
     }
 }
 
-fn compute_canvas_size_for_positions(positions: &HashMap<String, Point>) -> CanvasSize {
+fn compute_canvas_size_for_positions(
+    positions: &HashMap<String, Point>,
+    nodes: &HashMap<String, Node>,
+) -> CanvasSize {
+    let fallback_width = nodes
+        .values()
+        .map(|node| node.width)
+        .fold(NODE_WIDTH, f32::max);
+    let fallback_height = nodes
+        .values()
+        .map(|node| node.height)
+        .fold(NODE_HEIGHT, f32::max);
+
     if positions.is_empty() {
         return CanvasSize {
-            width: START_OFFSET * 2.0 + NODE_WIDTH,
-            height: START_OFFSET * 2.0 + NODE_HEIGHT,
+            width: START_OFFSET * 2.0 + fallback_width,
+            height: START_OFFSET * 2.0 + fallback_height,
         };
     }
 
@@ -3185,15 +3293,19 @@ fn compute_canvas_size_for_positions(positions: &HashMap<String, Point>) -> Canv
     let mut min_y = f32::MAX;
     let mut max_y = f32::MIN;
 
-    for point in positions.values() {
-        min_x = min_x.min(point.x - NODE_WIDTH / 2.0);
-        max_x = max_x.max(point.x + NODE_WIDTH / 2.0);
-        min_y = min_y.min(point.y - NODE_HEIGHT / 2.0);
-        max_y = max_y.max(point.y + NODE_HEIGHT / 2.0);
+    for (id, point) in positions {
+        let (width, height) = nodes
+            .get(id)
+            .map(|node| (node.width, node.height))
+            .unwrap_or((fallback_width, fallback_height));
+        min_x = min_x.min(point.x - width / 2.0);
+        max_x = max_x.max(point.x + width / 2.0);
+        min_y = min_y.min(point.y - height / 2.0);
+        max_y = max_y.max(point.y + height / 2.0);
     }
 
-    let width = (max_x - min_x).max(NODE_WIDTH) + LAYOUT_MARGIN * 2.0;
-    let height = (max_y - min_y).max(NODE_HEIGHT) + LAYOUT_MARGIN * 2.0;
+    let width = (max_x - min_x).max(fallback_width) + LAYOUT_MARGIN * 2.0;
+    let height = (max_y - min_y).max(fallback_height) + LAYOUT_MARGIN * 2.0;
 
     CanvasSize { width, height }
 }
@@ -3216,11 +3328,12 @@ fn collect_nodes_recursive(subgraph: &Subgraph, nodes: &mut HashSet<String>) {
 fn compute_group_bounds(
     nodes: &HashSet<String>,
     positions: &HashMap<String, Point>,
+    definitions: &HashMap<String, Node>,
 ) -> Option<Rect> {
     let mut bounds: Option<Rect> = None;
     for id in nodes {
-        if let Some(position) = positions.get(id) {
-            expand_bounds(&mut bounds, node_rect(*position));
+        if let (Some(position), Some(node)) = (positions.get(id), definitions.get(id)) {
+            expand_bounds(&mut bounds, node_rect(*position, node.width, node.height));
         }
     }
     bounds
@@ -3357,13 +3470,76 @@ fn parse_image_comment(line: &str) -> Result<Option<(String, NodeImage)>> {
         .decode(encoded_payload.as_bytes())
         .map_err(|err| anyhow!("failed to decode base64 image payload for '{node_id}': {err}"))?;
 
+    let (width, height) = decode_image_dimensions(mime_type, &data)?;
+
     Ok(Some((
         node_id.to_string(),
         NodeImage {
             mime_type: mime_type.to_string(),
             data,
+            width,
+            height,
         },
     )))
+}
+
+pub(crate) fn decode_image_dimensions(mime_type: &str, data: &[u8]) -> Result<(u32, u32)> {
+    match mime_type {
+        "image/png" => parse_png_dimensions(data),
+        other => bail!("unsupported node image mime type '{other}'"),
+    }
+}
+
+fn apply_image_to_node(node: &mut Node, image: NodeImage) {
+    let aspect = if image.width == 0 {
+        1.0
+    } else {
+        image.height.max(1) as f32 / image.width as f32
+    };
+
+    let label_lines = normalize_label_lines(&node.label);
+    let label_line_count = label_lines.len().max(1);
+    let label_height = NODE_LABEL_HEIGHT.max(label_line_count as f32 * NODE_TEXT_LINE_HEIGHT);
+    let image_height = (NODE_WIDTH * aspect).max(1.0);
+    let total_height = (label_height + image_height).max(label_height + 1.0);
+
+    node.width = NODE_WIDTH;
+    node.height = total_height;
+    node.image = Some(image);
+}
+
+fn parse_png_dimensions(data: &[u8]) -> Result<(u32, u32)> {
+    const PNG_SIGNATURE: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
+    if data.len() < 33 {
+        bail!("png image payload too small to contain header");
+    }
+
+    if data[..8] != PNG_SIGNATURE {
+        bail!("node image payload is not a png file");
+    }
+
+    let length = u32::from_be_bytes(data[8..12].try_into()?);
+    if &data[12..16] != b"IHDR" {
+        bail!("png image missing IHDR chunk");
+    }
+
+    if length < 8 {
+        bail!("png IHDR chunk is truncated");
+    }
+
+    let chunk_end = 16_usize + length as usize;
+    if chunk_end > data.len() {
+        bail!("png IHDR chunk extends beyond payload");
+    }
+
+    let width = u32::from_be_bytes(data[16..20].try_into()?);
+    let height = u32::from_be_bytes(data[20..24].try_into()?);
+
+    if width == 0 || height == 0 {
+        bail!("png image must have non-zero dimensions");
+    }
+
+    Ok((width, height))
 }
 
 fn record_node_membership(
@@ -3502,6 +3678,8 @@ fn insert_node_spec(
                 label,
                 shape,
                 image: None,
+                width: NODE_WIDTH,
+                height: NODE_HEIGHT,
             });
             inserted = true;
         }
