@@ -469,6 +469,9 @@ body > div:first-of-type {
   line-height: 1.5;
   outline: none;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .source-editor:focus {
