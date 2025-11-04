@@ -44,10 +44,11 @@ fn diagram_parses_image_comments() -> Result<()> {
     let definition = include_str!("input/image_node.mmd");
     let diagram = Diagram::parse(definition)?;
 
-    let node = diagram
+    let (node_id, node) = diagram
         .nodes
-        .get("IMG")
-        .expect("expected IMG node to be present");
+        .iter()
+        .find(|(_, node)| node.image.is_some())
+        .expect("expected an image node to be present");
     let image = node
         .image
         .as_ref()
@@ -58,7 +59,7 @@ fn diagram_parses_image_comments() -> Result<()> {
 
     let svg = diagram.render_svg("white", None)?;
     assert!(
-        svg.contains("clip-path=\"url(#oxdraw-node-clip-IMG)\""),
+        svg.contains(&format!("clip-path=\"url(#oxdraw-node-clip-{})\"", node_id)),
         "rendered svg should reference the node clip path"
     );
     assert!(
