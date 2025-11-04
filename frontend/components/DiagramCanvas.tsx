@@ -22,8 +22,10 @@ import {
   Point,
 } from "../lib/types";
 
-const NODE_WIDTH = 140;
-const NODE_HEIGHT = 60;
+const DEFAULT_NODE_WIDTH = 140;
+const DEFAULT_NODE_HEIGHT = 60;
+const NODE_LABEL_HEIGHT = 28;
+const NODE_TEXT_LINE_HEIGHT = 16;
 const LAYOUT_MARGIN = 80;
 const HANDLE_RADIUS = 6;
 const EPSILON = 0.5;
@@ -323,13 +325,15 @@ function snapToGrid(value: number): number {
   return Math.round(value / GRID_SIZE) * GRID_SIZE;
 }
 
-function createNodeBox(position: Point): NodeBox {
+function createNodeBox(position: Point, width: number, height: number): NodeBox {
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
   return {
-    left: position.x - NODE_WIDTH / 2,
-    right: position.x + NODE_WIDTH / 2,
+    left: position.x - halfWidth,
+    right: position.x + halfWidth,
     centerX: position.x,
-    top: position.y - NODE_HEIGHT / 2,
-    bottom: position.y + NODE_HEIGHT / 2,
+    top: position.y - halfHeight,
+    bottom: position.y + halfHeight,
     centerY: position.y,
   };
 }
@@ -411,13 +415,26 @@ function computeSubgraphSeparationShift(
   return null;
 }
 
+function resolveNodeDimensions(id: string, dimensions: Map<string, Size>): Size {
+  const dims = dimensions.get(id);
+  if (dims) {
+    return dims;
+  }
+  if (id.startsWith("edge:")) {
+    return { width: 0, height: 0 };
+  }
+  return { width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT };
+}
+
 function computeNodeAlignment(
   nodeId: string,
   proposed: Point,
   nodes: readonly [string, Point][],
-  threshold: number
+  threshold: number,
+  dimensions: Map<string, Size>
 ): AlignmentResult {
-  const movingBox = createNodeBox(proposed);
+  const movingDimensions = resolveNodeDimensions(nodeId, dimensions);
+  const movingBox = createNodeBox(proposed, movingDimensions.width, movingDimensions.height);
   let bestVertical: {
     diff: number;
     value: number;
@@ -433,7 +450,8 @@ function computeNodeAlignment(
     if (otherId === nodeId) {
       continue;
     }
-    const otherBox = createNodeBox(point);
+  const otherDimensions = resolveNodeDimensions(otherId, dimensions);
+  const otherBox = createNodeBox(point, otherDimensions.width, otherDimensions.height);
 
     const verticalCandidates = [
       {
@@ -477,7 +495,11 @@ function computeNodeAlignment(
         continue;
       }
       const alignedX = candidate.value();
-      const alignedBox = createNodeBox({ x: alignedX, y: proposed.y });
+      const alignedBox = createNodeBox(
+        { x: alignedX, y: proposed.y },
+        movingDimensions.width,
+        movingDimensions.height
+      );
       bestVertical = {
         diff: candidate.diff,
         value: alignedX,
@@ -535,7 +557,11 @@ function computeNodeAlignment(
         continue;
       }
       const alignedY = candidate.value();
-      const alignedBox = createNodeBox({ x: proposed.x, y: alignedY });
+      const alignedBox = createNodeBox(
+        { x: proposed.x, y: alignedY },
+        movingDimensions.width,
+        movingDimensions.height
+      );
       bestHorizontal = {
         diff: candidate.diff,
         value: alignedY,
@@ -578,13 +604,18 @@ function computeNodeAlignment(
   }
 
   const finalPosition = { x: finalX, y: finalY };
-  const finalBox = createNodeBox(finalPosition);
+  const finalBox = createNodeBox(finalPosition, movingDimensions.width, movingDimensions.height);
 
   const verticalGuide = guides.vertical;
   if (verticalGuide) {
     const targetPoint = nodes.find((entry) => entry[0] === verticalGuide.targetId)?.[1];
     if (targetPoint) {
-      const targetBox = createNodeBox(targetPoint);
+      const targetDimensions = resolveNodeDimensions(verticalGuide.targetId, dimensions);
+      const targetBox = createNodeBox(
+        targetPoint,
+        targetDimensions.width,
+        targetDimensions.height
+      );
       guides.vertical = {
         ...verticalGuide,
         x:
@@ -601,7 +632,12 @@ function computeNodeAlignment(
   if (horizontalGuide) {
     const targetPoint = nodes.find((entry) => entry[0] === horizontalGuide.targetId)?.[1];
     if (targetPoint) {
-      const targetBox = createNodeBox(targetPoint);
+      const targetDimensions = resolveNodeDimensions(horizontalGuide.targetId, dimensions);
+      const targetBox = createNodeBox(
+        targetPoint,
+        targetDimensions.width,
+        targetDimensions.height
+      );
       guides.horizontal = {
         ...horizontalGuide,
         y:
@@ -865,6 +901,16 @@ export default function DiagramCanvas({
     return map;
   }, [subgraphViews]);
 
+  const nodeDimensions = useMemo(() => {
+    const map = new Map<string, Size>();
+    for (const node of diagram.nodes) {
+      const width = Number.isFinite(node.width) && node.width > 0 ? node.width : DEFAULT_NODE_WIDTH;
+      const height = Number.isFinite(node.height) && node.height > 0 ? node.height : DEFAULT_NODE_HEIGHT;
+      map.set(node.id, { width, height });
+    }
+    return map;
+  }, [diagram.nodes]);
+
   const fitBounds = useMemo(() => {
     // Zoom-to-fit: include all nodes, edge control points, and label backgrounds.
     let minX = Infinity;
@@ -879,8 +925,12 @@ export default function DiagramCanvas({
       maxY = Math.max(maxY, point.y + halfHeight);
     };
 
-    for (const position of finalPositions.values()) {
-      extend(position, NODE_WIDTH / 2, NODE_HEIGHT / 2);
+    for (const [id, position] of finalPositions.entries()) {
+      const dims = nodeDimensions.get(id) ?? {
+        width: DEFAULT_NODE_WIDTH,
+        height: DEFAULT_NODE_HEIGHT,
+      };
+      extend(position, dims.width / 2, dims.height / 2);
     }
 
     for (const view of edges) {
@@ -916,19 +966,19 @@ export default function DiagramCanvas({
     }
 
     if (!Number.isFinite(minX)) {
-      minX = -NODE_WIDTH / 2;
-      maxX = NODE_WIDTH / 2;
-      minY = -NODE_HEIGHT / 2;
-      maxY = NODE_HEIGHT / 2;
+      minX = -DEFAULT_NODE_WIDTH / 2;
+      maxX = DEFAULT_NODE_WIDTH / 2;
+      minY = -DEFAULT_NODE_HEIGHT / 2;
+      maxY = DEFAULT_NODE_HEIGHT / 2;
     }
 
-    const width = Math.max(maxX - minX, NODE_WIDTH) + LAYOUT_MARGIN * 2;
-    const height = Math.max(maxY - minY, NODE_HEIGHT) + LAYOUT_MARGIN * 2;
+    const width = Math.max(maxX - minX, DEFAULT_NODE_WIDTH) + LAYOUT_MARGIN * 2;
+    const height = Math.max(maxY - minY, DEFAULT_NODE_HEIGHT) + LAYOUT_MARGIN * 2;
     const offsetX = LAYOUT_MARGIN - minX;
     const offsetY = LAYOUT_MARGIN - minY;
 
     return { width, height, offsetX, offsetY };
-  }, [draftSubgraphs, edges, finalPositions, subgraphViews]);
+  }, [draftSubgraphs, edges, finalPositions, subgraphViews, nodeDimensions]);
 
   const [bounds, setBounds] = useState(() => fitBounds);
 
@@ -1369,7 +1419,13 @@ export default function DiagramCanvas({
         x: diagramPoint.x - dragState.offset.x,
         y: diagramPoint.y - dragState.offset.y,
       };
-      const alignment = computeNodeAlignment(dragState.id, proposed, alignmentEntries, ALIGN_THRESHOLD);
+      const alignment = computeNodeAlignment(
+        dragState.id,
+        proposed,
+        alignmentEntries,
+        ALIGN_THRESHOLD,
+        nodeDimensions
+      );
       const snappedPosition = {
         x: alignment.appliedX ? alignment.position.x : snapToGrid(alignment.position.x),
         y: alignment.appliedY ? alignment.position.y : snapToGrid(alignment.position.y),
@@ -1381,7 +1437,13 @@ export default function DiagramCanvas({
       setDraftNodes((prev: DraftNodes) => ({ ...prev, [dragState.id]: snappedPosition }));
     } else if (dragState.type === "edge") {
       const handleId = `edge:${dragState.id}:handle:${dragState.index}`;
-      const alignment = computeNodeAlignment(handleId, diagramPoint, alignmentEntries, ALIGN_THRESHOLD);
+      const alignment = computeNodeAlignment(
+        handleId,
+        diagramPoint,
+        alignmentEntries,
+        ALIGN_THRESHOLD,
+        nodeDimensions
+      );
       const snappedPoint = {
         x: alignment.appliedX ? alignment.position.x : snapToGrid(alignment.position.x),
         y: alignment.appliedY ? alignment.position.y : snapToGrid(alignment.position.y),
@@ -2074,11 +2136,20 @@ export default function DiagramCanvas({
             "--node-text": textColor,
           } as CSSProperties;
           const nodeSelected = selectedNodeId === id;
-          const halfWidth = NODE_WIDTH / 2;
-          const halfHeight = NODE_HEIGHT / 2;
+          const nodeWidth = node.width ?? DEFAULT_NODE_WIDTH;
+          const nodeHeight = node.height ?? DEFAULT_NODE_HEIGHT;
+          const halfWidth = nodeWidth / 2;
+          const halfHeight = nodeHeight / 2;
 
           const imageData = node.image ?? null;
           const clipId = svgSafeId("node-clip-", id);
+          const labelLines = normalizeLabelLines(node.label);
+          const hasLabel = labelLines.length > 0;
+          const labelLineCount = Math.max(1, labelLines.length);
+          const labelAreaHeight = imageData
+            ? Math.max(NODE_LABEL_HEIGHT, labelLineCount * NODE_TEXT_LINE_HEIGHT)
+            : 0;
+          const imageHeight = Math.max(0, nodeHeight - labelAreaHeight);
 
           const shapeComponents = (() => {
             switch (node.shape) {
@@ -2087,22 +2158,22 @@ export default function DiagramCanvas({
                   <rect
                     x={-halfWidth}
                     y={-halfHeight}
-                    width={NODE_WIDTH}
-                    height={NODE_HEIGHT}
+                    width={nodeWidth}
+                    height={nodeHeight}
                     rx={8}
                     ry={8}
                     fill={fillColor}
                   />
                 );
                 const clip = (
-                  <rect x={-halfWidth} y={-halfHeight} width={NODE_WIDTH} height={NODE_HEIGHT} rx={8} ry={8} />
+                  <rect x={-halfWidth} y={-halfHeight} width={nodeWidth} height={nodeHeight} rx={8} ry={8} />
                 );
                 const outline = (
                   <rect
                     x={-halfWidth}
                     y={-halfHeight}
-                    width={NODE_WIDTH}
-                    height={NODE_HEIGHT}
+                    width={nodeWidth}
+                    height={nodeHeight}
                     rx={8}
                     ry={8}
                     fill="none"
@@ -2117,22 +2188,22 @@ export default function DiagramCanvas({
                   <rect
                     x={-halfWidth}
                     y={-halfHeight}
-                    width={NODE_WIDTH}
-                    height={NODE_HEIGHT}
+                    width={nodeWidth}
+                    height={nodeHeight}
                     rx={30}
                     ry={30}
                     fill={fillColor}
                   />
                 );
                 const clip = (
-                  <rect x={-halfWidth} y={-halfHeight} width={NODE_WIDTH} height={NODE_HEIGHT} rx={30} ry={30} />
+                  <rect x={-halfWidth} y={-halfHeight} width={nodeWidth} height={nodeHeight} rx={30} ry={30} />
                 );
                 const outline = (
                   <rect
                     x={-halfWidth}
                     y={-halfHeight}
-                    width={NODE_WIDTH}
-                    height={NODE_HEIGHT}
+                    width={nodeWidth}
+                    height={nodeHeight}
                     rx={30}
                     ry={30}
                     fill="none"
@@ -2230,21 +2301,21 @@ export default function DiagramCanvas({
                   <rect
                     x={-halfWidth}
                     y={-halfHeight}
-                    width={NODE_WIDTH}
-                    height={NODE_HEIGHT}
+                    width={nodeWidth}
+                    height={nodeHeight}
                     rx={8}
                     ry={8}
                     fill={fillColor}
                   />
                 );
-                const clip = <rect x={-halfWidth} y={-halfHeight} width={NODE_WIDTH} height={NODE_HEIGHT} rx={8} ry={8} />;
+                const clip = <rect x={-halfWidth} y={-halfHeight} width={nodeWidth} height={nodeHeight} rx={8} ry={8} />;
                 const outline = (
                   <>
                     <rect
                       x={-halfWidth}
                       y={-halfHeight}
-                      width={NODE_WIDTH}
-                      height={NODE_HEIGHT}
+                      width={nodeWidth}
+                      height={nodeHeight}
                       rx={8}
                       ry={8}
                       fill="none"
@@ -2273,7 +2344,7 @@ export default function DiagramCanvas({
               }
               case "cylinder": {
                 const rx = halfWidth;
-                const ry = NODE_HEIGHT / 6;
+                const ry = nodeHeight / 6;
                 const top = -halfHeight;
                 const bottom = halfHeight;
                 const topCenter = top + ry;
@@ -2291,7 +2362,7 @@ export default function DiagramCanvas({
                 return { shape, clip, outline };
               }
               case "hexagon": {
-                const offset = NODE_WIDTH * 0.25;
+                const offset = nodeWidth * 0.25;
                 const points = polygonPoints([
                   [-halfWidth + offset, -halfHeight],
                   [halfWidth - offset, -halfHeight],
@@ -2313,7 +2384,7 @@ export default function DiagramCanvas({
                 return { shape, clip, outline };
               }
               case "parallelogram": {
-                const skew = NODE_HEIGHT * 0.35;
+                const skew = nodeHeight * 0.35;
                 const points = polygonPoints([
                   [-halfWidth + skew, -halfHeight],
                   [halfWidth, -halfHeight],
@@ -2333,7 +2404,7 @@ export default function DiagramCanvas({
                 return { shape, clip, outline };
               }
               case "parallelogram-alt": {
-                const skew = NODE_HEIGHT * 0.35;
+                const skew = nodeHeight * 0.35;
                 const points = polygonPoints([
                   [-halfWidth, -halfHeight],
                   [halfWidth - skew, -halfHeight],
@@ -2353,8 +2424,8 @@ export default function DiagramCanvas({
                 return { shape, clip, outline };
               }
               case "trapezoid": {
-                const topInset = NODE_WIDTH * 0.22;
-                const bottomInset = NODE_WIDTH * 0.08;
+                const topInset = nodeWidth * 0.22;
+                const bottomInset = nodeWidth * 0.08;
                 const points = polygonPoints([
                   [-halfWidth + topInset, -halfHeight],
                   [halfWidth - topInset, -halfHeight],
@@ -2374,8 +2445,8 @@ export default function DiagramCanvas({
                 return { shape, clip, outline };
               }
               case "trapezoid-alt": {
-                const topInset = NODE_WIDTH * 0.08;
-                const bottomInset = NODE_WIDTH * 0.22;
+                const topInset = nodeWidth * 0.08;
+                const bottomInset = nodeWidth * 0.22;
                 const points = polygonPoints([
                   [-halfWidth + topInset, -halfHeight],
                   [halfWidth - topInset, -halfHeight],
@@ -2395,7 +2466,7 @@ export default function DiagramCanvas({
                 return { shape, clip, outline };
               }
               case "asymmetric": {
-                const skew = NODE_HEIGHT * 0.45;
+                const skew = nodeHeight * 0.45;
                 const points = polygonPoints([
                   [-halfWidth, -halfHeight],
                   [halfWidth - skew, -halfHeight],
@@ -2422,22 +2493,22 @@ export default function DiagramCanvas({
                   <rect
                     x={-halfWidth}
                     y={-halfHeight}
-                    width={NODE_WIDTH}
-                    height={NODE_HEIGHT}
+                    width={nodeWidth}
+                    height={nodeHeight}
                     rx={8}
                     ry={8}
                     fill={fillColor}
                   />
                 );
                 const clip = (
-                  <rect x={-halfWidth} y={-halfHeight} width={NODE_WIDTH} height={NODE_HEIGHT} rx={8} ry={8} />
+                  <rect x={-halfWidth} y={-halfHeight} width={nodeWidth} height={nodeHeight} rx={8} ry={8} />
                 );
                 const outline = (
                   <rect
                     x={-halfWidth}
                     y={-halfHeight}
-                    width={NODE_WIDTH}
-                    height={NODE_HEIGHT}
+                    width={nodeWidth}
+                    height={nodeHeight}
                     rx={8}
                     ry={8}
                     fill="none"
@@ -2452,9 +2523,79 @@ export default function DiagramCanvas({
 
           const shapeElement = shapeComponents.shape;
           const clipShapeElement = shapeComponents.clip ?? (
-            <rect x={-halfWidth} y={-halfHeight} width={NODE_WIDTH} height={NODE_HEIGHT} rx={8} ry={8} />
+            <rect x={-halfWidth} y={-halfHeight} width={nodeWidth} height={nodeHeight} rx={8} ry={8} />
           );
           const outlineElement = shapeComponents.outline ?? null;
+
+          const renderLabel = () => {
+            if (!hasLabel) {
+              return null;
+            }
+
+            if (imageData) {
+              if (labelLines.length === 1) {
+                const baseline = -halfHeight + labelAreaHeight / 2;
+                return (
+                  <text
+                    x={0}
+                    y={baseline}
+                    fill={textColor}
+                    fontSize={14}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                  >
+                    {labelLines[0]}
+                  </text>
+                );
+              }
+
+              const totalTextHeight = NODE_TEXT_LINE_HEIGHT * labelLines.length;
+              const labelTop = -halfHeight;
+              const startY =
+                labelTop + (labelAreaHeight - totalTextHeight) / 2 + NODE_TEXT_LINE_HEIGHT / 2;
+              return (
+                <text x={0} fill={textColor} fontSize={14} textAnchor="middle">
+                  {labelLines.map((line, idx) => {
+                    const lineY = startY + NODE_TEXT_LINE_HEIGHT * idx;
+                    return (
+                      <tspan key={idx} x={0} y={lineY} dominantBaseline="middle">
+                        {line}
+                      </tspan>
+                    );
+                  })}
+                </text>
+              );
+            }
+
+            if (labelLines.length === 1) {
+              return (
+                <text
+                  x={0}
+                  y={0}
+                  fill={textColor}
+                  fontSize={14}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                >
+                  {labelLines[0]}
+                </text>
+              );
+            }
+
+            const startY = -NODE_TEXT_LINE_HEIGHT * (labelLines.length - 1) / 2;
+            return (
+              <text x={0} fill={textColor} fontSize={14} textAnchor="middle">
+                {labelLines.map((line, idx) => {
+                  const lineY = startY + NODE_TEXT_LINE_HEIGHT * idx;
+                  return (
+                    <tspan key={idx} x={0} y={lineY} dominantBaseline="middle">
+                      {line}
+                    </tspan>
+                  );
+                })}
+              </text>
+            );
+          };
 
           return (
             <g
@@ -2476,21 +2617,19 @@ export default function DiagramCanvas({
                 </defs>
               ) : null}
               {shapeElement}
-              {imageData ? (
+              {imageData && imageHeight > 0.5 ? (
                 <image
                   x={-halfWidth}
-                  y={-halfHeight}
-                  width={NODE_WIDTH}
-                  height={NODE_HEIGHT}
+                  y={-halfHeight + labelAreaHeight}
+                  width={nodeWidth}
+                  height={imageHeight}
                   href={`data:${imageData.mimeType};base64,${imageData.data}`}
                   clipPath={`url(#${clipId})`}
                   preserveAspectRatio="xMidYMid slice"
                 />
               ) : null}
               {outlineElement}
-              <text textAnchor="middle" dominantBaseline="middle">
-                {node.label}
-              </text>
+              {renderLabel()}
             </g>
           );
         })}
