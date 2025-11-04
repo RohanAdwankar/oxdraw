@@ -351,6 +351,53 @@ body > div:first-of-type {
   cursor: pointer;
 }
 
+.style-control.image-control {
+  grid-column: 1 / -1;
+}
+
+.image-control-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.image-control-actions button {
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(15, 23, 42, 0.04);
+  color: #1f2937;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.image-control-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.image-control-actions button:not(:disabled):hover {
+  background: rgba(56, 178, 172, 0.2);
+  transform: translateY(-1px);
+}
+
+.image-control-actions button:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.image-control-meta {
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+.image-control-meta.muted {
+  color: #94a3b8;
+  font-style: italic;
+}
+
 .style-control input[type="color"]:disabled,
 .style-control select:disabled {
   opacity: 0.6;

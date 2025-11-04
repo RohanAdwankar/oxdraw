@@ -7,6 +7,7 @@ import {
   deleteNode,
   fetchDiagram,
   updateLayout,
+  updateNodeImage,
   updateSource,
   updateStyle,
 } from "../lib/api";
@@ -91,6 +92,7 @@ export default function Home() {
   const [dragging, setDragging] = useState(false);
   const saveTimer = useRef<number | null>(null);
   const lastSubmittedSource = useRef<string | null>(null);
+  const nodeImageInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedNode = useMemo(() => {
     if (!diagram || !selectedNodeId) {
@@ -253,6 +255,90 @@ export default function Home() {
     },
     [selectedNode, submitStyleUpdate]
   );
+
+  const handleNodeImageFileChange = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      if (!selectedNode || saving) {
+        event.target.value = "";
+        return;
+      }
+
+      const file = event.target.files && event.target.files[0] ? event.target.files[0] : null;
+      event.target.value = "";
+
+      if (!file) {
+        return;
+      }
+
+      const declaredType = file.type ? file.type.toLowerCase() : "";
+      const effectiveType =
+        declaredType || (file.name.toLowerCase().endsWith(".png") ? "image/png" : "");
+
+      if (effectiveType !== "image/png") {
+        setError("Only PNG images are supported for nodes.");
+        return;
+      }
+
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result;
+          if (typeof result !== "string") {
+            reject(new Error("Failed to read image file."));
+            return;
+          }
+          const commaIndex = result.indexOf(",");
+          if (commaIndex === -1) {
+            reject(new Error("Unrecognized image encoding."));
+            return;
+          }
+          resolve(result.slice(commaIndex + 1));
+        };
+        reader.onerror = () => {
+          reject(reader.error ?? new Error("Failed to read image file."));
+        };
+        reader.readAsDataURL(file);
+      }).catch((err) => {
+        setError((err as Error).message);
+        return null;
+      });
+
+      if (!base64) {
+        return;
+      }
+
+      try {
+        setSaving(true);
+        setError(null);
+        await updateNodeImage(selectedNode.id, {
+          mimeType: effectiveType,
+          data: base64,
+        });
+        await loadDiagram({ silent: true });
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [selectedNode, saving, loadDiagram, updateNodeImage]
+  );
+
+  const handleNodeImageRemove = useCallback(async () => {
+    if (!selectedNode || saving || !selectedNode.image) {
+      return;
+    }
+    try {
+      setSaving(true);
+      setError(null);
+      await updateNodeImage(selectedNode.id, null);
+      await loadDiagram({ silent: true });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }, [selectedNode, saving, loadDiagram, updateNodeImage]);
 
   const handleNodeStyleReset = useCallback(() => {
     if (!selectedNode) {
@@ -748,6 +834,41 @@ export default function Home() {
                         disabled={nodeControlsDisabled}
                       />
                     </label>
+                    <div className="style-control image-control">
+                      <span>Image</span>
+                      <div className="image-control-actions">
+                        <button
+                          type="button"
+                          onClick={() => nodeImageInputRef.current?.click()}
+                          disabled={nodeControlsDisabled}
+                        >
+                          {selectedNode?.image ? "Replace PNG" : "Upload PNG"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleNodeImageRemove()}
+                          disabled={nodeControlsDisabled || !selectedNode?.image}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <input
+                        ref={nodeImageInputRef}
+                        type="file"
+                        accept="image/png"
+                        onChange={handleNodeImageFileChange}
+                        hidden
+                      />
+                      <span
+                        className={
+                          selectedNode?.image ? "image-control-meta" : "image-control-meta muted"
+                        }
+                      >
+                        {selectedNode?.image
+                          ? `${selectedNode.image.width}x${selectedNode.image.height}px`
+                          : "No image attached"}
+                      </span>
+                    </div>
                   </div>
                   <button
                     type="button"
