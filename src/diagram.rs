@@ -1,3 +1,5 @@
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fmt::Write;
@@ -89,16 +91,32 @@ impl LayoutOverrides {
 
 impl Diagram {
     pub fn parse(definition: &str) -> Result<Self> {
-        let mut lines = definition
-            .lines()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty() && !line.starts_with("%%"));
+        let mut image_comments: HashMap<String, NodeImage> = HashMap::new();
+        let mut content_lines: Vec<String> = Vec::new();
+
+        for raw_line in definition.lines() {
+            let trimmed = raw_line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            if trimmed.starts_with("%%") {
+                if let Some((node_id, image)) = parse_image_comment(trimmed)? {
+                    image_comments.insert(node_id, image);
+                }
+                continue;
+            }
+
+            content_lines.push(trimmed.to_string());
+        }
+
+        let mut lines = content_lines.into_iter();
 
         let header = lines
             .next()
             .ok_or_else(|| anyhow!("diagram definition must start with a 'graph' declaration"))?;
 
-        let direction = parse_graph_header(header)?;
+        let direction = parse_graph_header(&header)?;
 
         let mut nodes = HashMap::new();
         let mut order = Vec::new();
@@ -110,6 +128,7 @@ impl Diagram {
         let mut subgraph_counter = 0_usize;
 
         for line in lines {
+            let line = line.as_str();
             if let Some(rest) = line.strip_prefix("subgraph") {
                 let (id, label) = parse_subgraph_header(rest)?;
                 if !seen_subgraph_ids.insert(id.clone()) {
@@ -159,6 +178,13 @@ impl Diagram {
             bail!("subgraph '{}' missing closing 'end'", unclosed.id);
         }
 
+        for (node_id, image) in image_comments {
+            let Some(node) = nodes.get_mut(&node_id) else {
+                bail!("image comment references unknown node '{node_id}'");
+            };
+            node.image = Some(image);
+        }
+
         if nodes.is_empty() {
             bail!("diagram does not declare any nodes");
         }
@@ -189,11 +215,30 @@ impl Diagram {
             &self.subgraphs,
         )?;
 
+        let mut clip_defs = String::new();
+        for id in &self.order {
+            let Some(node) = self.nodes.get(id) else {
+                continue;
+            };
+            if node.image.is_none() {
+                continue;
+            }
+            let position = geometry
+                .positions
+                .get(id)
+                .copied()
+                .ok_or_else(|| anyhow!("missing geometry for node '{id}'"))?;
+            let clip_id = svg_safe_id("oxdraw-node-clip-", id);
+            write!(clip_defs, "    <clipPath id=\"{}\">\n", clip_id)?;
+            node.shape.render_svg_clip_shape(&mut clip_defs, position)?;
+            clip_defs.push_str("    </clipPath>\n");
+        }
+
         let mut svg = String::new();
         write!(
             svg,
             r##"<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="{:.0}" height="{:.0}" viewBox="0 0 {:.0} {:.0}" font-family="Inter, system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{:.0}" height="{:.0}" viewBox="0 0 {:.0} {:.0}" font-family="Inter, system-ui, sans-serif">
   <defs>
         <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
             <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
@@ -201,13 +246,16 @@ impl Diagram {
         <marker id="arrow-start" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="strokeWidth">
             <path d="M7,1 L2,4 L7,7 z" fill="context-stroke" />
         </marker>
-  </defs>
-  <rect width="100%" height="100%" fill="{}" />
 "##,
             geometry.width,
             geometry.height,
             geometry.width,
             geometry.height,
+        )?;
+        svg.push_str(&clip_defs);
+        write!(
+            svg,
+            "  </defs>\n  <rect width=\"100%\" height=\"100%\" fill=\"{}\" />\n",
             escape_xml(background)
         )?;
 
@@ -378,6 +426,25 @@ impl Diagram {
 
             node.shape
                 .render_svg_shape(&mut svg, position, &fill_color, &stroke_color)?;
+
+            if let Some(image) = &node.image {
+                let clip_id = svg_safe_id("oxdraw-node-clip-", id);
+                let encoded = BASE64_STANDARD.encode(&image.data);
+                let data_uri = format!("data:{};base64,{}", image.mime_type, encoded);
+                write!(
+                    svg,
+                    "  <image x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" href=\"{}\" xlink:href=\"{}\" clip-path=\"url(#{})\" preserveAspectRatio=\"xMidYMid slice\" />\n",
+                    position.x - NODE_WIDTH / 2.0,
+                    position.y - NODE_HEIGHT / 2.0,
+                    NODE_WIDTH,
+                    NODE_HEIGHT,
+                    data_uri,
+                    data_uri,
+                    clip_id
+                )?;
+                node.shape
+                    .render_svg_outline(&mut svg, position, &stroke_color)?;
+            }
 
             // Render node label with multi-line support
             let lines = normalize_label_lines(&node.label);
@@ -1415,6 +1482,9 @@ impl Diagram {
                 continue;
             }
             if let Some(node) = self.nodes.get(id) {
+                if let Some(image) = &node.image {
+                    lines.push(Self::format_image_comment(id, image));
+                }
                 lines.push(Self::format_node_line(id, node));
             }
         }
@@ -1459,6 +1529,13 @@ impl Diagram {
             }
             if emitted.insert(id.clone()) {
                 if let Some(node) = self.nodes.get(id) {
+                    if let Some(image) = &node.image {
+                        lines.push(format!(
+                            "{}{}",
+                            inner_indent,
+                            Self::format_image_comment(id, image)
+                        ));
+                    }
                     lines.push(format!(
                         "{}{}",
                         inner_indent,
@@ -1477,6 +1554,14 @@ impl Diagram {
 
     fn format_node_line(id: &str, node: &Node) -> String {
         node.shape.format_spec(id, &node.label)
+    }
+
+    fn format_image_comment(id: &str, image: &NodeImage) -> String {
+        let encoded = BASE64_STANDARD.encode(&image.data);
+        format!(
+            "{} {} {} {}",
+            IMAGE_COMMENT_PREFIX, id, image.mime_type, encoded
+        )
     }
 
     fn format_edge_line(edge: &Edge) -> String {
@@ -1574,6 +1659,19 @@ fn format_points(points: &[(f32, f32)]) -> String {
         .map(|(x, y)| format!("{:.1},{:.1}", x, y))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn svg_safe_id(prefix: &str, id: &str) -> String {
+    let mut sanitized = String::with_capacity(prefix.len() + id.len());
+    sanitized.push_str(prefix);
+    for ch in id.chars() {
+        if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':') {
+            sanitized.push(ch);
+        } else {
+            sanitized.push('_');
+        }
+    }
+    sanitized
 }
 
 impl NodeShape {
@@ -1851,6 +1949,371 @@ impl NodeShape {
                     svg,
                     "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
                     points, fill_color, stroke_color
+                )
+            }
+        }
+    }
+
+    fn render_svg_clip_shape(
+        &self,
+        svg: &mut String,
+        position: Point,
+    ) -> std::fmt::Result {
+        let half_w = NODE_WIDTH / 2.0;
+        let half_h = NODE_HEIGHT / 2.0;
+        match self {
+            NodeShape::Rectangle | NodeShape::Subroutine => write!(
+                svg,
+                "      <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" />\n",
+                position.x - half_w,
+                position.y - half_h,
+                NODE_WIDTH,
+                NODE_HEIGHT
+            ),
+            NodeShape::Stadium => write!(
+                svg,
+                "      <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" />\n",
+                position.x - half_w,
+                position.y - half_h,
+                NODE_WIDTH,
+                NODE_HEIGHT
+            ),
+            NodeShape::Circle | NodeShape::DoubleCircle => write!(
+                svg,
+                "      <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" />\n",
+                position.x,
+                position.y,
+                half_w,
+                half_h
+            ),
+            NodeShape::Diamond => {
+                let points = format_points(&[
+                    (position.x, position.y - half_h),
+                    (position.x + half_w, position.y),
+                    (position.x, position.y + half_h),
+                    (position.x - half_w, position.y),
+                ]);
+                write!(
+                    svg,
+                    "      <polygon points=\"{}\" />\n",
+                    points
+                )
+            }
+            NodeShape::Cylinder => {
+                let left = position.x - half_w;
+                let right = position.x + half_w;
+                let top = position.y - half_h;
+                let bottom = position.y + half_h;
+                let rx = half_w;
+                let ry = NODE_HEIGHT / 6.0;
+                let top_center = top + ry;
+                let bottom_center = bottom - ry;
+                write!(
+                    svg,
+                    "      <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} L{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} Z\" />\n",
+                    left,
+                    top_center,
+                    rx,
+                    ry,
+                    right,
+                    top_center,
+                    right,
+                    bottom_center,
+                    rx,
+                    ry,
+                    left,
+                    bottom_center
+                )
+            }
+            NodeShape::Hexagon => {
+                let offset = NODE_WIDTH * 0.25;
+                let points = format_points(&[
+                    (position.x - half_w + offset, position.y - half_h),
+                    (position.x + half_w - offset, position.y - half_h),
+                    (position.x + half_w, position.y),
+                    (position.x + half_w - offset, position.y + half_h),
+                    (position.x - half_w + offset, position.y + half_h),
+                    (position.x - half_w, position.y),
+                ]);
+                write!(svg, "      <polygon points=\"{}\" />\n", points)
+            }
+            NodeShape::Parallelogram => {
+                let skew = NODE_HEIGHT * 0.35;
+                let points = format_points(&[
+                    (position.x - half_w + skew, position.y - half_h),
+                    (position.x + half_w, position.y - half_h),
+                    (position.x + half_w - skew, position.y + half_h),
+                    (position.x - half_w, position.y + half_h),
+                ]);
+                write!(svg, "      <polygon points=\"{}\" />\n", points)
+            }
+            NodeShape::ParallelogramAlt => {
+                let skew = NODE_HEIGHT * 0.35;
+                let points = format_points(&[
+                    (position.x - half_w, position.y - half_h),
+                    (position.x + half_w - skew, position.y - half_h),
+                    (position.x + half_w, position.y + half_h),
+                    (position.x - half_w + skew, position.y + half_h),
+                ]);
+                write!(svg, "      <polygon points=\"{}\" />\n", points)
+            }
+            NodeShape::Trapezoid => {
+                let top_inset = NODE_WIDTH * 0.22;
+                let bottom_inset = NODE_WIDTH * 0.08;
+                let points = format_points(&[
+                    (position.x - half_w + top_inset, position.y - half_h),
+                    (position.x + half_w - top_inset, position.y - half_h),
+                    (position.x + half_w - bottom_inset, position.y + half_h),
+                    (position.x - half_w + bottom_inset, position.y + half_h),
+                ]);
+                write!(svg, "      <polygon points=\"{}\" />\n", points)
+            }
+            NodeShape::TrapezoidAlt => {
+                let top_inset = NODE_WIDTH * 0.08;
+                let bottom_inset = NODE_WIDTH * 0.22;
+                let points = format_points(&[
+                    (position.x - half_w + top_inset, position.y - half_h),
+                    (position.x + half_w - top_inset, position.y - half_h),
+                    (position.x + half_w - bottom_inset, position.y + half_h),
+                    (position.x - half_w + bottom_inset, position.y + half_h),
+                ]);
+                write!(svg, "      <polygon points=\"{}\" />\n", points)
+            }
+            NodeShape::Asymmetric => {
+                let skew = NODE_HEIGHT * 0.45;
+                let points = format_points(&[
+                    (position.x - half_w, position.y - half_h),
+                    (position.x + half_w - skew, position.y - half_h),
+                    (position.x + half_w, position.y),
+                    (position.x + half_w - skew, position.y + half_h),
+                    (position.x - half_w, position.y + half_h),
+                ]);
+                write!(svg, "      <polygon points=\"{}\" />\n", points)
+            }
+        }
+    }
+
+    fn render_svg_outline(
+        &self,
+        svg: &mut String,
+        position: Point,
+        stroke_color: &str,
+    ) -> std::fmt::Result {
+        let half_w = NODE_WIDTH / 2.0;
+        let half_h = NODE_HEIGHT / 2.0;
+        match self {
+            NodeShape::Rectangle | NodeShape::Subroutine => {
+                write!(
+                    svg,
+                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    position.x - half_w,
+                    position.y - half_h,
+                    NODE_WIDTH,
+                    NODE_HEIGHT,
+                    stroke_color
+                )?;
+                if matches!(self, NodeShape::Subroutine) {
+                    let inset = 12.0;
+                    write!(
+                        svg,
+                        "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                        position.x - half_w + inset,
+                        position.y - half_h,
+                        position.x - half_w + inset,
+                        position.y + half_h,
+                        stroke_color
+                    )?;
+                    write!(
+                        svg,
+                        "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                        position.x + half_w - inset,
+                        position.y - half_h,
+                        position.x + half_w - inset,
+                        position.y + half_h,
+                        stroke_color
+                    )?;
+                }
+                Ok(())
+            }
+            NodeShape::Stadium => write!(
+                svg,
+                "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                position.x - half_w,
+                position.y - half_h,
+                NODE_WIDTH,
+                NODE_HEIGHT,
+                stroke_color
+            ),
+            NodeShape::Circle | NodeShape::DoubleCircle => {
+                write!(
+                    svg,
+                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    position.x,
+                    position.y,
+                    half_w,
+                    half_h,
+                    stroke_color
+                )?;
+                if matches!(self, NodeShape::DoubleCircle) {
+                    let inner_rx = (half_w - 6.0).max(half_w * 0.65);
+                    let inner_ry = (half_h - 6.0).max(half_h * 0.65);
+                    write!(
+                        svg,
+                        "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                        position.x,
+                        position.y,
+                        inner_rx,
+                        inner_ry,
+                        stroke_color
+                    )?;
+                }
+                Ok(())
+            }
+            NodeShape::Diamond => {
+                let points = format_points(&[
+                    (position.x, position.y - half_h),
+                    (position.x + half_w, position.y),
+                    (position.x, position.y + half_h),
+                    (position.x - half_w, position.y),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points,
+                    stroke_color
+                )
+            }
+            NodeShape::Cylinder => {
+                let left = position.x - half_w;
+                let right = position.x + half_w;
+                let top = position.y - half_h;
+                let bottom = position.y + half_h;
+                let rx = half_w;
+                let ry = NODE_HEIGHT / 6.0;
+                let top_center = top + ry;
+                let bottom_center = bottom - ry;
+                write!(
+                    svg,
+                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} L{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} Z\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    left,
+                    top_center,
+                    rx,
+                    ry,
+                    right,
+                    top_center,
+                    right,
+                    bottom_center,
+                    rx,
+                    ry,
+                    left,
+                    bottom_center,
+                    stroke_color
+                )?;
+                write!(
+                    svg,
+                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    left,
+                    top_center,
+                    rx,
+                    ry,
+                    right,
+                    top_center,
+                    stroke_color
+                )
+            }
+            NodeShape::Hexagon => {
+                let offset = NODE_WIDTH * 0.25;
+                let points = format_points(&[
+                    (position.x - half_w + offset, position.y - half_h),
+                    (position.x + half_w - offset, position.y - half_h),
+                    (position.x + half_w, position.y),
+                    (position.x + half_w - offset, position.y + half_h),
+                    (position.x - half_w + offset, position.y + half_h),
+                    (position.x - half_w, position.y),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points,
+                    stroke_color
+                )
+            }
+            NodeShape::Parallelogram => {
+                let skew = NODE_HEIGHT * 0.35;
+                let points = format_points(&[
+                    (position.x - half_w + skew, position.y - half_h),
+                    (position.x + half_w, position.y - half_h),
+                    (position.x + half_w - skew, position.y + half_h),
+                    (position.x - half_w, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points,
+                    stroke_color
+                )
+            }
+            NodeShape::ParallelogramAlt => {
+                let skew = NODE_HEIGHT * 0.35;
+                let points = format_points(&[
+                    (position.x - half_w, position.y - half_h),
+                    (position.x + half_w - skew, position.y - half_h),
+                    (position.x + half_w, position.y + half_h),
+                    (position.x - half_w + skew, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points,
+                    stroke_color
+                )
+            }
+            NodeShape::Trapezoid => {
+                let top_inset = NODE_WIDTH * 0.22;
+                let bottom_inset = NODE_WIDTH * 0.08;
+                let points = format_points(&[
+                    (position.x - half_w + top_inset, position.y - half_h),
+                    (position.x + half_w - top_inset, position.y - half_h),
+                    (position.x + half_w - bottom_inset, position.y + half_h),
+                    (position.x - half_w + bottom_inset, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points,
+                    stroke_color
+                )
+            }
+            NodeShape::TrapezoidAlt => {
+                let top_inset = NODE_WIDTH * 0.08;
+                let bottom_inset = NODE_WIDTH * 0.22;
+                let points = format_points(&[
+                    (position.x - half_w + top_inset, position.y - half_h),
+                    (position.x + half_w - top_inset, position.y - half_h),
+                    (position.x + half_w - bottom_inset, position.y + half_h),
+                    (position.x - half_w + bottom_inset, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points,
+                    stroke_color
+                )
+            }
+            NodeShape::Asymmetric => {
+                let skew = NODE_HEIGHT * 0.45;
+                let points = format_points(&[
+                    (position.x - half_w, position.y - half_h),
+                    (position.x + half_w - skew, position.y - half_h),
+                    (position.x + half_w, position.y),
+                    (position.x + half_w - skew, position.y + half_h),
+                    (position.x - half_w, position.y + half_h),
+                ]);
+                write!(
+                    svg,
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    points,
+                    stroke_color
                 )
             }
         }
@@ -2872,6 +3335,37 @@ fn normalize_subgraph_id(raw: &str) -> String {
         .collect()
 }
 
+fn parse_image_comment(line: &str) -> Result<Option<(String, NodeImage)>> {
+    let Some(rest) = line.strip_prefix(IMAGE_COMMENT_PREFIX) else {
+        return Ok(None);
+    };
+
+    let mut parts = rest.trim_start().split_whitespace();
+    let node_id = parts
+        .next()
+        .ok_or_else(|| anyhow!("image comment missing node identifier"))?;
+    let mime_type = parts
+        .next()
+        .ok_or_else(|| anyhow!("image comment missing MIME type"))?;
+
+    let encoded_payload = parts.collect::<Vec<_>>().join("");
+    if encoded_payload.is_empty() {
+        bail!("image comment missing base64 payload");
+    }
+
+    let data = BASE64_STANDARD
+        .decode(encoded_payload.as_bytes())
+        .map_err(|err| anyhow!("failed to decode base64 image payload for '{node_id}': {err}"))?;
+
+    Ok(Some((
+        node_id.to_string(),
+        NodeImage {
+            mime_type: mime_type.to_string(),
+            data,
+        },
+    )))
+}
+
 fn record_node_membership(
     node_id: &str,
     subgraph_stack: &mut Vec<SubgraphBuilder>,
@@ -3004,7 +3498,11 @@ fn insert_node_spec(
     match nodes.entry(id.clone()) {
         Entry::Vacant(entry) => {
             order.push(id.clone());
-            entry.insert(Node { label, shape });
+            entry.insert(Node {
+                label,
+                shape,
+                image: None,
+            });
             inserted = true;
         }
         Entry::Occupied(_) => {}

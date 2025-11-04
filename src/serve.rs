@@ -3,7 +3,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine;
 use axum::extract::{Path as AxumPath, State};
 use axum::http::StatusCode;
 use axum::http::{HeaderValue, header};
@@ -81,6 +83,15 @@ struct NodePayload {
     text_color: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     membership: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image: Option<NodeImagePayload>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NodeImagePayload {
+    mime_type: String,
+    data: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -137,6 +148,14 @@ struct StyleUpdate {
     node_styles: HashMap<String, Option<NodeStylePatch>>,
     #[serde(default)]
     edge_styles: HashMap<String, Option<EdgeStylePatch>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct NodeImageUpdateRequest {
+    #[serde(default)]
+    mime_type: Option<String>,
+    #[serde(default)]
+    data: Option<String>,
 }
 
 impl ServeState {
@@ -365,6 +384,26 @@ impl ServeState {
         self.prune_overrides_for(&diagram).await?;
         Ok(true)
     }
+
+    async fn set_node_image(&self, node_id: &str, image: Option<NodeImage>) -> Result<()> {
+        let overrides_snapshot = self.overrides.read().await.clone();
+        let _guard = self.source_lock.lock().await;
+        let contents = tokio::fs::read_to_string(&self.source_path)
+            .await
+            .with_context(|| format!("failed to read '{}'", self.source_path.display()))?;
+        let (definition, _) = split_source_and_overrides(&contents)?;
+        let mut diagram = Diagram::parse(&definition)?;
+        let Some(node) = diagram.nodes.get_mut(node_id) else {
+            bail!("node '{node_id}' not found");
+        };
+        node.image = image;
+        let rewritten = diagram.to_definition();
+        let merged = merge_source_and_overrides(&rewritten, &overrides_snapshot)?;
+        tokio::fs::write(&self.source_path, merged.as_bytes())
+            .await
+            .with_context(|| format!("failed to write '{}'", self.source_path.display()))?;
+        Ok(())
+    }
 }
 
 pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> {
@@ -385,6 +424,7 @@ pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> 
         .route("/api/diagram/layout", put(put_layout))
         .route("/api/diagram/style", put(put_style))
         .route("/api/diagram/source", get(get_source).put(put_source))
+        .route("/api/diagram/nodes/:id/image", put(put_node_image))
         .route("/api/diagram/nodes/:id", delete(delete_node))
         .route("/api/diagram/edges/:id", delete(delete_edge))
         .with_state(state);
@@ -467,6 +507,10 @@ async fn get_diagram(
         let fill_color = style.and_then(|s| s.fill.clone());
         let stroke_color = style.and_then(|s| s.stroke.clone());
         let text_color = style.and_then(|s| s.text.clone());
+        let image_payload = node.image.as_ref().map(|image| NodeImagePayload {
+            mime_type: image.mime_type.clone(),
+            data: BASE64_STANDARD.encode(&image.data),
+        });
         nodes.push(NodePayload {
             id: id.clone(),
             label: node.label.clone(),
@@ -478,6 +522,7 @@ async fn get_diagram(
             stroke_color,
             text_color,
             membership: diagram.node_membership.get(id).cloned().unwrap_or_default(),
+            image: image_payload,
         });
     }
 
@@ -646,6 +691,61 @@ async fn delete_edge(
 
 fn internal_error(err: anyhow::Error) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
+}
+
+async fn put_node_image(
+    State(state): State<Arc<ServeState>>,
+    AxumPath(node_id): AxumPath<String>,
+    Json(payload): Json<NodeImageUpdateRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    if payload.data.is_none() {
+        state
+            .set_node_image(&node_id, None)
+            .await
+            .map_err(internal_error)?;
+        return Ok(StatusCode::NO_CONTENT);
+    }
+
+    let mime_type = payload
+        .mime_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "mime_type is required when providing image data".to_string(),
+            )
+        })?
+        .to_string();
+
+    let data_str = payload
+        .data
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "image payload cannot be empty".to_string(),
+            )
+        })?;
+
+    let data = BASE64_STANDARD
+        .decode(data_str.as_bytes())
+        .map_err(|err| (StatusCode::BAD_REQUEST, format!("invalid base64 payload: {err}")))?;
+
+    let image = NodeImage {
+        mime_type,
+        data,
+    };
+
+    state
+        .set_node_image(&node_id, Some(image))
+        .await
+        .map_err(internal_error)?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 fn merge_source_and_overrides(definition: &str, overrides: &LayoutOverrides) -> Result<String> {

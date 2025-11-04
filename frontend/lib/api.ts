@@ -169,3 +169,28 @@ export async function deleteEdge(edgeId: string): Promise<void> {
     throw new Error(message || `Failed to delete edge: ${response.status}`);
   }
 }
+
+export async function updateNodeImage(
+  nodeId: string,
+  payload: { mimeType: string; data: string } | null
+): Promise<void> {
+  const body = payload
+    ? { mime_type: payload.mimeType, data: payload.data }
+    : { data: null };
+
+  const response = await fetch(
+    `${API_BASE}/api/diagram/nodes/${encodeURIComponent(nodeId)}/image`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to update node image: ${response.status}`);
+  }
+}

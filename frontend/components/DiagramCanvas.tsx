@@ -42,6 +42,9 @@ const EDGE_LABEL_BORDER_RADIUS = 6;
 const EDGE_LABEL_BACKGROUND = "white";
 const EDGE_LABEL_BACKGROUND_OPACITY = 0.96;
 
+const svgSafeId = (prefix: string, id: string): string =>
+  `${prefix}${id.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+
 const SHAPE_COLORS: Record<DiagramData["nodes"][number]["shape"], string> = {
   rectangle: "#FDE68A",
   stadium: "#C4F1F9",
@@ -2074,10 +2077,13 @@ export default function DiagramCanvas({
           const halfWidth = NODE_WIDTH / 2;
           const halfHeight = NODE_HEIGHT / 2;
 
-          const shapeElement = (() => {
+          const imageData = node.image ?? null;
+          const clipId = svgSafeId("node-clip-", id);
+
+          const shapeComponents = (() => {
             switch (node.shape) {
-              case "rectangle":
-                return (
+              case "rectangle": {
+                const shape = (
                   <rect
                     x={-halfWidth}
                     y={-halfHeight}
@@ -2086,12 +2092,28 @@ export default function DiagramCanvas({
                     rx={8}
                     ry={8}
                     fill={fillColor}
+                  />
+                );
+                const clip = (
+                  <rect x={-halfWidth} y={-halfHeight} width={NODE_WIDTH} height={NODE_HEIGHT} rx={8} ry={8} />
+                );
+                const outline = (
+                  <rect
+                    x={-halfWidth}
+                    y={-halfHeight}
+                    width={NODE_WIDTH}
+                    height={NODE_HEIGHT}
+                    rx={8}
+                    ry={8}
+                    fill="none"
                     stroke={strokeColor}
                     strokeWidth={2}
                   />
                 );
-              case "stadium":
-                return (
+                return { shape, clip, outline };
+              }
+              case "stadium": {
+                const shape = (
                   <rect
                     x={-halfWidth}
                     y={-halfHeight}
@@ -2100,26 +2122,54 @@ export default function DiagramCanvas({
                     rx={30}
                     ry={30}
                     fill={fillColor}
+                  />
+                );
+                const clip = (
+                  <rect x={-halfWidth} y={-halfHeight} width={NODE_WIDTH} height={NODE_HEIGHT} rx={30} ry={30} />
+                );
+                const outline = (
+                  <rect
+                    x={-halfWidth}
+                    y={-halfHeight}
+                    width={NODE_WIDTH}
+                    height={NODE_HEIGHT}
+                    rx={30}
+                    ry={30}
+                    fill="none"
                     stroke={strokeColor}
                     strokeWidth={2}
                   />
                 );
-              case "circle":
-                return (
+                return { shape, clip, outline };
+              }
+              case "circle": {
+                const shape = (
                   <ellipse
                     cx={0}
                     cy={0}
                     rx={halfWidth}
                     ry={halfHeight}
                     fill={fillColor}
+                  />
+                );
+                const clip = <ellipse cx={0} cy={0} rx={halfWidth} ry={halfHeight} />;
+                const outline = (
+                  <ellipse
+                    cx={0}
+                    cy={0}
+                    rx={halfWidth}
+                    ry={halfHeight}
+                    fill="none"
                     stroke={strokeColor}
                     strokeWidth={2}
                   />
                 );
+                return { shape, clip, outline };
+              }
               case "double-circle": {
                 const innerRx = Math.max(halfWidth - 6, halfWidth * 0.65);
                 const innerRy = Math.max(halfHeight - 6, halfHeight * 0.65);
-                return (
+                const shape = (
                   <>
                     <ellipse
                       cx={0}
@@ -2127,6 +2177,18 @@ export default function DiagramCanvas({
                       rx={halfWidth}
                       ry={halfHeight}
                       fill={fillColor}
+                    />
+                  </>
+                );
+                const clip = <ellipse cx={0} cy={0} rx={halfWidth} ry={halfHeight} />;
+                const outline = (
+                  <>
+                    <ellipse
+                      cx={0}
+                      cy={0}
+                      rx={halfWidth}
+                      ry={halfHeight}
+                      fill="none"
                       stroke={strokeColor}
                       strokeWidth={2}
                     />
@@ -2141,6 +2203,7 @@ export default function DiagramCanvas({
                     />
                   </>
                 );
+                return { shape, clip, outline };
               }
               case "diamond": {
                 const points = polygonPoints([
@@ -2149,18 +2212,33 @@ export default function DiagramCanvas({
                   [0, halfHeight],
                   [-halfWidth, 0],
                 ]);
-                return (
+                const shape = <polygon points={points} fill={fillColor} />;
+                const clip = <polygon points={points} />;
+                const outline = (
                   <polygon
                     points={points}
-                    fill={fillColor}
+                    fill="none"
                     stroke={strokeColor}
                     strokeWidth={2}
                   />
                 );
+                return { shape, clip, outline };
               }
               case "subroutine": {
                 const inset = 12;
-                return (
+                const shape = (
+                  <rect
+                    x={-halfWidth}
+                    y={-halfHeight}
+                    width={NODE_WIDTH}
+                    height={NODE_HEIGHT}
+                    rx={8}
+                    ry={8}
+                    fill={fillColor}
+                  />
+                );
+                const clip = <rect x={-halfWidth} y={-halfHeight} width={NODE_WIDTH} height={NODE_HEIGHT} rx={8} ry={8} />;
+                const outline = (
                   <>
                     <rect
                       x={-halfWidth}
@@ -2169,7 +2247,7 @@ export default function DiagramCanvas({
                       height={NODE_HEIGHT}
                       rx={8}
                       ry={8}
-                      fill={fillColor}
+                      fill="none"
                       stroke={strokeColor}
                       strokeWidth={2}
                     />
@@ -2191,6 +2269,7 @@ export default function DiagramCanvas({
                     />
                   </>
                 );
+                return { shape, clip, outline };
               }
               case "cylinder": {
                 const rx = halfWidth;
@@ -2201,22 +2280,15 @@ export default function DiagramCanvas({
                 const bottomCenter = bottom - ry;
                 const bodyPath = `M ${-halfWidth},${topCenter} A ${rx},${ry} 0 0 1 ${halfWidth},${topCenter} L ${halfWidth},${bottomCenter} A ${rx},${ry} 0 0 1 ${-halfWidth},${bottomCenter} Z`;
                 const topPath = `M ${-halfWidth},${topCenter} A ${rx},${ry} 0 0 1 ${halfWidth},${topCenter}`;
-                return (
+                const shape = <path d={bodyPath} fill={fillColor} />;
+                const clip = <path d={bodyPath} />;
+                const outline = (
                   <>
-                    <path
-                      d={bodyPath}
-                      fill={fillColor}
-                      stroke={strokeColor}
-                      strokeWidth={2}
-                    />
-                    <path
-                      d={topPath}
-                      fill="none"
-                      stroke={strokeColor}
-                      strokeWidth={2}
-                    />
+                    <path d={bodyPath} fill="none" stroke={strokeColor} strokeWidth={2} />
+                    <path d={topPath} fill="none" stroke={strokeColor} strokeWidth={2} />
                   </>
                 );
+                return { shape, clip, outline };
               }
               case "hexagon": {
                 const offset = NODE_WIDTH * 0.25;
@@ -2228,14 +2300,17 @@ export default function DiagramCanvas({
                   [-halfWidth + offset, halfHeight],
                   [-halfWidth, 0],
                 ]);
-                return (
+                const shape = <polygon points={points} fill={fillColor} />;
+                const clip = <polygon points={points} />;
+                const outline = (
                   <polygon
                     points={points}
-                    fill={fillColor}
+                    fill="none"
                     stroke={strokeColor}
                     strokeWidth={2}
                   />
                 );
+                return { shape, clip, outline };
               }
               case "parallelogram": {
                 const skew = NODE_HEIGHT * 0.35;
@@ -2245,14 +2320,17 @@ export default function DiagramCanvas({
                   [halfWidth - skew, halfHeight],
                   [-halfWidth, halfHeight],
                 ]);
-                return (
+                const shape = <polygon points={points} fill={fillColor} />;
+                const clip = <polygon points={points} />;
+                const outline = (
                   <polygon
                     points={points}
-                    fill={fillColor}
+                    fill="none"
                     stroke={strokeColor}
                     strokeWidth={2}
                   />
                 );
+                return { shape, clip, outline };
               }
               case "parallelogram-alt": {
                 const skew = NODE_HEIGHT * 0.35;
@@ -2262,14 +2340,17 @@ export default function DiagramCanvas({
                   [halfWidth, halfHeight],
                   [-halfWidth + skew, halfHeight],
                 ]);
-                return (
+                const shape = <polygon points={points} fill={fillColor} />;
+                const clip = <polygon points={points} />;
+                const outline = (
                   <polygon
                     points={points}
-                    fill={fillColor}
+                    fill="none"
                     stroke={strokeColor}
                     strokeWidth={2}
                   />
                 );
+                return { shape, clip, outline };
               }
               case "trapezoid": {
                 const topInset = NODE_WIDTH * 0.22;
@@ -2280,14 +2361,17 @@ export default function DiagramCanvas({
                   [halfWidth - bottomInset, halfHeight],
                   [-halfWidth + bottomInset, halfHeight],
                 ]);
-                return (
+                const shape = <polygon points={points} fill={fillColor} />;
+                const clip = <polygon points={points} />;
+                const outline = (
                   <polygon
                     points={points}
-                    fill={fillColor}
+                    fill="none"
                     stroke={strokeColor}
                     strokeWidth={2}
                   />
                 );
+                return { shape, clip, outline };
               }
               case "trapezoid-alt": {
                 const topInset = NODE_WIDTH * 0.08;
@@ -2298,14 +2382,17 @@ export default function DiagramCanvas({
                   [halfWidth - bottomInset, halfHeight],
                   [-halfWidth + bottomInset, halfHeight],
                 ]);
-                return (
+                const shape = <polygon points={points} fill={fillColor} />;
+                const clip = <polygon points={points} />;
+                const outline = (
                   <polygon
                     points={points}
-                    fill={fillColor}
+                    fill="none"
                     stroke={strokeColor}
                     strokeWidth={2}
                   />
                 );
+                return { shape, clip, outline };
               }
               case "asymmetric": {
                 const skew = NODE_HEIGHT * 0.45;
@@ -2316,17 +2403,22 @@ export default function DiagramCanvas({
                   [halfWidth - skew, halfHeight],
                   [-halfWidth, halfHeight],
                 ]);
-                return (
+                const shape = (
+                  <polygon points={points} fill={fillColor} stroke={strokeColor} strokeWidth={2} />
+                );
+                const clip = <polygon points={points} />;
+                const outline = (
                   <polygon
                     points={points}
-                    fill={fillColor}
+                    fill="none"
                     stroke={strokeColor}
                     strokeWidth={2}
                   />
                 );
+                return { shape, clip, outline };
               }
-              default:
-                return (
+              default: {
+                const shape = (
                   <rect
                     x={-halfWidth}
                     y={-halfHeight}
@@ -2335,12 +2427,34 @@ export default function DiagramCanvas({
                     rx={8}
                     ry={8}
                     fill={fillColor}
+                  />
+                );
+                const clip = (
+                  <rect x={-halfWidth} y={-halfHeight} width={NODE_WIDTH} height={NODE_HEIGHT} rx={8} ry={8} />
+                );
+                const outline = (
+                  <rect
+                    x={-halfWidth}
+                    y={-halfHeight}
+                    width={NODE_WIDTH}
+                    height={NODE_HEIGHT}
+                    rx={8}
+                    ry={8}
+                    fill="none"
                     stroke={strokeColor}
                     strokeWidth={2}
                   />
                 );
+                return { shape, clip, outline };
+              }
             }
           })();
+
+          const shapeElement = shapeComponents.shape;
+          const clipShapeElement = shapeComponents.clip ?? (
+            <rect x={-halfWidth} y={-halfHeight} width={NODE_WIDTH} height={NODE_HEIGHT} rx={8} ry={8} />
+          );
+          const outlineElement = shapeComponents.outline ?? null;
 
           return (
             <g
@@ -2356,7 +2470,24 @@ export default function DiagramCanvas({
               }
               onDoubleClick={() => handleNodeDoubleClick(id)}
             >
+              {imageData ? (
+                <defs>
+                  <clipPath id={clipId}>{clipShapeElement}</clipPath>
+                </defs>
+              ) : null}
               {shapeElement}
+              {imageData ? (
+                <image
+                  x={-halfWidth}
+                  y={-halfHeight}
+                  width={NODE_WIDTH}
+                  height={NODE_HEIGHT}
+                  href={`data:${imageData.mimeType};base64,${imageData.data}`}
+                  clipPath={`url(#${clipId})`}
+                  preserveAspectRatio="xMidYMid slice"
+                />
+              ) : null}
+              {outlineElement}
               <text textAnchor="middle" dominantBaseline="middle">
                 {node.label}
               </text>

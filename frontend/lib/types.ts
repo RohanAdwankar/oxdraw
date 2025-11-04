@@ -36,6 +36,12 @@ export interface NodeData {
   strokeColor?: string;
   textColor?: string;
   membership?: string[];
+  image?: NodeImageData;
+}
+
+export interface NodeImageData {
+  mimeType: string;
+  data: string;
 }
 
 export interface EdgeData {
