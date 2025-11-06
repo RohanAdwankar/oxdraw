@@ -410,7 +410,7 @@ export default function Home() {
         setSaving(false);
       }
     },
-    [selectedNode, saving, loadDiagram, updateNodeImage, imagePaddingValue]
+  [selectedNode, saving, loadDiagram, imagePaddingValue]
   );
 
   const handleNodeImageRemove = useCallback(async () => {
@@ -427,7 +427,7 @@ export default function Home() {
     } finally {
       setSaving(false);
     }
-  }, [selectedNode, saving, loadDiagram, updateNodeImage]);
+  }, [selectedNode, saving, loadDiagram]);
 
   const handleNodeImagePaddingChange = useCallback((value: string) => {
     setImagePaddingValue(value);
@@ -463,7 +463,7 @@ export default function Home() {
     } finally {
       setSaving(false);
     }
-  }, [selectedNode, saving, imagePaddingValue, updateNodeImage, loadDiagram]);
+  }, [selectedNode, saving, imagePaddingValue, loadDiagram]);
 
   const handleNodeImagePaddingBlur = useCallback(() => {
     if (!selectedNode?.image) {

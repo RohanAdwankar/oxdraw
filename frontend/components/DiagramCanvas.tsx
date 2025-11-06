@@ -2486,9 +2486,7 @@ export default function DiagramCanvas({
                   [halfWidth - skew, halfHeight],
                   [-halfWidth, halfHeight],
                 ]);
-                const shape = (
-                  <polygon points={points} fill={fillColor} stroke={strokeColor} strokeWidth={2} />
-                );
+                const shape = <polygon points={points} fill={fillColor} />;
                 const clip = <polygon points={points} />;
                 const outline = (
                   <polygon

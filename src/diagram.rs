@@ -2172,7 +2172,7 @@ impl NodeShape {
                 )
             }
             NodeShape::Hexagon => {
-                let offset = NODE_WIDTH * 0.25;
+                let offset = width * 0.25;
                 let points = format_points(&[
                     (position.x - half_w + offset, position.y - half_h),
                     (position.x + half_w - offset, position.y - half_h),
