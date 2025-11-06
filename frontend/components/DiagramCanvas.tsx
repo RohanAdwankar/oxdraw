@@ -2128,8 +2128,13 @@ export default function DiagramCanvas({
 
           const defaultFill = SHAPE_COLORS[node.shape] ?? "#ffffff";
           const baseFillColor = node.fillColor ?? defaultFill;
-          const labelFillColor = node.labelFillColor ?? baseFillColor;
-          const imageFillColor = node.imageFillColor ?? baseFillColor;
+          const hasImage = Boolean(node.image);
+          const imageFillColor = hasImage
+            ? node.imageFillColor ?? "#ffffff"
+            : baseFillColor;
+          const labelFillColor = hasImage
+            ? node.labelFillColor ?? baseFillColor
+            : baseFillColor;
           const fillColor = imageFillColor;
           const strokeColor = node.strokeColor ?? DEFAULT_NODE_STROKE;
           const textColor = node.textColor ?? DEFAULT_NODE_TEXT;

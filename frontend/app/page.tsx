@@ -880,14 +880,20 @@ export default function Home() {
     if (!selectedNode) {
       return nodeFillValue;
     }
-    return resolveColor(selectedNode.labelFillColor, nodeFillValue);
+    const fallback = selectedNode.image
+      ? resolveColor(selectedNode.fillColor, DEFAULT_NODE_COLORS[selectedNode.shape])
+      : nodeFillValue;
+    return resolveColor(selectedNode.labelFillColor, fallback);
   }, [selectedNode, nodeFillValue]);
 
   const nodeImageFillValue = useMemo(() => {
     if (!selectedNode) {
       return nodeFillValue;
     }
-    return resolveColor(selectedNode.imageFillColor, nodeFillValue);
+    if (!selectedNode.image) {
+      return nodeFillValue;
+    }
+    return resolveColor(selectedNode.imageFillColor, "#ffffff");
   }, [selectedNode, nodeFillValue]);
 
   const edgeColorValue = useMemo(() => {
@@ -972,15 +978,17 @@ export default function Home() {
                     </span>
                   </header>
                   <div className="style-controls" aria-disabled={nodeControlsDisabled}>
-                    <label className="style-control">
-                      <span>Fill</span>
-                      <input
-                        type="color"
-                        value={nodeFillValue}
-                        onChange={(event) => handleNodeFillChange(event.target.value)}
-                        disabled={nodeControlsDisabled}
-                      />
-                    </label>
+                    {!selectedNode?.image ? (
+                      <label className="style-control">
+                        <span>Fill</span>
+                        <input
+                          type="color"
+                          value={nodeFillValue}
+                          onChange={(event) => handleNodeFillChange(event.target.value)}
+                          disabled={nodeControlsDisabled}
+                        />
+                      </label>
+                    ) : null}
                     <label className="style-control">
                       <span>Stroke</span>
                       <input

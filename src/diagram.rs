@@ -432,12 +432,26 @@ impl Diagram {
                 }
             }
 
-            let label_fill_color = label_fill_override
-                .clone()
-                .unwrap_or_else(|| fill_color.clone());
-            let image_fill_color = image_fill_override
-                .clone()
-                .unwrap_or_else(|| fill_color.clone());
+            let base_fill_color = fill_color.clone();
+            let has_image = node.image.is_some();
+            let image_fill_color = if has_image {
+                image_fill_override
+                    .clone()
+                    .unwrap_or_else(|| "#ffffff".to_string())
+            } else {
+                image_fill_override
+                    .clone()
+                    .unwrap_or_else(|| base_fill_color.clone())
+            };
+            let label_fill_color = if has_image {
+                label_fill_override
+                    .clone()
+                    .unwrap_or_else(|| base_fill_color.clone())
+            } else {
+                label_fill_override
+                    .clone()
+                    .unwrap_or_else(|| image_fill_color.clone())
+            };
 
             node.shape.render_svg_shape(
                 &mut svg,
