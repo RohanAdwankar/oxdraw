@@ -409,6 +409,8 @@ impl Diagram {
             let mut fill_color = node.shape.default_fill_color().to_string();
             let mut stroke_color = "#2d3748".to_string();
             let mut text_color = "#1a202c".to_string();
+            let mut label_fill_override: Option<String> = None;
+            let mut image_fill_override: Option<String> = None;
 
             if let Some(overrides) = overrides {
                 if let Some(style) = overrides.node_styles.get(id) {
@@ -421,15 +423,28 @@ impl Diagram {
                     if let Some(text) = &style.text {
                         text_color = text.clone();
                     }
+                    if let Some(label_fill) = &style.label_fill {
+                        label_fill_override = Some(label_fill.clone());
+                    }
+                    if let Some(image_fill) = &style.image_fill {
+                        image_fill_override = Some(image_fill.clone());
+                    }
                 }
             }
+
+            let label_fill_color = label_fill_override
+                .clone()
+                .unwrap_or_else(|| fill_color.clone());
+            let image_fill_color = image_fill_override
+                .clone()
+                .unwrap_or_else(|| fill_color.clone());
 
             node.shape.render_svg_shape(
                 &mut svg,
                 position,
                 node.width,
                 node.height,
-                &fill_color,
+                &image_fill_color,
                 &stroke_color,
             )?;
 
@@ -445,6 +460,20 @@ impl Diagram {
                 let available_width = (node.width - padding * 2.0).max(0.0);
 
                 let clip_id = svg_safe_id("oxdraw-node-clip-", id);
+                if label_area_height > 0.0 {
+                    let label_top = position.y - node.height / 2.0;
+                    let label_left = position.x - node.width / 2.0;
+                    write!(
+                        svg,
+                        "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"{}\" clip-path=\"url(#{})\" />\n",
+                        label_left,
+                        label_top,
+                        node.width,
+                        label_area_height,
+                        escape_xml(&label_fill_color),
+                        clip_id
+                    )?;
+                }
                 let encoded = BASE64_STANDARD.encode(&image.data);
                 let data_uri = format!("data:{};base64,{}", image.mime_type, encoded);
                 if available_height > 0.5 {

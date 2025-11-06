@@ -294,6 +294,50 @@ export default function Home() {
     [selectedNode, submitStyleUpdate]
   );
 
+  const handleNodeLabelFillChange = useCallback(
+    (value: string) => {
+      if (!selectedNode || !selectedNode.image) {
+        return;
+      }
+      const normalized = normalizeColorInput(value);
+      const baseFill = resolveColor(selectedNode.fillColor, DEFAULT_NODE_COLORS[selectedNode.shape]);
+      const currentLabel = resolveColor(selectedNode.labelFillColor, baseFill);
+      if (currentLabel === normalized) {
+        return;
+      }
+      void submitStyleUpdate({
+        nodeStyles: {
+          [selectedNode.id]: {
+            labelFill: normalized,
+          },
+        },
+      });
+    },
+    [selectedNode, submitStyleUpdate]
+  );
+
+  const handleNodeImageFillChange = useCallback(
+    (value: string) => {
+      if (!selectedNode || !selectedNode.image) {
+        return;
+      }
+      const normalized = normalizeColorInput(value);
+      const baseFill = resolveColor(selectedNode.fillColor, DEFAULT_NODE_COLORS[selectedNode.shape]);
+      const currentImage = resolveColor(selectedNode.imageFillColor, baseFill);
+      if (currentImage === normalized) {
+        return;
+      }
+      void submitStyleUpdate({
+        nodeStyles: {
+          [selectedNode.id]: {
+            imageFill: normalized,
+          },
+        },
+      });
+    },
+    [selectedNode, submitStyleUpdate]
+  );
+
   const handleNodeImageFileChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
       if (!selectedNode || saving) {
@@ -832,6 +876,20 @@ export default function Home() {
     return resolveColor(selectedNode.textColor, DEFAULT_NODE_TEXT);
   }, [selectedNode]);
 
+  const nodeLabelFillValue = useMemo(() => {
+    if (!selectedNode) {
+      return nodeFillValue;
+    }
+    return resolveColor(selectedNode.labelFillColor, nodeFillValue);
+  }, [selectedNode, nodeFillValue]);
+
+  const nodeImageFillValue = useMemo(() => {
+    if (!selectedNode) {
+      return nodeFillValue;
+    }
+    return resolveColor(selectedNode.imageFillColor, nodeFillValue);
+  }, [selectedNode, nodeFillValue]);
+
   const edgeColorValue = useMemo(() => {
     if (!selectedEdge) {
       return DEFAULT_EDGE_COLOR.toLowerCase();
@@ -978,6 +1036,28 @@ export default function Home() {
                           : "No image attached"}
                       </span>
                     </div>
+                    {selectedNode?.image ? (
+                      <>
+                        <label className="style-control">
+                          <span>Title background</span>
+                          <input
+                            type="color"
+                            value={nodeLabelFillValue}
+                            onChange={(event) => handleNodeLabelFillChange(event.target.value)}
+                            disabled={nodeControlsDisabled}
+                          />
+                        </label>
+                        <label className="style-control">
+                          <span>Image background</span>
+                          <input
+                            type="color"
+                            value={nodeImageFillValue}
+                            onChange={(event) => handleNodeImageFillChange(event.target.value)}
+                            disabled={nodeControlsDisabled}
+                          />
+                        </label>
+                      </>
+                    ) : null}
                     <label className="style-control">
                       <span>Image padding (px)</span>
                       <input

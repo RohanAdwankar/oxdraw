@@ -82,6 +82,10 @@ struct NodePayload {
     stroke_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     text_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    label_fill_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_fill_color: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     membership: Vec<String>,
     width: f32,
@@ -229,6 +233,12 @@ impl ServeState {
                         }
                         if let Some(text) = patch.text {
                             current.text = text;
+                        }
+                        if let Some(label_fill) = patch.label_fill {
+                            current.label_fill = label_fill;
+                        }
+                        if let Some(image_fill) = patch.image_fill {
+                            current.image_fill = image_fill;
                         }
 
                         if current.is_empty() {
@@ -536,9 +546,11 @@ async fn get_diagram(
             .ok_or_else(|| internal_error(anyhow!("final layout missing node '{id}'")))?;
         let override_position = overrides.nodes.get(id).copied();
         let style = overrides.node_styles.get(id);
-        let fill_color = style.and_then(|s| s.fill.clone());
-        let stroke_color = style.and_then(|s| s.stroke.clone());
-        let text_color = style.and_then(|s| s.text.clone());
+    let fill_color = style.and_then(|s| s.fill.clone());
+    let stroke_color = style.and_then(|s| s.stroke.clone());
+    let text_color = style.and_then(|s| s.text.clone());
+    let label_fill_color = style.and_then(|s| s.label_fill.clone());
+    let image_fill_color = style.and_then(|s| s.image_fill.clone());
         let image_payload = node.image.as_ref().map(|image| NodeImagePayload {
             mime_type: image.mime_type.clone(),
             data: BASE64_STANDARD.encode(&image.data),
@@ -556,6 +568,8 @@ async fn get_diagram(
             fill_color,
             stroke_color,
             text_color,
+            label_fill_color,
+            image_fill_color,
             membership: diagram.node_membership.get(id).cloned().unwrap_or_default(),
             width: node.width,
             height: node.height,

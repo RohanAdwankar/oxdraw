@@ -114,6 +114,12 @@ function normalizeNodeStyle(
   if (style.text !== undefined) {
     patch.text = style.text;
   }
+  if (style.labelFill !== undefined) {
+    patch["label_fill"] = style.labelFill;
+  }
+  if (style.imageFill !== undefined) {
+    patch["image_fill"] = style.imageFill;
+  }
 
   return Object.keys(patch).length > 0 ? patch : undefined;
 }

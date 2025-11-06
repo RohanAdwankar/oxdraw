@@ -2127,7 +2127,10 @@ export default function DiagramCanvas({
           }
 
           const defaultFill = SHAPE_COLORS[node.shape] ?? "#ffffff";
-          const fillColor = node.fillColor ?? defaultFill;
+          const baseFillColor = node.fillColor ?? defaultFill;
+          const labelFillColor = node.labelFillColor ?? baseFillColor;
+          const imageFillColor = node.imageFillColor ?? baseFillColor;
+          const fillColor = imageFillColor;
           const strokeColor = node.strokeColor ?? DEFAULT_NODE_STROKE;
           const textColor = node.textColor ?? DEFAULT_NODE_TEXT;
           const nodeStyle = {
@@ -2621,6 +2624,16 @@ export default function DiagramCanvas({
                 </defs>
               ) : null}
               {shapeElement}
+              {imageData && labelAreaHeight > 0 ? (
+                <rect
+                  x={-halfWidth}
+                  y={-halfHeight}
+                  width={nodeWidth}
+                  height={labelAreaHeight}
+                  fill={labelFillColor}
+                  clipPath={`url(#${clipId})`}
+                />
+              ) : null}
               {imageData && imageHeight > 0.5 && imageWidth > 0.5 ? (
                 <image
                   x={-halfWidth + imagePadding}

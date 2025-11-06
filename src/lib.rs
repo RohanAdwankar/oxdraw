@@ -61,6 +61,10 @@ pub struct NodeStyleOverride {
     pub stroke: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label_fill: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_fill: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -193,11 +197,19 @@ pub struct NodeStylePatch {
     pub stroke: Option<Option<String>>,
     #[serde(default)]
     pub text: Option<Option<String>>,
+    #[serde(default)]
+    pub label_fill: Option<Option<String>>,
+    #[serde(default)]
+    pub image_fill: Option<Option<String>>,
 }
 
 impl NodeStyleOverride {
     pub fn is_empty(&self) -> bool {
-        self.fill.is_none() && self.stroke.is_none() && self.text.is_none()
+        self.fill.is_none()
+            && self.stroke.is_none()
+            && self.text.is_none()
+            && self.label_fill.is_none()
+            && self.image_fill.is_none()
     }
 }
 
