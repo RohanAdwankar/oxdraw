@@ -1,6 +1,14 @@
 'use client';
 
-import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import DiagramCanvas from "../components/DiagramCanvas";
 import {
   deleteEdge,
@@ -65,6 +73,27 @@ const ARROW_DIRECTION_OPTIONS: Array<{ value: EdgeArrowDirection; label: string 
 
 const HEX_COLOR_RE = /^#([0-9a-f]{6})$/i;
 
+const PADDING_PRECISION = 1000;
+const PADDING_EPSILON = 0.001;
+
+const formatPaddingValue = (value: number): string => {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+  const rounded = Math.round(value * PADDING_PRECISION) / PADDING_PRECISION;
+  const fixed = rounded.toFixed(3);
+  const trimmed = fixed.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+  return trimmed;
+};
+
+const normalizePadding = (value: number): number => {
+  if (!Number.isFinite(value) || Number.isNaN(value) || value < 0) {
+    return 0;
+  }
+  const clamped = Math.max(0, value);
+  return Math.round(clamped * PADDING_PRECISION) / PADDING_PRECISION;
+};
+
 const resolveColor = (value: string | null | undefined, fallback: string): string => {
   const base = value ?? fallback;
   if (HEX_COLOR_RE.test(base)) {
@@ -89,6 +118,7 @@ export default function Home() {
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [imagePaddingValue, setImagePaddingValue] = useState<string>("");
   const [dragging, setDragging] = useState(false);
   const saveTimer = useRef<number | null>(null);
   const lastSubmittedSource = useRef<string | null>(null);
@@ -107,6 +137,14 @@ export default function Home() {
     }
     return diagram.edges.find((edge) => edge.id === selectedEdgeId) ?? null;
   }, [diagram, selectedEdgeId]);
+
+  useEffect(() => {
+    if (selectedNode?.image) {
+      setImagePaddingValue(formatPaddingValue(selectedNode.image.padding));
+    } else {
+      setImagePaddingValue("");
+    }
+  }, [selectedNode?.id, selectedNode?.image?.padding]);
 
   const loadDiagram = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -310,10 +348,17 @@ export default function Home() {
       try {
         setSaving(true);
         setError(null);
+        const fallbackPadding = selectedNode.image ? selectedNode.image.padding : 0;
+        const parsedPadding = Number.parseFloat(imagePaddingValue);
+        const nextPadding = Number.isFinite(parsedPadding)
+          ? normalizePadding(Math.max(0, parsedPadding))
+          : normalizePadding(fallbackPadding);
         await updateNodeImage(selectedNode.id, {
           mimeType: effectiveType,
           data: base64,
+          padding: nextPadding,
         });
+        setImagePaddingValue(formatPaddingValue(nextPadding));
         await loadDiagram({ silent: true });
       } catch (err) {
         setError((err as Error).message);
@@ -321,7 +366,7 @@ export default function Home() {
         setSaving(false);
       }
     },
-    [selectedNode, saving, loadDiagram, updateNodeImage]
+    [selectedNode, saving, loadDiagram, updateNodeImage, imagePaddingValue]
   );
 
   const handleNodeImageRemove = useCallback(async () => {
@@ -339,6 +384,68 @@ export default function Home() {
       setSaving(false);
     }
   }, [selectedNode, saving, loadDiagram, updateNodeImage]);
+
+  const handleNodeImagePaddingChange = useCallback((value: string) => {
+    setImagePaddingValue(value);
+  }, []);
+
+  const commitNodeImagePadding = useCallback(async () => {
+    if (!selectedNode || !selectedNode.image || saving) {
+      return;
+    }
+
+    const parsed = Number.parseFloat(imagePaddingValue);
+    if (!Number.isFinite(parsed)) {
+      setImagePaddingValue(formatPaddingValue(selectedNode.image.padding));
+      return;
+    }
+
+    const normalized = normalizePadding(Math.max(0, parsed));
+    const current = normalizePadding(selectedNode.image.padding);
+    if (Math.abs(normalized - current) < PADDING_EPSILON) {
+      setImagePaddingValue(formatPaddingValue(current));
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+      await updateNodeImage(selectedNode.id, { padding: normalized });
+      setImagePaddingValue(formatPaddingValue(normalized));
+      await loadDiagram({ silent: true });
+    } catch (err) {
+      setError((err as Error).message);
+      setImagePaddingValue(formatPaddingValue(current));
+    } finally {
+      setSaving(false);
+    }
+  }, [selectedNode, saving, imagePaddingValue, updateNodeImage, loadDiagram]);
+
+  const handleNodeImagePaddingBlur = useCallback(() => {
+    if (!selectedNode?.image) {
+      setImagePaddingValue("");
+      return;
+    }
+    void commitNodeImagePadding();
+  }, [commitNodeImagePadding, selectedNode]);
+
+  const handleNodeImagePaddingKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void commitNodeImagePadding();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        if (selectedNode?.image) {
+          setImagePaddingValue(formatPaddingValue(selectedNode.image.padding));
+        } else {
+          setImagePaddingValue("");
+        }
+        event.currentTarget.blur();
+      }
+    },
+    [commitNodeImagePadding, selectedNode]
+  );
 
   const handleNodeStyleReset = useCallback(() => {
     if (!selectedNode) {
@@ -865,10 +972,26 @@ export default function Home() {
                         }
                       >
                         {selectedNode?.image
-                          ? `${selectedNode.image.width}x${selectedNode.image.height}px`
+                          ? `${selectedNode.image.width}x${selectedNode.image.height}px (padding ${formatPaddingValue(
+                              selectedNode.image.padding
+                            )}px)`
                           : "No image attached"}
                       </span>
                     </div>
+                    <label className="style-control">
+                      <span>Image padding (px)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        inputMode="decimal"
+                        value={imagePaddingValue}
+                        onChange={(event) => handleNodeImagePaddingChange(event.target.value)}
+                        onBlur={handleNodeImagePaddingBlur}
+                        onKeyDown={(event) => handleNodeImagePaddingKeyDown(event)}
+                        disabled={nodeControlsDisabled || !selectedNode?.image}
+                      />
+                    </label>
                   </div>
                   <button
                     type="button"

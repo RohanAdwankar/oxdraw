@@ -97,6 +97,7 @@ struct NodeImagePayload {
     data: String,
     width: u32,
     height: u32,
+    padding: f32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -161,6 +162,8 @@ struct NodeImageUpdateRequest {
     mime_type: Option<String>,
     #[serde(default)]
     data: Option<String>,
+    #[serde(default)]
+    padding: Option<f32>,
 }
 
 impl ServeState {
@@ -409,6 +412,29 @@ impl ServeState {
             .with_context(|| format!("failed to write '{}'", self.source_path.display()))?;
         Ok(())
     }
+
+    async fn update_node_image_padding(&self, node_id: &str, padding: f32) -> Result<()> {
+        let overrides_snapshot = self.overrides.read().await.clone();
+        let _guard = self.source_lock.lock().await;
+        let contents = tokio::fs::read_to_string(&self.source_path)
+            .await
+            .with_context(|| format!("failed to read '{}'", self.source_path.display()))?;
+        let (definition, _) = split_source_and_overrides(&contents)?;
+        let mut diagram = Diagram::parse(&definition)?;
+        let Some(node) = diagram.nodes.get_mut(node_id) else {
+            bail!("node '{node_id}' not found");
+        };
+        let Some(image) = node.image.as_mut() else {
+            bail!("node '{node_id}' does not have an image to update");
+        };
+        image.padding = padding;
+        let rewritten = diagram.to_definition();
+        let merged = merge_source_and_overrides(&rewritten, &overrides_snapshot)?;
+        tokio::fs::write(&self.source_path, merged.as_bytes())
+            .await
+            .with_context(|| format!("failed to write '{}'", self.source_path.display()))?;
+        Ok(())
+    }
 }
 
 pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> {
@@ -518,6 +544,7 @@ async fn get_diagram(
             data: BASE64_STANDARD.encode(&image.data),
             width: image.width,
             height: image.height,
+            padding: image.padding.max(0.0),
         });
         nodes.push(NodePayload {
             id: id.clone(),
@@ -708,16 +735,36 @@ async fn put_node_image(
     AxumPath(node_id): AxumPath<String>,
     Json(payload): Json<NodeImageUpdateRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    if payload.data.is_none() {
-        state
-            .set_node_image(&node_id, None)
-            .await
-            .map_err(internal_error)?;
+    let NodeImageUpdateRequest {
+        mime_type,
+        data,
+        padding,
+    } = payload;
+
+    let sanitized_padding = padding.map(|value| {
+        if value.is_nan() || !value.is_finite() || value < 0.0 {
+            0.0
+        } else {
+            value
+        }
+    });
+
+    if data.is_none() && mime_type.is_none() {
+        if let Some(padding_value) = sanitized_padding {
+            state
+                .update_node_image_padding(&node_id, padding_value)
+                .await
+                .map_err(internal_error)?;
+        } else {
+            state
+                .set_node_image(&node_id, None)
+                .await
+                .map_err(internal_error)?;
+        }
         return Ok(StatusCode::NO_CONTENT);
     }
 
-    let mime_type = payload
-        .mime_type
+    let mime_type = mime_type
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -729,8 +776,7 @@ async fn put_node_image(
         })?
         .to_string();
 
-    let data_str = payload
-        .data
+    let data_str = data
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -760,6 +806,7 @@ async fn put_node_image(
         data,
         width,
         height,
+        padding: sanitized_padding.unwrap_or(0.0),
     };
 
     state

@@ -172,11 +172,27 @@ export async function deleteEdge(edgeId: string): Promise<void> {
 
 export async function updateNodeImage(
   nodeId: string,
-  payload: { mimeType: string; data: string } | null
+  payload: ({ mimeType?: string; data?: string | null; padding?: number } | null)
 ): Promise<void> {
-  const body = payload
-    ? { mime_type: payload.mimeType, data: payload.data }
-    : { data: null };
+  let body: Record<string, unknown>;
+
+  if (payload === null) {
+    body = { data: null };
+  } else {
+    body = {};
+    if (payload.mimeType !== undefined) {
+      body.mime_type = payload.mimeType;
+    }
+    if (payload.data !== undefined) {
+      body.data = payload.data;
+    }
+    if (payload.padding !== undefined) {
+      body.padding = payload.padding;
+    }
+    if (Object.keys(body).length === 0) {
+      return;
+    }
+  }
 
   const response = await fetch(
     `${API_BASE}/api/diagram/nodes/${encodeURIComponent(nodeId)}/image`,

@@ -2142,6 +2142,9 @@ export default function DiagramCanvas({
           const halfHeight = nodeHeight / 2;
 
           const imageData = node.image ?? null;
+          const imagePadding = imageData
+            ? Math.max(0, Number.isFinite(imageData.padding) ? imageData.padding : 0)
+            : 0;
           const clipId = svgSafeId("node-clip-", id);
           const labelLines = normalizeLabelLines(node.label);
           const hasLabel = labelLines.length > 0;
@@ -2149,7 +2152,8 @@ export default function DiagramCanvas({
           const labelAreaHeight = imageData
             ? Math.max(NODE_LABEL_HEIGHT, labelLineCount * NODE_TEXT_LINE_HEIGHT)
             : 0;
-          const imageHeight = Math.max(0, nodeHeight - labelAreaHeight);
+          const imageHeight = Math.max(0, nodeHeight - labelAreaHeight - imagePadding * 2);
+          const imageWidth = Math.max(0, nodeWidth - imagePadding * 2);
 
           const shapeComponents = (() => {
             switch (node.shape) {
@@ -2617,11 +2621,11 @@ export default function DiagramCanvas({
                 </defs>
               ) : null}
               {shapeElement}
-              {imageData && imageHeight > 0.5 ? (
+              {imageData && imageHeight > 0.5 && imageWidth > 0.5 ? (
                 <image
-                  x={-halfWidth}
-                  y={-halfHeight + labelAreaHeight}
-                  width={nodeWidth}
+                  x={-halfWidth + imagePadding}
+                  y={-halfHeight + labelAreaHeight + imagePadding}
+                  width={imageWidth}
                   height={imageHeight}
                   href={`data:${imageData.mimeType};base64,${imageData.data}`}
                   clipPath={`url(#${clipId})`}

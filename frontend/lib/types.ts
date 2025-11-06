@@ -46,6 +46,7 @@ export interface NodeImageData {
   data: string;
   width: number;
   height: number;
+  padding: number;
 }
 
 export interface EdgeData {

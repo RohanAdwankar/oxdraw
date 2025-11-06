@@ -440,19 +440,23 @@ impl Diagram {
                 let label_line_count = lines.len().max(1);
                 label_area_height =
                     NODE_LABEL_HEIGHT.max(label_line_count as f32 * NODE_TEXT_LINE_HEIGHT);
-                let available_height = (node.height - label_area_height).max(0.0);
+                let padding = image.padding.max(0.0);
+                let available_height = (node.height - label_area_height - padding * 2.0).max(0.0);
+                let available_width = (node.width - padding * 2.0).max(0.0);
 
                 let clip_id = svg_safe_id("oxdraw-node-clip-", id);
                 let encoded = BASE64_STANDARD.encode(&image.data);
                 let data_uri = format!("data:{};base64,{}", image.mime_type, encoded);
                 if available_height > 0.5 {
-                    let image_top = position.y - node.height / 2.0 + label_area_height;
+                    let image_top =
+                        position.y - node.height / 2.0 + label_area_height + padding;
+                    let image_left = position.x - node.width / 2.0 + padding;
                     write!(
                         svg,
                         "  <image x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" href=\"{}\" xlink:href=\"{}\" clip-path=\"url(#{})\" preserveAspectRatio=\"xMidYMid slice\" />\n",
-                        position.x - node.width / 2.0,
+                        image_left,
                         image_top,
-                        node.width,
+                        available_width.max(0.5),
                         available_height,
                         data_uri,
                         data_uri,
@@ -1630,10 +1634,33 @@ impl Diagram {
 
     fn format_image_comment(id: &str, image: &NodeImage) -> String {
         let encoded = BASE64_STANDARD.encode(&image.data);
+        let sanitized_padding = if image.padding.is_finite() && image.padding >= 0.0 {
+            image.padding
+        } else {
+            0.0
+        };
+        let padding_str = Self::format_padding_value(sanitized_padding);
         format!(
-            "{} {} {} {}",
-            IMAGE_COMMENT_PREFIX, id, image.mime_type, encoded
+            "{} {} {} padding={} {}",
+            IMAGE_COMMENT_PREFIX, id, image.mime_type, padding_str, encoded
         )
+    }
+
+    fn format_padding_value(value: f32) -> String {
+        let mut formatted = format!("{value:.3}");
+        if let Some(dot_index) = formatted.find('.') {
+            while formatted.len() > dot_index && formatted.ends_with('0') {
+                formatted.pop();
+            }
+            if formatted.ends_with('.') {
+                formatted.pop();
+            }
+        }
+        if formatted.is_empty() {
+            "0".to_string()
+        } else {
+            formatted
+        }
     }
 
     fn format_edge_line(edge: &Edge) -> String {
@@ -3461,7 +3488,20 @@ fn parse_image_comment(line: &str) -> Result<Option<(String, NodeImage)>> {
         .next()
         .ok_or_else(|| anyhow!("image comment missing MIME type"))?;
 
-    let encoded_payload = parts.collect::<Vec<_>>().join("");
+    let mut padding = 0.0_f32;
+    let mut payload_tokens = Vec::new();
+    for token in parts {
+        if let Some(value) = token.strip_prefix("padding=") {
+            let parsed = value
+                .parse::<f32>()
+                .map_err(|err| anyhow!("invalid padding value '{value}' for node '{node_id}': {err}"))?;
+            padding = parsed.max(0.0);
+        } else {
+            payload_tokens.push(token);
+        }
+    }
+
+    let encoded_payload = payload_tokens.join("");
     if encoded_payload.is_empty() {
         bail!("image comment missing base64 payload");
     }
@@ -3479,6 +3519,7 @@ fn parse_image_comment(line: &str) -> Result<Option<(String, NodeImage)>> {
             data,
             width,
             height,
+            padding,
         },
     )))
 }
@@ -3490,7 +3531,14 @@ pub(crate) fn decode_image_dimensions(mime_type: &str, data: &[u8]) -> Result<(u
     }
 }
 
-fn apply_image_to_node(node: &mut Node, image: NodeImage) {
+fn apply_image_to_node(node: &mut Node, mut image: NodeImage) {
+    if image.padding.is_nan() || !image.padding.is_finite() {
+        image.padding = 0.0;
+    }
+    if image.padding < 0.0 {
+        image.padding = 0.0;
+    }
+
     let aspect = if image.width == 0 {
         1.0
     } else {
@@ -3500,8 +3548,9 @@ fn apply_image_to_node(node: &mut Node, image: NodeImage) {
     let label_lines = normalize_label_lines(&node.label);
     let label_line_count = label_lines.len().max(1);
     let label_height = NODE_LABEL_HEIGHT.max(label_line_count as f32 * NODE_TEXT_LINE_HEIGHT);
-    let image_height = (NODE_WIDTH * aspect).max(1.0);
-    let total_height = (label_height + image_height).max(label_height + 1.0);
+    let content_width = (NODE_WIDTH - image.padding * 2.0).max(1.0);
+    let image_height = (content_width * aspect).max(1.0);
+    let total_height = (label_height + image_height + image.padding * 2.0).max(label_height + 1.0);
 
     node.width = NODE_WIDTH;
     node.height = total_height;
