@@ -3584,7 +3584,7 @@ fn apply_image_to_node(node: &mut Node, mut image: NodeImage) {
     let aspect = if image.width == 0 {
         1.0
     } else {
-        image.height.max(1) as f32 / image.width as f32
+        image.height.max(1) as f32 / image.width.max(1) as f32
     };
 
     let label_lines = normalize_label_lines(&node.label);

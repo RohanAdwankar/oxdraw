@@ -284,6 +284,7 @@ export default function Home() {
   const saveTimer = useRef<number | null>(null);
   const lastSubmittedSource = useRef<string | null>(null);
   const nodeImageInputRef = useRef<HTMLInputElement | null>(null);
+  const imagePaddingValueRef = useRef(imagePaddingValue);
 
   const selectedNode = useMemo(() => {
     if (!diagram || !selectedNodeId) {
@@ -306,6 +307,10 @@ export default function Home() {
       setImagePaddingValue("");
     }
   }, [selectedNode?.id, selectedNode?.image?.padding]);
+
+  useEffect(() => {
+    imagePaddingValueRef.current = imagePaddingValue;
+  }, [imagePaddingValue]);
 
   const loadDiagram = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -552,7 +557,7 @@ export default function Home() {
         setSaving(true);
         setError(null);
         const fallbackPadding = selectedNode.image ? selectedNode.image.padding : 0;
-        const parsedPadding = Number.parseFloat(imagePaddingValue);
+  const parsedPadding = Number.parseFloat(imagePaddingValueRef.current);
         const nextPadding = Number.isFinite(parsedPadding)
           ? normalizePadding(Math.max(0, parsedPadding))
           : normalizePadding(fallbackPadding);
@@ -569,7 +574,7 @@ export default function Home() {
         setSaving(false);
       }
     },
-  [selectedNode, saving, loadDiagram, imagePaddingValue]
+  [selectedNode, saving, loadDiagram]
   );
 
   const handleNodeImageRemove = useCallback(async () => {
