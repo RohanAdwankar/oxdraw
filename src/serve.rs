@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow, bail};
-use axum::extract::{Path as AxumPath, State};
+use axum::extract::{DefaultBodyLimit, Path as AxumPath, State};
 use axum::http::StatusCode;
 use axum::http::{HeaderValue, header};
 use axum::response::IntoResponse;
@@ -23,6 +23,9 @@ use tower_http::services::{ServeDir, ServeFile};
 
 use crate::diagram::decode_image_dimensions;
 use crate::*;
+
+const MAX_IMAGE_BYTES: usize = 10 * 1024 * 1024;
+const MAX_IMAGE_REQUEST_BYTES: usize = (MAX_IMAGE_BYTES * 4) / 3 + 1 * 1024 * 1024;
 
 /// Arguments for running the oxdraw web server
 #[derive(Debug, Clone, Parser)]
@@ -468,6 +471,7 @@ pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> 
         .route("/api/diagram/nodes/:id/image", put(put_node_image))
         .route("/api/diagram/nodes/:id", delete(delete_node))
         .route("/api/diagram/edges/:id", delete(delete_edge))
+        .layer(DefaultBodyLimit::max(MAX_IMAGE_REQUEST_BYTES))
         .with_state(state);
 
     if let Some(root) = ui_root {
@@ -546,11 +550,11 @@ async fn get_diagram(
             .ok_or_else(|| internal_error(anyhow!("final layout missing node '{id}'")))?;
         let override_position = overrides.nodes.get(id).copied();
         let style = overrides.node_styles.get(id);
-    let fill_color = style.and_then(|s| s.fill.clone());
-    let stroke_color = style.and_then(|s| s.stroke.clone());
-    let text_color = style.and_then(|s| s.text.clone());
-    let label_fill_color = style.and_then(|s| s.label_fill.clone());
-    let image_fill_color = style.and_then(|s| s.image_fill.clone());
+        let fill_color = style.and_then(|s| s.fill.clone());
+        let stroke_color = style.and_then(|s| s.stroke.clone());
+        let text_color = style.and_then(|s| s.text.clone());
+        let label_fill_color = style.and_then(|s| s.label_fill.clone());
+        let image_fill_color = style.and_then(|s| s.image_fill.clone());
         let image_payload = node.image.as_ref().map(|image| NodeImagePayload {
             mime_type: image.mime_type.clone(),
             data: BASE64_STANDARD.encode(&image.data),
@@ -763,20 +767,27 @@ async fn put_node_image(
         }
     });
 
-    if data.is_none() && mime_type.is_none() {
-        if let Some(padding_value) = sanitized_padding {
-            state
-                .update_node_image_padding(&node_id, padding_value)
-                .await
-                .map_err(internal_error)?;
-        } else {
-            state
-                .set_node_image(&node_id, None)
-                .await
-                .map_err(internal_error)?;
+    let data_str = match data
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(value) => value,
+        None => {
+            if let Some(padding_value) = sanitized_padding {
+                state
+                    .update_node_image_padding(&node_id, padding_value)
+                    .await
+                    .map_err(internal_error)?;
+            } else {
+                state
+                    .set_node_image(&node_id, None)
+                    .await
+                    .map_err(internal_error)?;
+            }
+            return Ok(StatusCode::NO_CONTENT);
         }
-        return Ok(StatusCode::NO_CONTENT);
-    }
+    };
 
     let mime_type = mime_type
         .as_deref()
@@ -790,23 +801,19 @@ async fn put_node_image(
         })?
         .to_string();
 
-    let data_str = data
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "image payload cannot be empty".to_string(),
-            )
-        })?;
-
     let data = BASE64_STANDARD.decode(data_str.as_bytes()).map_err(|err| {
         (
             StatusCode::BAD_REQUEST,
             format!("invalid base64 payload: {err}"),
         )
     })?;
+
+    if data.len() > MAX_IMAGE_BYTES {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("image payload too large (max {} bytes)", MAX_IMAGE_BYTES),
+        ));
+    }
 
     let (width, height) = decode_image_dimensions(&mime_type, &data).map_err(|err| {
         (

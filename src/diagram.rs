@@ -491,8 +491,7 @@ impl Diagram {
                 let encoded = BASE64_STANDARD.encode(&image.data);
                 let data_uri = format!("data:{};base64,{}", image.mime_type, encoded);
                 if available_height > 0.5 {
-                    let image_top =
-                        position.y - node.height / 2.0 + label_area_height + padding;
+                    let image_top = position.y - node.height / 2.0 + label_area_height + padding;
                     let image_left = position.x - node.width / 2.0 + padding;
                     write!(
                         svg,
@@ -3535,9 +3534,9 @@ fn parse_image_comment(line: &str) -> Result<Option<(String, NodeImage)>> {
     let mut payload_tokens = Vec::new();
     for token in parts {
         if let Some(value) = token.strip_prefix("padding=") {
-            let parsed = value
-                .parse::<f32>()
-                .map_err(|err| anyhow!("invalid padding value '{value}' for node '{node_id}': {err}"))?;
+            let parsed = value.parse::<f32>().map_err(|err| {
+                anyhow!("invalid padding value '{value}' for node '{node_id}': {err}")
+            })?;
             padding = parsed.max(0.0);
         } else {
             payload_tokens.push(token);

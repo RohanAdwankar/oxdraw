@@ -75,6 +75,167 @@ const HEX_COLOR_RE = /^#([0-9a-f]{6})$/i;
 
 const PADDING_PRECISION = 1000;
 const PADDING_EPSILON = 0.001;
+const MAX_IMAGE_FILE_BYTES = 10 * 1024 * 1024;
+
+const formatByteSize = (bytes: number): string => {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  const decimals = unitIndex === 0 ? 0 : value < 10 ? 1 : 0;
+  return `${value.toFixed(decimals)} ${units[unitIndex]}`;
+};
+
+const blobToBase64 = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("Failed to encode image."));
+        return;
+      }
+      const commaIndex = result.indexOf(",");
+      if (commaIndex === -1) {
+        reject(new Error("Failed to encode image."));
+        return;
+      }
+      resolve(result.slice(commaIndex + 1));
+    };
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("Failed to encode image."));
+    };
+    reader.readAsDataURL(blob);
+  });
+
+const loadImageFromBlob = (blob: Blob): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Unable to read image file."));
+    };
+    image.src = url;
+  });
+
+const resizeImageToLimit = async (
+  image: HTMLImageElement,
+  sourceBlob: Blob,
+  maxBytes: number
+): Promise<{ blob: Blob; resized: boolean; fits: boolean }> => {
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Canvas support is required to resize images.");
+  }
+
+  if (sourceBlob.size <= maxBytes) {
+    return { blob: sourceBlob, resized: false, fits: true };
+  }
+
+  const MIN_SCALE = 0.05;
+  const STEP = 0.75;
+
+  let currentScale = Math.sqrt(maxBytes / sourceBlob.size);
+  if (!Number.isFinite(currentScale) || currentScale >= 0.99) {
+    currentScale = 0.95;
+  }
+  currentScale = Math.min(currentScale, 0.95);
+  currentScale = Math.max(currentScale, MIN_SCALE);
+
+  let blob: Blob | null = null;
+  let fits = false;
+  let attempts = 0;
+
+  while (attempts < 10 && currentScale >= MIN_SCALE) {
+    const targetWidth = Math.max(1, Math.round(image.width * currentScale));
+    const targetHeight = Math.max(1, Math.round(image.height * currentScale));
+
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    context.clearRect(0, 0, targetWidth, targetHeight);
+    context.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+    blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/png")
+    );
+
+    if (!blob) {
+      throw new Error("Failed to encode resized image.");
+    }
+
+    if (blob.size <= maxBytes) {
+      fits = true;
+      break;
+    }
+
+    currentScale *= STEP;
+    attempts += 1;
+  }
+
+  if (!blob) {
+    throw new Error("Failed to process image.");
+  }
+
+  return { blob, resized: true, fits };
+};
+
+const ensureImageWithinLimit = async (
+  file: File,
+  maxBytes: number
+): Promise<{
+  base64: string;
+  resized: boolean;
+  originalSize: number;
+  finalSize: number;
+}> => {
+  if (file.size <= maxBytes) {
+    const base64 = await blobToBase64(file);
+    return {
+      base64,
+      resized: false,
+      originalSize: file.size,
+      finalSize: file.size,
+    };
+  }
+
+  const image = await loadImageFromBlob(file);
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  if (!width || !height) {
+    throw new Error("Unable to read image dimensions.");
+  }
+
+  const { blob, fits } = await resizeImageToLimit(image, file, maxBytes);
+
+  if (!fits || blob.size > maxBytes) {
+    throw new Error(
+      `Image is too large to upload. Please use an image smaller than ${formatByteSize(
+        maxBytes
+      )}.`
+    );
+  }
+
+  const base64 = await blobToBase64(blob);
+  return {
+    base64,
+    resized: true,
+    originalSize: file.size,
+    finalSize: blob.size,
+  };
+};
 
 const formatPaddingValue = (value: number): string => {
   if (!Number.isFinite(value)) {
@@ -361,32 +522,30 @@ export default function Home() {
         return;
       }
 
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result;
-          if (typeof result !== "string") {
-            reject(new Error("Failed to read image file."));
-            return;
-          }
-          const commaIndex = result.indexOf(",");
-          if (commaIndex === -1) {
-            reject(new Error("Unrecognized image encoding."));
-            return;
-          }
-          resolve(result.slice(commaIndex + 1));
-        };
-        reader.onerror = () => {
-          reject(reader.error ?? new Error("Failed to read image file."));
-        };
-        reader.readAsDataURL(file);
-      }).catch((err) => {
-        setError((err as Error).message);
-        return null;
-      });
+      let preparedImage: {
+        base64: string;
+        resized: boolean;
+        originalSize: number;
+        finalSize: number;
+      } | null = null;
 
-      if (!base64) {
+      try {
+        preparedImage = await ensureImageWithinLimit(file, MAX_IMAGE_FILE_BYTES);
+      } catch (err) {
+        const message = (err as Error).message;
+        setError(message);
+        window.alert(`${message} Maximum allowed size is ${formatByteSize(MAX_IMAGE_FILE_BYTES)}.`);
         return;
+      }
+
+      if (!preparedImage) {
+        return;
+      }
+
+      if (preparedImage.resized) {
+        window.alert(
+          `The selected image was ${formatByteSize(preparedImage.originalSize)}. We resized it to ${formatByteSize(preparedImage.finalSize)} to stay under the ${formatByteSize(MAX_IMAGE_FILE_BYTES)} limit.`
+        );
       }
 
       try {
@@ -399,7 +558,7 @@ export default function Home() {
           : normalizePadding(fallbackPadding);
         await updateNodeImage(selectedNode.id, {
           mimeType: effectiveType,
-          data: base64,
+          data: preparedImage.base64,
           padding: nextPadding,
         });
         setImagePaddingValue(formatPaddingValue(nextPadding));
