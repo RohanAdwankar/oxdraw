@@ -45,7 +45,7 @@ const EDGE_LABEL_BACKGROUND = "white";
 const EDGE_LABEL_BACKGROUND_OPACITY = 0.96;
 
 const svgSafeId = (prefix: string, id: string): string =>
-  `${prefix}${id.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+  `${prefix}${id.replace(/[^a-zA-Z0-9_:-]/g, "_")}`;
 
 const SHAPE_COLORS: Record<DiagramData["nodes"][number]["shape"], string> = {
   rectangle: "#FDE68A",

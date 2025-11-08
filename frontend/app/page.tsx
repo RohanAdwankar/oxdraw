@@ -320,11 +320,11 @@ export default function Home() {
           setLoading(true);
         }
         setError(null);
-  const data = await fetchDiagram();
-  setDiagram(data);
-  setSource(data.source);
-  setSourceDraft(data.source);
-  lastSubmittedSource.current = data.source;
+        const data = await fetchDiagram();
+        setDiagram(data);
+        setSource(data.source);
+        setSourceDraft(data.source);
+        lastSubmittedSource.current = data.source;
         setSourceError(null);
         setSourceSaving(false);
         setSelectedNodeId((current) =>
@@ -557,7 +557,7 @@ export default function Home() {
         setSaving(true);
         setError(null);
         const fallbackPadding = selectedNode.image ? selectedNode.image.padding : 0;
-  const parsedPadding = Number.parseFloat(imagePaddingValueRef.current);
+        const parsedPadding = Number.parseFloat(imagePaddingValueRef.current);
         const nextPadding = Number.isFinite(parsedPadding)
           ? normalizePadding(Math.max(0, parsedPadding))
           : normalizePadding(fallbackPadding);
@@ -574,7 +574,7 @@ export default function Home() {
         setSaving(false);
       }
     },
-  [selectedNode, saving, loadDiagram]
+    [selectedNode, saving, loadDiagram]
   );
 
   const handleNodeImageRemove = useCallback(async () => {
@@ -1203,8 +1203,8 @@ export default function Home() {
                       >
                         {selectedNode?.image
                           ? `${selectedNode.image.width}x${selectedNode.image.height}px (padding ${formatPaddingValue(
-                              selectedNode.image.padding
-                            )}px)`
+                            selectedNode.image.padding
+                          )}px)`
                           : "No image attached"}
                       </span>
                     </div>
