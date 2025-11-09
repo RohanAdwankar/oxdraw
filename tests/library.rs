@@ -38,3 +38,34 @@ fn diagram_render_png_has_png_header() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn diagram_parses_image_comments() -> Result<()> {
+    let definition = include_str!("input/image_node.mmd");
+    let diagram = Diagram::parse(definition)?;
+
+    let (node_id, node) = diagram
+        .nodes
+        .iter()
+        .find(|(_, node)| node.image.is_some())
+        .expect("expected an image node to be present");
+    let image = node
+        .image
+        .as_ref()
+        .expect("expected node image to be parsed");
+
+    assert_eq!(image.mime_type, "image/png");
+    assert!(!image.data.is_empty(), "image payload should not be empty");
+
+    let svg = diagram.render_svg("white", None)?;
+    assert!(
+        svg.contains(&format!("clip-path=\"url(#oxdraw-node-clip-{})\"", node_id)),
+        "rendered svg should reference the node clip path"
+    );
+    assert!(
+        svg.contains("data:image/png;base64,"),
+        "rendered svg should contain a data URI for the embedded image"
+    );
+
+    Ok(())
+}

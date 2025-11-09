@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1756" height="1312" viewBox="0 0 1756 1312" font-family="Inter, system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1756" height="1312" viewBox="0 0 1756 1312" font-family="Inter, system-ui, sans-serif">
   <defs>
         <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
             <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
@@ -45,6 +45,14 @@
   <polyline points="815.4,864.0 908.0,1024.0 1058.0,1064.0 1208.0,1104.0 1345.3,1024.5" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <polyline points="1009.8,804.0 1148.0,724.0 1298.0,764.0 1448.0,804.0 1540.1,963.1" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <line x1="1268.0" y1="1024.0" x2="1367.3" y2="1123.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <rect x="888.0" y="804.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="958.0" y="834.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Archive Event</text>
+  <rect x="288.0" y="324.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="358.0" y="354.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse JSON</text>
+  <rect x="208.0" y="484.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="278.0" y="514.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Normalize Events</text>
+  <rect x="568.0" y="804.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="638.0" y="834.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Run Analytics Pipeline</text>
   <path d="M1488.0,974.0 A70.0,10.0 0 0 1 1628.0,974.0 L1628.0,1014.0 A70.0,10.0 0 0 1 1488.0,1014.0 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
   <path d="M1488.0,974.0 A70.0,10.0 0 0 1 1628.0,974.0" fill="none" stroke="#2d3748" stroke-width="2" />
   <text x="1558.0" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Glacier Storage</text>
@@ -56,24 +64,16 @@
   <text x="198.0" y="194.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Kafka</text>
   <rect x="128.0" y="324.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="198.0" y="354.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse Avro</text>
-  <rect x="568.0" y="804.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="638.0" y="834.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Run Analytics Pipeline</text>
-  <rect x="1168.0" y="964.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1238.0" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Dashboard</text>
   <rect x="288.0" y="164.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fed7aa" stroke="#2d3748" stroke-width="2" />
   <line x1="300.0" y1="164.0" x2="300.0" y2="224.0" stroke="#2d3748" stroke-width="2" />
   <line x1="416.0" y1="164.0" x2="416.0" y2="224.0" stroke="#2d3748" stroke-width="2" />
   <text x="358.0" y="194.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">SQS</text>
-  <rect x="888.0" y="804.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="958.0" y="834.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Archive Event</text>
-  <rect x="1328.0" y="1124.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1398.0" y="1154.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Users</text>
-  <rect x="288.0" y="324.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="358.0" y="354.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse JSON</text>
+  <rect x="1168.0" y="964.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1238.0" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Dashboard</text>
   <rect x="1328.0" y="964.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="1398.0" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Pager</text>
   <polygon points="798.0,644.0 868.0,674.0 798.0,704.0 728.0,674.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
   <text x="798.0" y="674.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Route By Type</text>
-  <rect x="208.0" y="484.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="278.0" y="514.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Normalize Events</text>
+  <rect x="1328.0" y="1124.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1398.0" y="1154.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Users</text>
 </svg>

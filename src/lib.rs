@@ -43,6 +43,9 @@ pub const SUBGRAPH_LABEL_AREA: f32 = 36.0;
 pub const SUBGRAPH_LABEL_TEXT_BASELINE: f32 = 20.0;
 pub const SUBGRAPH_LABEL_INSET_X: f32 = 20.0;
 pub const SUBGRAPH_SEPARATION: f32 = 140.0;
+pub const NODE_LABEL_HEIGHT: f32 = 28.0;
+pub const NODE_TEXT_LINE_HEIGHT: f32 = 16.0;
+pub const IMAGE_COMMENT_PREFIX: &str = "%% OXDRAW IMAGE";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct EdgeOverride {
@@ -58,6 +61,10 @@ pub struct NodeStyleOverride {
     pub stroke: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label_fill: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_fill: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -82,6 +89,18 @@ pub enum Direction {
 pub struct Node {
     pub label: String,
     pub shape: NodeShape,
+    pub image: Option<NodeImage>,
+    pub width: f32,
+    pub height: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct NodeImage {
+    pub mime_type: String,
+    pub data: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+    pub padding: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -178,11 +197,19 @@ pub struct NodeStylePatch {
     pub stroke: Option<Option<String>>,
     #[serde(default)]
     pub text: Option<Option<String>>,
+    #[serde(default)]
+    pub label_fill: Option<Option<String>>,
+    #[serde(default)]
+    pub image_fill: Option<Option<String>>,
 }
 
 impl NodeStyleOverride {
     pub fn is_empty(&self) -> bool {
-        self.fill.is_none() && self.stroke.is_none() && self.text.is_none()
+        self.fill.is_none()
+            && self.stroke.is_none()
+            && self.text.is_none()
+            && self.label_fill.is_none()
+            && self.image_fill.is_none()
     }
 }
 

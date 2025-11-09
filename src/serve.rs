@@ -3,14 +3,16 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
-use axum::extract::{Path as AxumPath, State};
+use anyhow::{Context, Result, anyhow, bail};
+use axum::extract::{DefaultBodyLimit, Path as AxumPath, State};
 use axum::http::StatusCode;
 use axum::http::{HeaderValue, header};
 use axum::response::IntoResponse;
 use axum::response::Response;
 use axum::routing::{delete, get, put};
 use axum::{Json, Router};
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use clap::Parser;
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
@@ -19,7 +21,11 @@ use tower::service_fn;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
+use crate::diagram::decode_image_dimensions;
 use crate::*;
+
+const MAX_IMAGE_BYTES: usize = 10 * 1024 * 1024;
+const MAX_IMAGE_REQUEST_BYTES: usize = (MAX_IMAGE_BYTES * 4) / 3 + 1 * 1024 * 1024;
 
 /// Arguments for running the oxdraw web server
 #[derive(Debug, Clone, Parser)]
@@ -79,8 +85,26 @@ struct NodePayload {
     stroke_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     text_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    label_fill_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_fill_color: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     membership: Vec<String>,
+    width: f32,
+    height: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image: Option<NodeImagePayload>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NodeImagePayload {
+    mime_type: String,
+    data: String,
+    width: u32,
+    height: u32,
+    padding: f32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -137,6 +161,16 @@ struct StyleUpdate {
     node_styles: HashMap<String, Option<NodeStylePatch>>,
     #[serde(default)]
     edge_styles: HashMap<String, Option<EdgeStylePatch>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct NodeImageUpdateRequest {
+    #[serde(default)]
+    mime_type: Option<String>,
+    #[serde(default)]
+    data: Option<String>,
+    #[serde(default)]
+    padding: Option<f32>,
 }
 
 impl ServeState {
@@ -202,6 +236,12 @@ impl ServeState {
                         }
                         if let Some(text) = patch.text {
                             current.text = text;
+                        }
+                        if let Some(label_fill) = patch.label_fill {
+                            current.label_fill = label_fill;
+                        }
+                        if let Some(image_fill) = patch.image_fill {
+                            current.image_fill = image_fill;
                         }
 
                         if current.is_empty() {
@@ -365,6 +405,49 @@ impl ServeState {
         self.prune_overrides_for(&diagram).await?;
         Ok(true)
     }
+
+    async fn set_node_image(&self, node_id: &str, image: Option<NodeImage>) -> Result<()> {
+        let overrides_snapshot = self.overrides.read().await.clone();
+        let _guard = self.source_lock.lock().await;
+        let contents = tokio::fs::read_to_string(&self.source_path)
+            .await
+            .with_context(|| format!("failed to read '{}'", self.source_path.display()))?;
+        let (definition, _) = split_source_and_overrides(&contents)?;
+        let mut diagram = Diagram::parse(&definition)?;
+        let Some(node) = diagram.nodes.get_mut(node_id) else {
+            bail!("node '{node_id}' not found");
+        };
+        node.image = image;
+        let rewritten = diagram.to_definition();
+        let merged = merge_source_and_overrides(&rewritten, &overrides_snapshot)?;
+        tokio::fs::write(&self.source_path, merged.as_bytes())
+            .await
+            .with_context(|| format!("failed to write '{}'", self.source_path.display()))?;
+        Ok(())
+    }
+
+    async fn update_node_image_padding(&self, node_id: &str, padding: f32) -> Result<()> {
+        let overrides_snapshot = self.overrides.read().await.clone();
+        let _guard = self.source_lock.lock().await;
+        let contents = tokio::fs::read_to_string(&self.source_path)
+            .await
+            .with_context(|| format!("failed to read '{}'", self.source_path.display()))?;
+        let (definition, _) = split_source_and_overrides(&contents)?;
+        let mut diagram = Diagram::parse(&definition)?;
+        let Some(node) = diagram.nodes.get_mut(node_id) else {
+            bail!("node '{node_id}' not found");
+        };
+        let Some(image) = node.image.as_mut() else {
+            bail!("node '{node_id}' does not have an image to update");
+        };
+        image.padding = padding;
+        let rewritten = diagram.to_definition();
+        let merged = merge_source_and_overrides(&rewritten, &overrides_snapshot)?;
+        tokio::fs::write(&self.source_path, merged.as_bytes())
+            .await
+            .with_context(|| format!("failed to write '{}'", self.source_path.display()))?;
+        Ok(())
+    }
 }
 
 pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> {
@@ -385,8 +468,10 @@ pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> 
         .route("/api/diagram/layout", put(put_layout))
         .route("/api/diagram/style", put(put_style))
         .route("/api/diagram/source", get(get_source).put(put_source))
+        .route("/api/diagram/nodes/:id/image", put(put_node_image))
         .route("/api/diagram/nodes/:id", delete(delete_node))
         .route("/api/diagram/edges/:id", delete(delete_edge))
+        .layer(DefaultBodyLimit::max(MAX_IMAGE_REQUEST_BYTES))
         .with_state(state);
 
     if let Some(root) = ui_root {
@@ -443,6 +528,7 @@ async fn get_diagram(
         &layout.final_routes,
         &diagram.edges,
         &diagram.subgraphs,
+        &diagram.nodes,
     )
     .map_err(internal_error)?;
 
@@ -467,6 +553,15 @@ async fn get_diagram(
         let fill_color = style.and_then(|s| s.fill.clone());
         let stroke_color = style.and_then(|s| s.stroke.clone());
         let text_color = style.and_then(|s| s.text.clone());
+        let label_fill_color = style.and_then(|s| s.label_fill.clone());
+        let image_fill_color = style.and_then(|s| s.image_fill.clone());
+        let image_payload = node.image.as_ref().map(|image| NodeImagePayload {
+            mime_type: image.mime_type.clone(),
+            data: BASE64_STANDARD.encode(&image.data),
+            width: image.width,
+            height: image.height,
+            padding: image.padding.max(0.0),
+        });
         nodes.push(NodePayload {
             id: id.clone(),
             label: node.label.clone(),
@@ -477,7 +572,12 @@ async fn get_diagram(
             fill_color,
             stroke_color,
             text_color,
+            label_fill_color,
+            image_fill_color,
             membership: diagram.node_membership.get(id).cloned().unwrap_or_default(),
+            width: node.width,
+            height: node.height,
+            image: image_payload,
         });
     }
 
@@ -646,6 +746,96 @@ async fn delete_edge(
 
 fn internal_error(err: anyhow::Error) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
+}
+
+async fn put_node_image(
+    State(state): State<Arc<ServeState>>,
+    AxumPath(node_id): AxumPath<String>,
+    Json(payload): Json<NodeImageUpdateRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let NodeImageUpdateRequest {
+        mime_type,
+        data,
+        padding,
+    } = payload;
+
+    let sanitized_padding = padding.map(|value| {
+        if value.is_nan() || !value.is_finite() || value < 0.0 {
+            0.0
+        } else {
+            value
+        }
+    });
+
+    let data_str = match data
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(value) => value,
+        None => {
+            if let Some(padding_value) = sanitized_padding {
+                state
+                    .update_node_image_padding(&node_id, padding_value)
+                    .await
+                    .map_err(internal_error)?;
+            } else {
+                state
+                    .set_node_image(&node_id, None)
+                    .await
+                    .map_err(internal_error)?;
+            }
+            return Ok(StatusCode::NO_CONTENT);
+        }
+    };
+
+    let mime_type = mime_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "mime_type is required when providing image data".to_string(),
+            )
+        })?
+        .to_string();
+
+    let data = BASE64_STANDARD.decode(data_str.as_bytes()).map_err(|err| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("invalid base64 payload: {err}"),
+        )
+    })?;
+
+    if data.len() > MAX_IMAGE_BYTES {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("image payload too large (max {} bytes)", MAX_IMAGE_BYTES),
+        ));
+    }
+
+    let (width, height) = decode_image_dimensions(&mime_type, &data).map_err(|err| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("unsupported image payload: {err}"),
+        )
+    })?;
+
+    let image = NodeImage {
+        mime_type,
+        data,
+        width,
+        height,
+        padding: sanitized_padding.unwrap_or(0.0),
+    };
+
+    state
+        .set_node_image(&node_id, Some(image))
+        .await
+        .map_err(internal_error)?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 fn merge_source_and_overrides(definition: &str, overrides: &LayoutOverrides) -> Result<String> {

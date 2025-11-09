@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="620" height="332" viewBox="0 0 620 332" font-family="Inter, system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="620" height="332" viewBox="0 0 620 332" font-family="Inter, system-ui, sans-serif">
   <defs>
         <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
             <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
@@ -29,10 +29,10 @@
     <rect x="276.1" y="80.0" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="310.0" y="94.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">restart</text>
   </g>
+  <rect x="240.0" y="144.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="310.0" y="174.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Processing</text>
   <rect x="80.0" y="144.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
   <text x="150.0" y="174.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Idle</text>
   <rect x="400.0" y="144.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
   <text x="470.0" y="174.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Completed</text>
-  <rect x="240.0" y="144.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="310.0" y="174.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Processing</text>
 </svg>

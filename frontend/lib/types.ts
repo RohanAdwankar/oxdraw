@@ -35,7 +35,20 @@ export interface NodeData {
   fillColor?: string;
   strokeColor?: string;
   textColor?: string;
+  labelFillColor?: string;
+  imageFillColor?: string;
   membership?: string[];
+  image?: NodeImageData;
+  width: number;
+  height: number;
+}
+
+export interface NodeImageData {
+  mimeType: string;
+  data: string;
+  width: number;
+  height: number;
+  padding: number;
 }
 
 export interface EdgeData {
@@ -85,6 +98,8 @@ export interface NodeStyleUpdate {
   fill?: string | null;
   stroke?: string | null;
   text?: string | null;
+  labelFill?: string | null;
+  imageFill?: string | null;
 }
 
 export interface EdgeStyleUpdate {

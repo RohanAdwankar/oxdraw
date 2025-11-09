@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="620" height="700" viewBox="0 0 620 700" font-family="Inter, system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="620" height="700" viewBox="0 0 620 700" font-family="Inter, system-ui, sans-serif">
   <defs>
         <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
             <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
@@ -11,35 +11,35 @@
   <rect width="100%" height="100%" fill="white" />
   <line x1="310.0" y1="140.0" x2="310.0" y2="239.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="268.7" y="165.5" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="310.0" y="179.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Get money</text>
+    <rect x="283.5" y="165.5" width="53.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="310.0" y="179.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Think</text>
   </g>
   <line x1="310.0" y1="300.0" x2="310.0" y2="399.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <line x1="289.0" y1="451.0" x2="180.7" y2="559.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" stroke-dasharray="8 6" />
   <g pointer-events="none">
-    <rect x="215.8" y="481.1" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="234.9" y="495.1" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">One</text>
+    <rect x="204.7" y="481.1" width="60.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="234.9" y="495.1" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Simple</text>
   </g>
   <line x1="310.0" y1="460.0" x2="310.0" y2="559.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" stroke-dasharray="8 6" />
   <g pointer-events="none">
-    <rect x="290.9" y="485.5" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="310.0" y="499.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Two</text>
+    <rect x="292.0" y="485.5" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="310.0" y="499.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">AI</text>
   </g>
   <line x1="331.0" y1="451.0" x2="439.3" y2="559.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" stroke-dasharray="8 6" />
   <g pointer-events="none">
-    <rect x="358.6" y="481.1" width="53.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="385.1" y="495.1" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Three</text>
+    <rect x="362.3" y="481.1" width="45.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="385.1" y="495.1" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Fast</text>
   </g>
-  <polygon points="310.0,400.0 380.0,430.0 310.0,460.0 240.0,430.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="310.0" y="430.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Let me think</text>
   <rect x="240.0" y="80.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="310.0" y="110.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Thing</text>
-  <rect x="240.0" y="560.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="310.0" y="590.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">iPhone</text>
-  <rect x="400.0" y="560.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="470.0" y="590.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Car</text>
+  <text x="310.0" y="110.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Start</text>
   <rect x="80.0" y="560.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="590.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Laptop</text>
+  <text x="150.0" y="590.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Go</text>
+  <rect x="240.0" y="560.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="310.0" y="590.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Python</text>
+  <rect x="400.0" y="560.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="470.0" y="590.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Rust</text>
   <rect x="240.0" y="240.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
-  <text x="310.0" y="270.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Go shopping</text>
+  <text x="310.0" y="270.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Idea</text>
+  <polygon points="310.0,400.0 380.0,430.0 310.0,460.0 240.0,430.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="310.0" y="430.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Lang?</text>
 </svg>

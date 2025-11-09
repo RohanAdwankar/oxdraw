@@ -114,6 +114,12 @@ function normalizeNodeStyle(
   if (style.text !== undefined) {
     patch.text = style.text;
   }
+  if (style.labelFill !== undefined) {
+    patch["label_fill"] = style.labelFill;
+  }
+  if (style.imageFill !== undefined) {
+    patch["image_fill"] = style.imageFill;
+  }
 
   return Object.keys(patch).length > 0 ? patch : undefined;
 }
@@ -167,5 +173,46 @@ export async function deleteEdge(edgeId: string): Promise<void> {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || `Failed to delete edge: ${response.status}`);
+  }
+}
+
+export async function updateNodeImage(
+  nodeId: string,
+  payload: ({ mimeType?: string; data?: string | null; padding?: number } | null)
+): Promise<void> {
+  let body: Record<string, unknown>;
+
+  if (payload === null) {
+    body = { data: null };
+  } else {
+    body = {};
+    if (payload.mimeType !== undefined) {
+      body.mime_type = payload.mimeType;
+    }
+    if (payload.data !== undefined) {
+      body.data = payload.data;
+    }
+    if (payload.padding !== undefined) {
+      body.padding = payload.padding;
+    }
+    if (Object.keys(body).length === 0) {
+      return;
+    }
+  }
+
+  const response = await fetch(
+    `${API_BASE}/api/diagram/nodes/${encodeURIComponent(nodeId)}/image`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to update node image: ${response.status}`);
   }
 }
