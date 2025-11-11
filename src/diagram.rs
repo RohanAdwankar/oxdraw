@@ -128,8 +128,13 @@ impl Diagram {
         let mut seen_subgraph_ids: HashSet<String> = HashSet::new();
         let mut subgraph_counter = 0_usize;
 
-        for line in lines {
-            let line = line.as_str();
+        for raw_line in lines {
+            let mut line = raw_line.as_str();
+            line = line.trim();
+            line = line.trim_end_matches(';').trim();
+            if line.is_empty() {
+                continue;
+            }
             if let Some(rest) = line.strip_prefix("subgraph") {
                 let (id, label) = parse_subgraph_header(rest)?;
                 if !seen_subgraph_ids.insert(id.clone()) {
@@ -291,7 +296,7 @@ impl Diagram {
 
             let mut stroke_color = "#2d3748".to_string();
             let mut effective_kind = edge.kind;
-            let mut arrow_direction = EdgeArrowDirection::Forward;
+            let mut arrow_direction = edge.arrow;
 
             if let Some(overrides) = overrides {
                 if let Some(style) = overrides.edge_styles.get(&id) {
@@ -307,11 +312,34 @@ impl Diagram {
                 }
             }
 
-            let dash_attr = if effective_kind == EdgeKind::Dashed {
-                " stroke-dasharray=\"8 6\""
-            } else {
-                ""
+            let (stroke_width_value, dash_pattern, stroke_opacity) = match effective_kind {
+                EdgeKind::Solid => (2.0_f32, None, 1.0_f32),
+                EdgeKind::Dashed => (2.0_f32, Some("8 6"), 1.0_f32),
+                EdgeKind::Thick => (4.0_f32, None, 1.0_f32),
+                EdgeKind::Invisible => (0.0_f32, None, 0.0_f32),
             };
+
+            let stroke_width_attr = if stroke_width_value <= 0.0 {
+                "0".to_string()
+            } else if (stroke_width_value.fract()).abs() < f32::EPSILON {
+                format!("{:.0}", stroke_width_value)
+            } else {
+                format!("{:.1}", stroke_width_value)
+            };
+
+            let dash_attr = dash_pattern
+                .map(|pattern| format!(" stroke-dasharray=\"{}\"", pattern))
+                .unwrap_or_default();
+
+            let opacity_attr = if (stroke_opacity - 1.0).abs() > f32::EPSILON {
+                format!(" stroke-opacity=\"{:.2}\"", stroke_opacity)
+            } else {
+                String::new()
+            };
+
+            let stroke_width_attr_ref = stroke_width_attr.as_str();
+            let dash_attr_ref = dash_attr.as_str();
+            let opacity_attr_ref = opacity_attr.as_str();
 
             let marker_start_attr = if arrow_direction.marker_start() {
                 " marker-start=\"url(#arrow-start)\""
@@ -330,8 +358,17 @@ impl Diagram {
                 let b = route[1];
                 write!(
                     svg,
-                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\"{}{}{} />\n",
-                    a.x, a.y, b.x, b.y, stroke_color, marker_start_attr, marker_end_attr, dash_attr
+                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />\n",
+                    a.x,
+                    a.y,
+                    b.x,
+                    b.y,
+                    stroke_color,
+                    stroke_width_attr_ref,
+                    marker_start_attr,
+                    marker_end_attr,
+                    dash_attr_ref,
+                    opacity_attr_ref
                 )?;
             } else {
                 let points = route
@@ -341,8 +378,14 @@ impl Diagram {
                     .join(" ");
                 write!(
                     svg,
-                    "  <polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\"{}{}{} />\n",
-                    points, stroke_color, marker_start_attr, marker_end_attr, dash_attr
+                    "  <polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />\n",
+                    points,
+                    stroke_color,
+                    stroke_width_attr_ref,
+                    marker_start_attr,
+                    marker_end_attr,
+                    dash_attr_ref,
+                    opacity_attr_ref
                 )?;
             }
 
@@ -1710,12 +1753,17 @@ impl Diagram {
             format!(
                 "{} {}|{}| {}",
                 edge.from,
-                edge.kind.arrow_token(),
+                edge.kind.connector(edge.arrow),
                 label,
                 edge.to
             )
         } else {
-            format!("{} {} {}", edge.from, edge.kind.arrow_token(), edge.to)
+            format!(
+                "{} {} {}",
+                edge.from,
+                edge.kind.connector(edge.arrow),
+                edge.to
+            )
         }
     }
 }
@@ -2458,10 +2506,15 @@ impl Direction {
 }
 
 impl EdgeKind {
-    pub fn arrow_token(&self) -> &'static str {
-        match self {
-            EdgeKind::Solid => "-->",
-            EdgeKind::Dashed => "-.->",
+    pub fn connector(&self, arrow: EdgeArrowDirection) -> &'static str {
+        match (self, arrow) {
+            (EdgeKind::Invisible, _) => "~~~",
+            (EdgeKind::Thick, EdgeArrowDirection::None) => "===",
+            (EdgeKind::Thick, _) => "==>",
+            (EdgeKind::Dashed, EdgeArrowDirection::None) => "-.->",
+            (EdgeKind::Dashed, _) => "-.->",
+            (EdgeKind::Solid, EdgeArrowDirection::None) => "---",
+            (EdgeKind::Solid, _) => "-->",
         }
     }
 
@@ -2469,6 +2522,8 @@ impl EdgeKind {
         match self {
             EdgeKind::Solid => "solid",
             EdgeKind::Dashed => "dashed",
+            EdgeKind::Thick => "thick",
+            EdgeKind::Invisible => "invisible",
         }
     }
 }
@@ -3446,7 +3501,12 @@ pub fn centroid(points: &[Point]) -> Point {
 }
 
 pub fn edge_identifier(edge: &Edge) -> String {
-    format!("{} {} {}", edge.from, edge.kind.arrow_token(), edge.to)
+    format!(
+        "{} {} {}",
+        edge.from,
+        edge.kind.connector(edge.arrow),
+        edge.to
+    )
 }
 
 fn parse_graph_header(line: &str) -> Result<Direction> {
@@ -3698,33 +3758,54 @@ fn parse_edge_line(
     node_membership: &mut HashMap<String, Vec<String>>,
     subgraph_stack: &mut Vec<SubgraphBuilder>,
 ) -> Result<Option<Edge>> {
-    const EDGE_PATTERNS: [(&str, EdgeKind); 2] =
-        [("-.->", EdgeKind::Dashed), ("-->", EdgeKind::Solid)];
+    const EDGE_PATTERNS: [(&str, EdgeKind, EdgeArrowDirection, Option<&str>); 3] = [
+        ("-.->", EdgeKind::Dashed, EdgeArrowDirection::Forward, None),
+        (
+            "-->",
+            EdgeKind::Solid,
+            EdgeArrowDirection::Forward,
+            Some("--"),
+        ),
+        ("---", EdgeKind::Solid, EdgeArrowDirection::None, Some("--")),
+    ];
 
     let mut parts = None;
-    for (pattern, kind) in EDGE_PATTERNS {
+    for (pattern, kind, arrow, inline_prefix) in EDGE_PATTERNS {
         if let Some((lhs, rhs)) = line.split_once(pattern) {
-            parts = Some((lhs.trim(), rhs.trim(), kind));
+            parts = Some((lhs.trim(), rhs.trim(), kind, arrow, inline_prefix));
             break;
         }
     }
 
-    let Some((lhs, rhs, kind)) = parts else {
+    let Some((lhs, rhs, kind, arrow, inline_prefix)) = parts else {
         return Ok(None);
     };
 
-    let (label, rhs_clean) = if let Some(rest) = rhs.strip_prefix('|') {
+    let mut label: Option<String> = None;
+    let mut from_buffer: Option<String> = None;
+    let mut from_segment = lhs;
+    let rhs_clean = if let Some(rest) = rhs.strip_prefix('|') {
         let Some(end_idx) = rest.find('|') else {
             bail!("edge label missing closing '|' in line: '{line}'");
         };
-        let label = rest[..end_idx].trim();
+        let label_text = rest[..end_idx].trim();
         let target = rest[end_idx + 1..].trim();
-        (Some(label.to_string()), target)
+        label = Some(label_text.to_string());
+        target
     } else {
-        (None, rhs)
+        if let Some(prefix) = inline_prefix {
+            if let Some((maybe_from, inline_label)) = extract_inline_label(from_segment, prefix) {
+                label = Some(inline_label);
+                from_buffer = Some(maybe_from);
+            }
+        }
+        if let Some(buffer) = &from_buffer {
+            from_segment = buffer.as_str();
+        }
+        rhs
     };
 
-    let (from_id, from_new) = intern_node(lhs, nodes, order)?;
+    let (from_id, from_new) = intern_node(from_segment, nodes, order)?;
     if from_new {
         record_node_membership(&from_id, subgraph_stack, node_membership);
     } else if !node_membership.contains_key(&from_id) && subgraph_stack.is_empty() {
@@ -3743,7 +3824,32 @@ fn parse_edge_line(
         to: to_id,
         label,
         kind,
+        arrow,
     }))
+}
+
+fn extract_inline_label(segment: &str, prefix: &str) -> Option<(String, String)> {
+    let trimmed = segment.trim_end();
+    let Some(prefix_pos) = trimmed.rfind(prefix) else {
+        return None;
+    };
+
+    let before = &trimmed[..prefix_pos];
+    let after = &trimmed[prefix_pos + prefix.len()..];
+
+    let mut after_chars = after.chars();
+    match after_chars.next() {
+        Some(ch) if ch.is_whitespace() => {
+            let label = after.trim();
+            let from = before.trim_end();
+            if from.is_empty() || label.is_empty() {
+                None
+            } else {
+                Some((from.to_string(), label.to_string()))
+            }
+        }
+        _ => None,
+    }
 }
 
 fn intern_node(
@@ -3965,5 +4071,25 @@ mod tests {
                 "format mismatch for {id}"
             );
         }
+    }
+
+    #[test]
+    fn parses_inline_edge_labels() {
+        let source = r#"
+graph TD
+    A -- Yes --> B;
+    B --> C;
+"#;
+
+        let diagram = Diagram::parse(source).expect("diagram parse should succeed");
+        assert_eq!(diagram.edges.len(), 2, "expected two edges");
+
+        let yes_edge = diagram
+            .edges
+            .iter()
+            .find(|edge| edge.label.as_deref() == Some("Yes"))
+            .expect("expected inline labeled edge");
+        assert_eq!(yes_edge.from, "A");
+        assert_eq!(yes_edge.to, "B");
     }
 }

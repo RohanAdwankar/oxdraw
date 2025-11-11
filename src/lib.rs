@@ -126,6 +126,7 @@ pub struct Edge {
     pub to: String,
     pub label: Option<String>,
     pub kind: EdgeKind,
+    pub arrow: EdgeArrowDirection,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -133,6 +134,8 @@ pub struct Edge {
 pub enum EdgeKind {
     Solid,
     Dashed,
+    Thick,
+    Invisible,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
