@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1756" height="1312" viewBox="0 0 1756 1312" font-family="Inter, system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1862" height="1312" viewBox="0 0 1862 1312" font-family="Inter, system-ui, sans-serif">
   <defs>
         <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
             <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
@@ -14,66 +14,66 @@
     <text x="100.0" y="100.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Ingestion</text>
   </g>
   <g class="subgraph" data-id="Processing">
-    <rect x="520.0" y="560.0" width="556.0" height="352.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <rect x="520.0" y="560.0" width="642.6" height="352.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
     <text x="540.0" y="580.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Processing</text>
   </g>
   <g class="subgraph" data-id="Outputs">
-    <rect x="1120.0" y="880.0" width="556.0" height="352.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
-    <text x="1140.0" y="900.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Outputs</text>
+    <rect x="1206.6" y="880.0" width="575.0" height="352.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <text x="1226.6" y="900.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Outputs</text>
   </g>
   <line x1="198.0" y1="224.0" x2="198.0" y2="323.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <line x1="358.0" y1="224.0" x2="358.0" y2="323.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <line x1="213.0" y1="384.0" x2="262.6" y2="483.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <line x1="343.0" y1="384.0" x2="293.4" y2="483.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <line x1="348.0" y1="535.5" x2="756.3" y2="661.2" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <line x1="777.0" y1="695.0" x2="668.7" y2="803.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="361.2" y1="537.6" x2="797.5" y2="661.6" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="819.4" y1="694.9" x2="705.6" y2="803.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="681.6" y="725.1" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="722.9" y="739.1" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">analytics</text>
+    <rect x="721.2" y="725.1" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="762.5" y="739.1" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">analytics</text>
   </g>
-  <line x1="798.0" y1="704.0" x2="798.0" y2="803.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="847.0" y1="701.6" x2="868.2" y2="803.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="767.8" y="729.5" width="60.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="798.0" y="743.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">alerts</text>
+    <rect x="827.4" y="728.3" width="60.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="857.6" y="742.3" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">alerts</text>
   </g>
-  <line x1="819.0" y1="695.0" x2="927.3" y2="803.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="866.1" y1="693.7" x2="1004.0" y2="803.4" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="839.2" y="725.1" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="873.1" y="739.1" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">archive</text>
+    <rect x="901.1" y="724.5" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="935.0" y="738.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">archive</text>
   </g>
-  <polyline points="655.4,864.0 748.0,1024.0 898.0,1064.0 1048.0,1104.0 1185.3,1024.5" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <polyline points="815.4,864.0 908.0,1024.0 1058.0,1064.0 1208.0,1104.0 1345.3,1024.5" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <polyline points="1009.8,804.0 1148.0,724.0 1298.0,764.0 1448.0,804.0 1540.1,963.1" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <line x1="1268.0" y1="1024.0" x2="1367.3" y2="1123.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <rect x="888.0" y="804.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="958.0" y="834.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Archive Event</text>
-  <rect x="288.0" y="324.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="358.0" y="354.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse JSON</text>
-  <rect x="208.0" y="484.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <polyline points="691.6,864.0 796.2,1036.8 959.0,1076.8 1121.8,1116.8 1274.2,1024.5" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="892.1,864.0 987.1,1026.5 1139.6,1066.5 1292.1,1106.5 1432.4,1024.5" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="1093.8,804.0 1235.4,721.1 1388.3,761.1 1541.2,801.1 1636.0,963.1" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1356.4" y1="1024.0" x2="1461.6" y2="1123.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <rect x="194.8" y="484.0" width="166.4" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="278.0" y="514.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Normalize Events</text>
-  <rect x="568.0" y="804.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="638.0" y="834.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Run Analytics Pipeline</text>
-  <path d="M1488.0,974.0 A70.0,10.0 0 0 1 1628.0,974.0 L1628.0,1014.0 A70.0,10.0 0 0 1 1488.0,1014.0 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
-  <path d="M1488.0,974.0 A70.0,10.0 0 0 1 1628.0,974.0" fill="none" stroke="#2d3748" stroke-width="2" />
-  <text x="1558.0" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Glacier Storage</text>
-  <rect x="728.0" y="804.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="798.0" y="834.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Trigger Alerts</text>
+  <rect x="1414.6" y="964.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1484.6" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Pager</text>
+  <rect x="970.4" y="804.0" width="144.2" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1042.5" y="834.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Archive Event</text>
+  <path d="M1574.6,974.0 A79.5,10.0 0 0 1 1733.6,974.0 L1733.6,1014.0 A79.5,10.0 0 0 1 1574.6,1014.0 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
+  <path d="M1574.6,974.0 A79.5,10.0 0 0 1 1733.6,974.0" fill="none" stroke="#2d3748" stroke-width="2" />
+  <text x="1654.1" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Glacier Storage</text>
+  <rect x="568.0" y="804.0" width="210.8" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="673.4" y="834.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Run Analytics Pipeline</text>
+  <polygon points="841.3,644.0 913.4,674.0 841.3,704.0 769.2,674.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="841.3" y="674.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Route By Type</text>
+  <rect x="128.0" y="324.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="198.0" y="354.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse Avro</text>
+  <rect x="1424.1" y="1124.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1494.1" y="1154.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Users</text>
   <rect x="128.0" y="164.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fed7aa" stroke="#2d3748" stroke-width="2" />
   <line x1="140.0" y1="164.0" x2="140.0" y2="224.0" stroke="#2d3748" stroke-width="2" />
   <line x1="256.0" y1="164.0" x2="256.0" y2="224.0" stroke="#2d3748" stroke-width="2" />
   <text x="198.0" y="194.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Kafka</text>
-  <rect x="128.0" y="324.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="198.0" y="354.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse Avro</text>
+  <rect x="288.0" y="324.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="358.0" y="354.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse JSON</text>
+  <rect x="1254.6" y="964.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1324.6" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Dashboard</text>
+  <rect x="798.8" y="804.0" width="151.6" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="874.6" y="834.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Trigger Alerts</text>
   <rect x="288.0" y="164.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fed7aa" stroke="#2d3748" stroke-width="2" />
   <line x1="300.0" y1="164.0" x2="300.0" y2="224.0" stroke="#2d3748" stroke-width="2" />
   <line x1="416.0" y1="164.0" x2="416.0" y2="224.0" stroke="#2d3748" stroke-width="2" />
   <text x="358.0" y="194.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">SQS</text>
-  <rect x="1168.0" y="964.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1238.0" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Dashboard</text>
-  <rect x="1328.0" y="964.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1398.0" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Pager</text>
-  <polygon points="798.0,644.0 868.0,674.0 798.0,704.0 728.0,674.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="798.0" y="674.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Route By Type</text>
-  <rect x="1328.0" y="1124.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1398.0" y="1154.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Users</text>
 </svg>
