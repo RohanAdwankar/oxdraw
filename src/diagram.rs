@@ -128,8 +128,13 @@ impl Diagram {
         let mut seen_subgraph_ids: HashSet<String> = HashSet::new();
         let mut subgraph_counter = 0_usize;
 
-        for line in lines {
-            let line = line.as_str();
+        for raw_line in lines {
+            let mut line = raw_line.as_str();
+            line = line.trim();
+            line = line.trim_end_matches(';').trim();
+            if line.is_empty() {
+                continue;
+            }
             if let Some(rest) = line.strip_prefix("subgraph") {
                 let (id, label) = parse_subgraph_header(rest)?;
                 if !seen_subgraph_ids.insert(id.clone()) {
@@ -291,7 +296,7 @@ impl Diagram {
 
             let mut stroke_color = "#2d3748".to_string();
             let mut effective_kind = edge.kind;
-            let mut arrow_direction = EdgeArrowDirection::Forward;
+            let mut arrow_direction = edge.arrow;
 
             if let Some(overrides) = overrides {
                 if let Some(style) = overrides.edge_styles.get(&id) {
@@ -307,11 +312,34 @@ impl Diagram {
                 }
             }
 
-            let dash_attr = if effective_kind == EdgeKind::Dashed {
-                " stroke-dasharray=\"8 6\""
-            } else {
-                ""
+            let (stroke_width_value, dash_pattern, stroke_opacity) = match effective_kind {
+                EdgeKind::Solid => (2.0_f32, None, 1.0_f32),
+                EdgeKind::Dashed => (2.0_f32, Some("8 6"), 1.0_f32),
+                EdgeKind::Thick => (4.0_f32, None, 1.0_f32),
+                EdgeKind::Invisible => (0.0_f32, None, 0.0_f32),
             };
+
+            let stroke_width_attr = if stroke_width_value <= 0.0 {
+                "0".to_string()
+            } else if (stroke_width_value.fract()).abs() < f32::EPSILON {
+                format!("{:.0}", stroke_width_value)
+            } else {
+                format!("{:.1}", stroke_width_value)
+            };
+
+            let dash_attr = dash_pattern
+                .map(|pattern| format!(" stroke-dasharray=\"{}\"", pattern))
+                .unwrap_or_default();
+
+            let opacity_attr = if (stroke_opacity - 1.0).abs() > f32::EPSILON {
+                format!(" stroke-opacity=\"{:.2}\"", stroke_opacity)
+            } else {
+                String::new()
+            };
+
+            let stroke_width_attr_ref = stroke_width_attr.as_str();
+            let dash_attr_ref = dash_attr.as_str();
+            let opacity_attr_ref = opacity_attr.as_str();
 
             let marker_start_attr = if arrow_direction.marker_start() {
                 " marker-start=\"url(#arrow-start)\""
@@ -330,8 +358,17 @@ impl Diagram {
                 let b = route[1];
                 write!(
                     svg,
-                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\"{}{}{} />\n",
-                    a.x, a.y, b.x, b.y, stroke_color, marker_start_attr, marker_end_attr, dash_attr
+                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />\n",
+                    a.x,
+                    a.y,
+                    b.x,
+                    b.y,
+                    stroke_color,
+                    stroke_width_attr_ref,
+                    marker_start_attr,
+                    marker_end_attr,
+                    dash_attr_ref,
+                    opacity_attr_ref
                 )?;
             } else {
                 let points = route
@@ -341,8 +378,14 @@ impl Diagram {
                     .join(" ");
                 write!(
                     svg,
-                    "  <polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\"{}{}{} />\n",
-                    points, stroke_color, marker_start_attr, marker_end_attr, dash_attr
+                    "  <polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />\n",
+                    points,
+                    stroke_color,
+                    stroke_width_attr_ref,
+                    marker_start_attr,
+                    marker_end_attr,
+                    dash_attr_ref,
+                    opacity_attr_ref
                 )?;
             }
 
@@ -748,13 +791,6 @@ impl Diagram {
 
         let layers: Vec<Vec<String>> = layers_map.into_values().collect();
         let level_count = layers.len().max(1);
-        let max_per_level = layers
-            .iter()
-            .map(|layer| layer.len())
-            .max()
-            .unwrap_or(1)
-            .max(1);
-
         let max_node_height = self
             .nodes
             .values()
@@ -766,15 +802,64 @@ impl Diagram {
 
         let (width, height) = match self.direction {
             Direction::TopDown | Direction::BottomTop => {
-                let inner_width = NODE_WIDTH + NODE_SPACING * ((max_per_level - 1) as f32);
+                let base_horizontal_gap =
+                    (NODE_SPACING - NODE_WIDTH).max(EDGE_COLLISION_MARGIN * 2.0);
                 let inner_height = max_node_height + vertical_step * ((level_count - 1) as f32);
+
+                let mut layer_centers: Vec<Vec<(String, f32)>> = Vec::with_capacity(layers.len());
+                let mut layer_widths: Vec<f32> = Vec::with_capacity(layers.len());
+
+                for layer in &layers {
+                    if layer.is_empty() {
+                        layer_centers.push(Vec::new());
+                        layer_widths.push(0.0);
+                        continue;
+                    }
+
+                    let mut centers = Vec::with_capacity(layer.len());
+                    let mut current = 0.0_f32;
+                    let mut prev_width = 0.0_f32;
+
+                    for (idx, id) in layer.iter().enumerate() {
+                        let width = self
+                            .nodes
+                            .get(id)
+                            .map(|node| node.width)
+                            .unwrap_or(NODE_WIDTH)
+                            .max(NODE_WIDTH);
+                        let half = width / 2.0;
+                        if idx == 0 {
+                            current = half;
+                        } else {
+                            current += prev_width / 2.0 + base_horizontal_gap + half;
+                        }
+                        centers.push((id.clone(), current));
+                        prev_width = width;
+                    }
+
+                    let last_center = centers.last().map(|entry| entry.1).unwrap_or(0.0);
+                    let last_width = layer
+                        .last()
+                        .and_then(|id| self.nodes.get(id))
+                        .map(|node| node.width)
+                        .unwrap_or(NODE_WIDTH)
+                        .max(NODE_WIDTH);
+                    let layer_width = last_center + last_width / 2.0;
+
+                    layer_centers.push(centers);
+                    layer_widths.push(layer_width.max(NODE_WIDTH));
+                }
+
+                let inner_width = layer_widths.iter().copied().fold(NODE_WIDTH, f32::max);
                 let width = inner_width + START_OFFSET * 2.0;
                 let height = inner_height + START_OFFSET * 2.0;
 
                 let vertical_span = vertical_step * ((level_count - 1) as f32);
                 let start_y = START_OFFSET + (inner_height - vertical_span) / 2.0;
 
-                for (idx, nodes) in layers.iter().enumerate() {
+                for (idx, centers) in layer_centers.iter().enumerate() {
+                    let layer_width = layer_widths[idx];
+                    let offset_x = START_OFFSET + (inner_width - layer_width) / 2.0;
                     let row_index = if matches!(self.direction, Direction::BottomTop) {
                         level_count - 1 - idx
                     } else {
@@ -782,40 +867,127 @@ impl Diagram {
                     } as f32;
                     let y = start_y + row_index * vertical_step;
 
-                    let span = NODE_SPACING * ((nodes.len().saturating_sub(1)) as f32);
-                    let start_x = START_OFFSET + (inner_width - span) / 2.0;
-
-                    for (col_idx, id) in nodes.iter().enumerate() {
-                        let x = start_x + col_idx as f32 * NODE_SPACING;
-                        positions.insert(id.clone(), Point { x, y });
+                    for (id, rel_x) in centers {
+                        positions.insert(
+                            id.clone(),
+                            Point {
+                                x: offset_x + rel_x,
+                                y,
+                            },
+                        );
                     }
                 }
 
                 (width, height)
             }
             Direction::LeftRight | Direction::RightLeft => {
-                let inner_width = NODE_WIDTH + NODE_SPACING * ((level_count - 1) as f32);
-                let inner_height = max_node_height + vertical_step * ((max_per_level - 1) as f32);
+                let base_horizontal_gap =
+                    (NODE_SPACING - NODE_WIDTH).max(EDGE_COLLISION_MARGIN * 2.0);
+                let base_vertical_gap =
+                    (NODE_SPACING - NODE_HEIGHT).max(EDGE_COLLISION_MARGIN * 2.0);
+
+                let mut column_widths = Vec::with_capacity(level_count);
+                for layer in &layers {
+                    let mut max_width = NODE_WIDTH;
+                    for id in layer {
+                        let width = self
+                            .nodes
+                            .get(id)
+                            .map(|node| node.width)
+                            .unwrap_or(NODE_WIDTH);
+                        if width > max_width {
+                            max_width = width;
+                        }
+                    }
+                    column_widths.push(max_width);
+                }
+
+                let mut column_centers = Vec::with_capacity(level_count);
+                let mut current = 0.0_f32;
+                for (idx, width) in column_widths.iter().enumerate() {
+                    let half = width / 2.0;
+                    if idx == 0 {
+                        current = half;
+                    } else {
+                        let prev_width = column_widths[idx - 1];
+                        current += prev_width / 2.0 + base_horizontal_gap + half;
+                    }
+                    column_centers.push(current);
+                }
+
+                let total_width = if column_centers.is_empty() {
+                    NODE_WIDTH
+                } else {
+                    let last_center = *column_centers.last().unwrap();
+                    let last_width = *column_widths.last().unwrap_or(&NODE_WIDTH);
+                    last_center + last_width / 2.0
+                };
+                let inner_width = total_width.max(NODE_WIDTH);
                 let width = inner_width + START_OFFSET * 2.0;
+
+                let mut column_layouts = Vec::with_capacity(level_count);
+                let mut column_heights = Vec::with_capacity(level_count);
+
+                for layer in &layers {
+                    if layer.is_empty() {
+                        column_layouts.push(Vec::new());
+                        column_heights.push(0.0);
+                        continue;
+                    }
+
+                    let mut centers = Vec::with_capacity(layer.len());
+                    let mut current_y = 0.0_f32;
+                    let mut prev_height = 0.0_f32;
+
+                    for (idx, id) in layer.iter().enumerate() {
+                        let height = self
+                            .nodes
+                            .get(id)
+                            .map(|node| node.height)
+                            .unwrap_or(NODE_HEIGHT);
+                        let half = height / 2.0;
+                        if idx == 0 {
+                            current_y = half;
+                        } else {
+                            current_y += prev_height / 2.0 + base_vertical_gap + half;
+                        }
+                        centers.push((id.clone(), current_y));
+                        prev_height = height;
+                    }
+
+                    let last_center = centers.last().map(|entry| entry.1).unwrap_or(0.0);
+                    let last_height = layer
+                        .last()
+                        .and_then(|id| self.nodes.get(id))
+                        .map(|node| node.height)
+                        .unwrap_or(NODE_HEIGHT);
+                    let column_height = last_center + last_height / 2.0;
+
+                    column_layouts.push(centers);
+                    column_heights.push(column_height.max(NODE_HEIGHT));
+                }
+
+                let inner_height = column_heights.iter().copied().fold(NODE_HEIGHT, f32::max);
                 let height = inner_height + START_OFFSET * 2.0;
 
-                let horizontal_span = NODE_SPACING * ((level_count - 1) as f32);
-                let start_x = START_OFFSET + (inner_width - horizontal_span) / 2.0;
-
-                for (idx, nodes) in layers.iter().enumerate() {
+                for (idx, centers) in column_layouts.iter().enumerate() {
                     let column_index = if matches!(self.direction, Direction::RightLeft) {
                         level_count - 1 - idx
                     } else {
                         idx
-                    } as f32;
-                    let x = start_x + column_index * NODE_SPACING;
+                    };
+                    let x = START_OFFSET + column_centers[column_index];
+                    let column_height = column_heights[idx];
+                    let offset_y = START_OFFSET + (inner_height - column_height) / 2.0;
 
-                    let span = vertical_step * ((nodes.len().saturating_sub(1)) as f32);
-                    let start_y = START_OFFSET + (inner_height - span) / 2.0;
-
-                    for (row_idx, id) in nodes.iter().enumerate() {
-                        let y = start_y + row_idx as f32 * vertical_step;
-                        positions.insert(id.clone(), Point { x, y });
+                    for (id, rel_y) in centers {
+                        positions.insert(
+                            id.clone(),
+                            Point {
+                                x,
+                                y: offset_y + rel_y,
+                            },
+                        );
                     }
                 }
 
@@ -912,6 +1084,7 @@ impl Diagram {
         overrides: Option<&LayoutOverrides>,
     ) -> Result<HashMap<String, Vec<Point>>> {
         let mut routes = HashMap::new();
+        let mut label_bounds: HashMap<String, Rect> = HashMap::new();
         let mut edge_ids = Vec::with_capacity(self.edges.len());
         let mut pairings: HashMap<(String, String), Vec<(usize, bool)>> = HashMap::new();
 
@@ -1076,8 +1249,18 @@ impl Diagram {
 
             let mut path = build_route(from, &middle_points, to);
 
-            let base_label_collision = self.label_collides_with_nodes(edge, &path, &node_bounds);
+            let mut base_label_collision =
+                self.label_collides_with_nodes(edge, &path, &node_bounds);
             let base_node_collision = self.route_collides_with_nodes(edge, &path, &node_bounds);
+            if route_intersects_label_rects(&path, &label_bounds) {
+                base_label_collision = true;
+            }
+            if let Some(rect) = label_rect_for_route(edge, &path) {
+                let inflated = rect.inflate(EDGE_COLLISION_MARGIN);
+                if label_overlaps_existing(edge_id, inflated, &label_bounds) {
+                    base_label_collision = true;
+                }
+            }
             let base_intersections = count_route_intersections(&path, &routes);
 
             if middle_points.is_empty()
@@ -1090,6 +1273,8 @@ impl Diagram {
                     edge,
                     &node_bounds,
                     &routes,
+                    &label_bounds,
+                    edge_id,
                     base_label_collision,
                     base_node_collision,
                     base_intersections,
@@ -1100,10 +1285,33 @@ impl Diagram {
 
             if !has_custom_override {
                 let mut detour_attempts = 0_usize;
-                while self.route_collides_with_nodes(edge, &path, &node_bounds) {
-                    if let Some(candidate) =
-                        self.detour_route_for_collisions(edge, &path, &node_bounds, &routes)
-                    {
+                loop {
+                    let mut requires_detour =
+                        self.route_collides_with_nodes(edge, &path, &node_bounds)
+                            || self.label_collides_with_nodes(edge, &path, &node_bounds)
+                            || route_intersects_label_rects(&path, &label_bounds);
+
+                    if !requires_detour {
+                        if let Some(rect) = label_rect_for_route(edge, &path) {
+                            let inflated = rect.inflate(EDGE_COLLISION_MARGIN);
+                            if label_overlaps_existing(edge_id, inflated, &label_bounds) {
+                                requires_detour = true;
+                            }
+                        }
+                    }
+
+                    if !requires_detour {
+                        break;
+                    }
+
+                    if let Some(candidate) = self.detour_route_for_collisions(
+                        edge,
+                        &path,
+                        &node_bounds,
+                        &routes,
+                        &label_bounds,
+                        edge_id,
+                    ) {
                         path = candidate;
                         detour_attempts += 1;
                         if detour_attempts >= 3 {
@@ -1125,6 +1333,10 @@ impl Diagram {
                 (node_bounds.get(&edge.from), node_bounds.get(&edge.to))
             {
                 trim_route_endpoints(&mut path, from_bounds, to_bounds);
+            }
+
+            if let Some(label_rect) = label_rect_for_route(edge, &path) {
+                label_bounds.insert(edge_id.clone(), label_rect.inflate(EDGE_COLLISION_MARGIN));
             }
 
             routes.insert(edge_id.clone(), path);
@@ -1242,6 +1454,8 @@ impl Diagram {
         edge: &Edge,
         node_bounds: &HashMap<String, NodeBoundary>,
         existing_routes: &HashMap<String, Vec<Point>>,
+        existing_label_bounds: &HashMap<String, Rect>,
+        edge_id: &str,
         base_label_collision: bool,
         base_node_collision: bool,
         base_intersections: usize,
@@ -1303,10 +1517,12 @@ impl Diagram {
                 if evaluate_candidate_route(
                     self,
                     edge,
+                    edge_id,
                     from,
                     to,
                     node_bounds,
                     existing_routes,
+                    existing_label_bounds,
                     points,
                     &mut best_metric,
                     &mut best_points,
@@ -1327,20 +1543,43 @@ impl Diagram {
             return best_points;
         }
 
-        for candidate in generate_axis_detours(from, to, from_bounds, to_bounds) {
+        for candidate in generate_orthogonal_routes(from, to, self.direction) {
             if evaluate_candidate_route(
                 self,
                 edge,
+                edge_id,
                 from,
                 to,
                 node_bounds,
                 existing_routes,
+                existing_label_bounds,
                 candidate,
                 &mut best_metric,
                 &mut best_points,
             ) {
                 found_perfect = true;
                 break;
+            }
+        }
+
+        if !found_perfect {
+            for candidate in generate_axis_detours(from, to, from_bounds, to_bounds) {
+                if evaluate_candidate_route(
+                    self,
+                    edge,
+                    edge_id,
+                    from,
+                    to,
+                    node_bounds,
+                    existing_routes,
+                    existing_label_bounds,
+                    candidate,
+                    &mut best_metric,
+                    &mut best_points,
+                ) {
+                    found_perfect = true;
+                    break;
+                }
             }
         }
 
@@ -1361,14 +1600,31 @@ impl Diagram {
         route: &[Point],
         node_bounds: &HashMap<String, NodeBoundary>,
         existing_routes: &HashMap<String, Vec<Point>>,
+        existing_label_bounds: &HashMap<String, Rect>,
+        edge_id: &str,
     ) -> Option<Vec<Point>> {
         if route.len() < 2 {
             return None;
         }
 
+        let best_node_collision = self.route_collides_with_nodes(edge, route, node_bounds) as u8;
+        let mut best_label_collision =
+            self.label_collides_with_nodes(edge, route, node_bounds) as u8;
+        if route_intersects_label_rects(route, existing_label_bounds) {
+            best_label_collision = 1;
+        }
+        if let Some(rect) = label_rect_for_route(edge, route) {
+            if label_overlaps_existing(
+                edge_id,
+                rect.inflate(EDGE_COLLISION_MARGIN),
+                existing_label_bounds,
+            ) {
+                best_label_collision = 1;
+            }
+        }
         let mut best_metric = (
-            self.route_collides_with_nodes(edge, route, node_bounds) as u8,
-            self.label_collides_with_nodes(edge, route, node_bounds) as u8,
+            best_node_collision,
+            best_label_collision,
             count_route_intersections(route, existing_routes),
         );
 
@@ -1443,9 +1699,25 @@ impl Diagram {
                     candidate.extend_from_slice(&route[segment_idx + 1..]);
                     simplify_route(&mut candidate);
 
+                    let candidate_node_collision =
+                        self.route_collides_with_nodes(edge, &candidate, node_bounds) as u8;
+                    let mut candidate_label_collision =
+                        self.label_collides_with_nodes(edge, &candidate, node_bounds) as u8;
+                    if route_intersects_label_rects(&candidate, existing_label_bounds) {
+                        candidate_label_collision = 1;
+                    }
+                    if let Some(rect) = label_rect_for_route(edge, &candidate) {
+                        if label_overlaps_existing(
+                            edge_id,
+                            rect.inflate(EDGE_COLLISION_MARGIN),
+                            existing_label_bounds,
+                        ) {
+                            candidate_label_collision = 1;
+                        }
+                    }
                     let candidate_metric = (
-                        self.route_collides_with_nodes(edge, &candidate, node_bounds) as u8,
-                        self.label_collides_with_nodes(edge, &candidate, node_bounds) as u8,
+                        candidate_node_collision,
+                        candidate_label_collision,
                         count_route_intersections(&candidate, existing_routes),
                     );
 
@@ -1710,30 +1982,81 @@ impl Diagram {
             format!(
                 "{} {}|{}| {}",
                 edge.from,
-                edge.kind.arrow_token(),
+                edge.kind.connector(edge.arrow),
                 label,
                 edge.to
             )
         } else {
-            format!("{} {} {}", edge.from, edge.kind.arrow_token(), edge.to)
+            format!(
+                "{} {} {}",
+                edge.from,
+                edge.kind.connector(edge.arrow),
+                edge.to
+            )
         }
     }
+}
+
+fn route_intersects_label_rects(route: &[Point], label_bounds: &HashMap<String, Rect>) -> bool {
+    if label_bounds.is_empty() || route.len() < 2 {
+        return false;
+    }
+
+    for segment in route.windows(2) {
+        let a = segment[0];
+        let b = segment[1];
+        for rect in label_bounds.values() {
+            if rect.intersects_segment(a, b) {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+fn label_overlaps_existing(
+    current_id: &str,
+    rect: Rect,
+    label_bounds: &HashMap<String, Rect>,
+) -> bool {
+    for (edge_id, other_rect) in label_bounds {
+        if edge_id == current_id {
+            continue;
+        }
+        if rect.intersects(other_rect) {
+            return true;
+        }
+    }
+
+    false
 }
 
 fn evaluate_candidate_route(
     diagram: &Diagram,
     edge: &Edge,
+    edge_id: &str,
     from: Point,
     to: Point,
     node_bounds: &HashMap<String, NodeBoundary>,
     existing_routes: &HashMap<String, Vec<Point>>,
+    existing_label_bounds: &HashMap<String, Rect>,
     points: Vec<Point>,
     best_metric: &mut (u8, u8, usize),
     best_points: &mut Option<Vec<Point>>,
 ) -> bool {
     let route = build_route(from, &points, to);
     let node_collision = diagram.route_collides_with_nodes(edge, &route, node_bounds);
-    let label_collision = diagram.label_collides_with_nodes(edge, &route, node_bounds);
+    let mut label_collision = diagram.label_collides_with_nodes(edge, &route, node_bounds);
+    if route_intersects_label_rects(&route, existing_label_bounds) {
+        label_collision = true;
+    }
+    if let Some(rect) = label_rect_for_route(edge, &route) {
+        let inflated = rect.inflate(EDGE_COLLISION_MARGIN);
+        if label_overlaps_existing(edge_id, inflated, existing_label_bounds) {
+            label_collision = true;
+        }
+    }
     let intersections = count_route_intersections(&route, existing_routes);
     let candidate_metric = (node_collision as u8, label_collision as u8, intersections);
 
@@ -1799,6 +2122,105 @@ fn generate_axis_detours(
     }
 
     candidates
+}
+
+fn generate_orthogonal_routes(from: Point, to: Point, direction: Direction) -> Vec<Vec<Point>> {
+    let dx = to.x - from.x;
+    let dy = to.y - from.y;
+    
+    if dx.abs() < 1e-3_f32 || dy.abs() < 1e-3_f32 {
+        return Vec::new();
+    }
+
+    let vertical_stub = compute_orthogonal_stub(dy);
+    let horizontal_stub = compute_orthogonal_stub(dx);
+
+    let mut routes = Vec::new();
+
+    let vertical_first = build_orthogonal_route(from, to, dx, dy, vertical_stub, horizontal_stub, true);
+    let horizontal_first = build_orthogonal_route(from, to, dx, dy, vertical_stub, horizontal_stub, false);
+
+    match direction {
+        Direction::TopDown | Direction::BottomTop => {
+            routes.push(vertical_first);
+            routes.push(horizontal_first);
+        }
+        Direction::LeftRight | Direction::RightLeft => {
+            routes.push(horizontal_first);
+            routes.push(vertical_first);
+        }
+    }
+
+    routes
+}
+
+fn compute_orthogonal_stub(delta: f32) -> f32 {
+    let span = delta.abs();
+    if span >= EDGE_ORTHO_MIN_STUB * 2.0 {
+        EDGE_ORTHO_MIN_STUB
+    } else {
+        span * 0.5
+    }
+}
+
+fn build_orthogonal_route(
+    from: Point,
+    to: Point,
+    dx: f32,
+    dy: f32,
+    vertical_stub: f32,
+    horizontal_stub: f32,
+    vertical_first: bool,
+) -> Vec<Point> {
+    let mut points = Vec::new();
+
+    if vertical_first {
+        let v_sign = if dy >= 0.0 { 1.0 } else { -1.0 };
+        let h_sign = if dx >= 0.0 { 1.0 } else { -1.0 };
+        
+        if vertical_stub > 1e-2_f32 {
+            points.push(Point {
+                x: from.x,
+                y: from.y + v_sign * vertical_stub,
+            });
+        }
+        
+        points.push(Point {
+            x: from.x,
+            y: to.y,
+        });
+        
+        if horizontal_stub > 1e-2_f32 {
+            points.push(Point {
+                x: to.x - h_sign * horizontal_stub,
+                y: to.y,
+            });
+        }
+    } else {
+        let h_sign = if dx >= 0.0 { 1.0 } else { -1.0 };
+        let v_sign = if dy >= 0.0 { 1.0 } else { -1.0 };
+        
+        if horizontal_stub > 1e-2_f32 {
+            points.push(Point {
+                x: from.x + h_sign * horizontal_stub,
+                y: from.y,
+            });
+        }
+        
+        points.push(Point {
+            x: to.x,
+            y: from.y,
+        });
+        
+        if vertical_stub > 1e-2_f32 {
+            points.push(Point {
+                x: to.x,
+                y: to.y - v_sign * vertical_stub,
+            });
+        }
+    }
+
+    points
 }
 
 fn format_points(points: &[(f32, f32)]) -> String {
@@ -2458,10 +2880,15 @@ impl Direction {
 }
 
 impl EdgeKind {
-    pub fn arrow_token(&self) -> &'static str {
-        match self {
-            EdgeKind::Solid => "-->",
-            EdgeKind::Dashed => "-.->",
+    pub fn connector(&self, arrow: EdgeArrowDirection) -> &'static str {
+        match (self, arrow) {
+            (EdgeKind::Invisible, _) => "~~~",
+            (EdgeKind::Thick, EdgeArrowDirection::None) => "===",
+            (EdgeKind::Thick, _) => "==>",
+            (EdgeKind::Dashed, EdgeArrowDirection::None) => "-.->",
+            (EdgeKind::Dashed, _) => "-.->",
+            (EdgeKind::Solid, EdgeArrowDirection::None) => "---",
+            (EdgeKind::Solid, _) => "-->",
         }
     }
 
@@ -2469,6 +2896,8 @@ impl EdgeKind {
         match self {
             EdgeKind::Solid => "solid",
             EdgeKind::Dashed => "dashed",
+            EdgeKind::Thick => "thick",
+            EdgeKind::Invisible => "invisible",
         }
     }
 }
@@ -2510,6 +2939,37 @@ fn measure_label_box(lines: &[String]) -> (f32, f32) {
         .max(EDGE_LABEL_MIN_HEIGHT);
 
     (width, height)
+}
+
+fn raw_node_text_width(lines: &[String]) -> f32 {
+    let max_chars = lines
+        .iter()
+        .map(|line| line.chars().count().max(1))
+        .max()
+        .unwrap_or(1);
+    NODE_TEXT_CHAR_WIDTH * max_chars as f32 + NODE_TEXT_HORIZONTAL_PADDING
+}
+
+fn raw_node_text_height(lines: &[String]) -> f32 {
+    NODE_TEXT_LINE_HEIGHT * lines.len().max(1) as f32 + NODE_TEXT_VERTICAL_PADDING
+}
+
+fn compute_node_dimensions_from_lines(shape: NodeShape, lines: &[String]) -> (f32, f32) {
+    let mut width = raw_node_text_width(lines).max(NODE_WIDTH);
+    let mut height = raw_node_text_height(lines).max(NODE_HEIGHT);
+
+    if matches!(shape, NodeShape::Circle | NodeShape::DoubleCircle) {
+        let size = width.max(height);
+        width = size;
+        height = size;
+    }
+
+    (width, height)
+}
+
+fn compute_node_dimensions(shape: NodeShape, label: &str) -> (f32, f32) {
+    let lines = normalize_label_lines(label);
+    compute_node_dimensions_from_lines(shape, &lines)
 }
 
 fn label_center_for_route(route: &[Point]) -> Point {
@@ -3446,7 +3906,12 @@ pub fn centroid(points: &[Point]) -> Point {
 }
 
 pub fn edge_identifier(edge: &Edge) -> String {
-    format!("{} {} {}", edge.from, edge.kind.arrow_token(), edge.to)
+    format!(
+        "{} {} {}",
+        edge.from,
+        edge.kind.connector(edge.arrow),
+        edge.to
+    )
 }
 
 fn parse_graph_header(line: &str) -> Result<Direction> {
@@ -3590,12 +4055,25 @@ fn apply_image_to_node(node: &mut Node, mut image: NodeImage) {
     let label_lines = normalize_label_lines(&node.label);
     let label_line_count = label_lines.len().max(1);
     let label_height = NODE_LABEL_HEIGHT.max(label_line_count as f32 * NODE_TEXT_LINE_HEIGHT);
-    let content_width = (NODE_WIDTH - image.padding * 2.0).max(1.0);
-    let image_height = (content_width * aspect).max(1.0);
-    let total_height = (label_height + image_height + image.padding * 2.0).max(label_height + 1.0);
+    let text_width = raw_node_text_width(&label_lines);
 
-    node.width = NODE_WIDTH;
-    node.height = total_height;
+    let base_width = node.width.max(text_width).max(NODE_WIDTH);
+    let available_width = (base_width - image.padding * 2.0).max(1.0);
+    let image_height = (available_width * aspect).max(1.0);
+    let mut total_height =
+        (label_height + image_height + image.padding * 2.0).max(label_height + 1.0);
+    total_height = total_height.max(NODE_HEIGHT);
+
+    let mut final_width = base_width;
+    let mut final_height = total_height;
+    if matches!(node.shape, NodeShape::Circle | NodeShape::DoubleCircle) {
+        let size = final_width.max(final_height);
+        final_width = size;
+        final_height = size;
+    }
+
+    node.width = final_width;
+    node.height = final_height;
     node.image = Some(image);
 }
 
@@ -3698,33 +4176,54 @@ fn parse_edge_line(
     node_membership: &mut HashMap<String, Vec<String>>,
     subgraph_stack: &mut Vec<SubgraphBuilder>,
 ) -> Result<Option<Edge>> {
-    const EDGE_PATTERNS: [(&str, EdgeKind); 2] =
-        [("-.->", EdgeKind::Dashed), ("-->", EdgeKind::Solid)];
+    const EDGE_PATTERNS: [(&str, EdgeKind, EdgeArrowDirection, Option<&str>); 3] = [
+        ("-.->", EdgeKind::Dashed, EdgeArrowDirection::Forward, None),
+        (
+            "-->",
+            EdgeKind::Solid,
+            EdgeArrowDirection::Forward,
+            Some("--"),
+        ),
+        ("---", EdgeKind::Solid, EdgeArrowDirection::None, Some("--")),
+    ];
 
     let mut parts = None;
-    for (pattern, kind) in EDGE_PATTERNS {
+    for (pattern, kind, arrow, inline_prefix) in EDGE_PATTERNS {
         if let Some((lhs, rhs)) = line.split_once(pattern) {
-            parts = Some((lhs.trim(), rhs.trim(), kind));
+            parts = Some((lhs.trim(), rhs.trim(), kind, arrow, inline_prefix));
             break;
         }
     }
 
-    let Some((lhs, rhs, kind)) = parts else {
+    let Some((lhs, rhs, kind, arrow, inline_prefix)) = parts else {
         return Ok(None);
     };
 
-    let (label, rhs_clean) = if let Some(rest) = rhs.strip_prefix('|') {
+    let mut label: Option<String> = None;
+    let mut from_buffer: Option<String> = None;
+    let mut from_segment = lhs;
+    let rhs_clean = if let Some(rest) = rhs.strip_prefix('|') {
         let Some(end_idx) = rest.find('|') else {
             bail!("edge label missing closing '|' in line: '{line}'");
         };
-        let label = rest[..end_idx].trim();
+        let label_text = rest[..end_idx].trim();
         let target = rest[end_idx + 1..].trim();
-        (Some(label.to_string()), target)
+        label = Some(label_text.to_string());
+        target
     } else {
-        (None, rhs)
+        if let Some(prefix) = inline_prefix {
+            if let Some((maybe_from, inline_label)) = extract_inline_label(from_segment, prefix) {
+                label = Some(inline_label);
+                from_buffer = Some(maybe_from);
+            }
+        }
+        if let Some(buffer) = &from_buffer {
+            from_segment = buffer.as_str();
+        }
+        rhs
     };
 
-    let (from_id, from_new) = intern_node(lhs, nodes, order)?;
+    let (from_id, from_new) = intern_node(from_segment, nodes, order)?;
     if from_new {
         record_node_membership(&from_id, subgraph_stack, node_membership);
     } else if !node_membership.contains_key(&from_id) && subgraph_stack.is_empty() {
@@ -3743,7 +4242,32 @@ fn parse_edge_line(
         to: to_id,
         label,
         kind,
+        arrow,
     }))
+}
+
+fn extract_inline_label(segment: &str, prefix: &str) -> Option<(String, String)> {
+    let trimmed = segment.trim_end();
+    let Some(prefix_pos) = trimmed.rfind(prefix) else {
+        return None;
+    };
+
+    let before = &trimmed[..prefix_pos];
+    let after = &trimmed[prefix_pos + prefix.len()..];
+
+    let mut after_chars = after.chars();
+    match after_chars.next() {
+        Some(ch) if ch.is_whitespace() => {
+            let label = after.trim();
+            let from = before.trim_end();
+            if from.is_empty() || label.is_empty() {
+                None
+            } else {
+                Some((from.to_string(), label.to_string()))
+            }
+        }
+        _ => None,
+    }
 }
 
 fn intern_node(
@@ -3764,17 +4288,33 @@ fn insert_node_spec(
     let mut inserted = false;
     match nodes.entry(id.clone()) {
         Entry::Vacant(entry) => {
+            let (width, height) = compute_node_dimensions(shape, &label);
             order.push(id.clone());
             entry.insert(Node {
                 label,
                 shape,
                 image: None,
-                width: NODE_WIDTH,
-                height: NODE_HEIGHT,
+                width,
+                height,
             });
             inserted = true;
         }
-        Entry::Occupied(_) => {}
+        Entry::Occupied(mut entry) => {
+            let node = entry.get_mut();
+            let is_placeholder = node.label == id
+                && matches!(node.shape, NodeShape::Rectangle)
+                && node.image.is_none()
+                && (node.width - NODE_WIDTH).abs() < f32::EPSILON
+                && (node.height - NODE_HEIGHT).abs() < f32::EPSILON;
+
+            if is_placeholder {
+                let (width, height) = compute_node_dimensions(shape, &label);
+                node.label = label;
+                node.shape = shape;
+                node.width = width;
+                node.height = height;
+            }
+        }
     }
     (id, inserted)
 }
@@ -3965,5 +4505,41 @@ mod tests {
                 "format mismatch for {id}"
             );
         }
+    }
+
+    #[test]
+    fn parses_inline_edge_labels() {
+        let source = r#"
+graph TD
+    A -- Yes --> B;
+    B --> C;
+"#;
+
+        let diagram = Diagram::parse(source).expect("diagram parse should succeed");
+        assert_eq!(diagram.edges.len(), 2, "expected two edges");
+
+        let yes_edge = diagram
+            .edges
+            .iter()
+            .find(|edge| edge.label.as_deref() == Some("Yes"))
+            .expect("expected inline labeled edge");
+        assert_eq!(yes_edge.from, "A");
+        assert_eq!(yes_edge.to, "B");
+    }
+
+    #[test]
+    fn resolves_forward_declared_nodes() {
+        let source = r#"
+graph TD
+    F --> I;
+    I(Official Node);
+"#;
+
+        let diagram = Diagram::parse(source).expect("diagram parse should succeed");
+        let node = diagram
+            .nodes
+            .get("I")
+            .expect("expected node I to be present");
+        assert_eq!(node.label, "Official Node");
     }
 }

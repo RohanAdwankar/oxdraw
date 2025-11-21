@@ -44,7 +44,7 @@ fn generates_svg_for_all_fixtures() -> Result<(), Box<dyn std::error::Error>> {
             fs::remove_file(&png_output_path)?;
         }
 
-    let mut cmd = cargo_bin_cmd!("oxdraw");
+        let mut cmd = cargo_bin_cmd!("oxdraw");
         cmd.arg("--input")
             .arg(&path)
             .arg("--output")
@@ -61,7 +61,7 @@ fn generates_svg_for_all_fixtures() -> Result<(), Box<dyn std::error::Error>> {
             svg_output_path.display()
         );
 
-    let mut png_cmd = cargo_bin_cmd!("oxdraw");
+        let mut png_cmd = cargo_bin_cmd!("oxdraw");
         png_cmd
             .arg("--input")
             .arg(&path)

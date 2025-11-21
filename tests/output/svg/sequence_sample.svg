@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="868" height="1264" viewBox="0 0 868 1264" font-family="Inter, system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="888" height="1254" viewBox="0 0 888 1254" font-family="Inter, system-ui, sans-serif">
   <defs>
         <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
             <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
@@ -10,56 +10,56 @@
   </defs>
   <rect width="100%" height="100%" fill="white" />
   <g class="subgraph" data-id="ClientFlow">
-    <rect x="392.0" y="80.0" width="396.0" height="512.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
-    <text x="412.0" y="100.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">ClientFlow</text>
+    <rect x="411.9" y="80.0" width="396.0" height="502.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <text x="431.9" y="100.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">ClientFlow</text>
   </g>
-  <line x1="590.0" y1="224.0" x2="590.0" y2="323.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="609.9" y1="214.0" x2="609.9" y2="323.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="533.9" y="249.5" width="112.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="590.0" y="263.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">POST /diagram</text>
+    <rect x="553.8" y="244.5" width="112.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="609.9" y="258.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">POST /diagram</text>
   </g>
-  <line x1="577.6" y1="378.7" x2="525.4" y2="483.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="599.1" y1="370.7" x2="542.8" y2="483.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="533.5" y="406.9" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="551.5" y="420.9" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
+    <rect x="553.0" y="402.9" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="571.0" y="416.9" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
   </g>
-  <line x1="602.4" y1="378.7" x2="654.6" y2="483.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="620.7" y1="370.7" x2="677.0" y2="483.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="609.4" y="406.9" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="628.5" y="420.9" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
+    <rect x="629.7" y="402.9" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="648.8" y="416.9" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
   </g>
-  <polyline points="656.0,544.0 600.0,664.0 490.0,704.0 380.0,744.0 295.2,704.4" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <line x1="230.0" y1="704.0" x2="230.0" y2="803.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <line x1="217.6" y1="858.7" x2="165.4" y2="963.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="677.9,534.0 616.0,662.9 502.2,702.9 388.3,742.9 287.4,694.4" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="234.4" y1="694.0" x2="234.4" y2="803.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="223.5" y1="850.8" x2="167.3" y2="963.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="172.4" y="886.9" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="191.5" y="900.9" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
+    <rect x="176.3" y="883.0" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="195.4" y="897.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
   </g>
-  <line x1="242.4" y1="858.7" x2="294.6" y2="963.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="245.8" y1="850.7" x2="305.1" y2="963.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="250.5" y="886.9" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="268.5" y="900.9" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
+    <rect x="257.5" y="882.9" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="275.5" y="896.9" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
   </g>
-  <polyline points="380.0,965.8 392.4,960.8 526.8,781.6 661.2,602.4 666.9,545.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <line x1="165.0" y1="1024.0" x2="214.6" y2="1123.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <rect x="160.0" y="1124.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
-  <text x="230.0" y="1154.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Send 200 OK</text>
-  <rect x="600.0" y="484.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="670.0" y="514.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Queue Job</text>
-  <rect x="440.0" y="484.0" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
-  <text x="510.0" y="514.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Reject</text>
-  <rect x="160.0" y="644.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fed7aa" stroke="#2d3748" stroke-width="2" />
-  <line x1="172.0" y1="644.0" x2="172.0" y2="704.0" stroke="#2d3748" stroke-width="2" />
-  <line x1="288.0" y1="644.0" x2="288.0" y2="704.0" stroke="#2d3748" stroke-width="2" />
-  <text x="230.0" y="674.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Worker</text>
-  <polygon points="230.0,804.0 300.0,834.0 230.0,864.0 160.0,834.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="230.0" y="834.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Render Success?</text>
-  <rect x="80.0" y="964.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Generate SVG</text>
-  <rect x="240.0" y="964.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="310.0" y="994.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Retry</text>
-  <rect x="520.0" y="164.0" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="590.0" y="194.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Client Request</text>
-  <polygon points="590.0,324.0 660.0,354.0 590.0,384.0 520.0,354.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="590.0" y="354.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Payload Valid?</text>
+  <polyline points="383.6,964.0 401.7,957.0 540.7,777.1 679.8,597.3 686.9,535.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="166.9" y1="1014.0" x2="221.5" y2="1123.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <rect x="528.1" y="164.0" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="609.9" y="189.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Client Request</text>
+  <rect x="459.9" y="484.0" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="529.9" y="509.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Reject</text>
+  <rect x="80.0" y="964.0" width="148.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="154.4" y="989.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Generate SVG</text>
+  <polygon points="234.4,804.0 319.9,829.0 234.4,854.0 148.9,829.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="234.4" y="829.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Render Success?</text>
+  <rect x="163.7" y="1124.0" width="141.4" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="234.4" y="1149.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Send 200 OK</text>
+  <rect x="619.9" y="484.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="689.9" y="509.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Queue Job</text>
+  <rect x="248.8" y="964.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="318.8" y="989.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Retry</text>
+  <rect x="164.4" y="644.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fed7aa" stroke="#2d3748" stroke-width="2" />
+  <line x1="176.4" y1="644.0" x2="176.4" y2="694.0" stroke="#2d3748" stroke-width="2" />
+  <line x1="292.4" y1="644.0" x2="292.4" y2="694.0" stroke="#2d3748" stroke-width="2" />
+  <text x="234.4" y="669.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Worker</text>
+  <polygon points="609.9,324.0 691.7,349.0 609.9,374.0 528.1,349.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="609.9" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Payload Valid?</text>
 </svg>

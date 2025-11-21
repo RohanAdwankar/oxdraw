@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="494" height="2432" viewBox="0 0 494 2432" font-family="Inter, system-ui, sans-serif">
+  <defs>
+        <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
+        </marker>
+        <marker id="arrow-start" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M7,1 L2,4 L7,7 z" fill="context-stroke" />
+        </marker>
+  </defs>
+  <rect width="100%" height="100%" fill="white" />
+  <line x1="263.0" y1="220.0" x2="263.0" y2="288.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="263.0" y1="339.0" x2="263.0" y2="452.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="263.0" y1="503.0" x2="263.0" y2="616.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="263.0" y1="667.0" x2="263.0" y2="780.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="263.0" y1="831.0" x2="263.0" y2="944.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="263.0" y1="995.0" x2="263.0" y2="1108.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="263.0" y1="1159.0" x2="263.0" y2="1272.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="243.9" y="1191.5" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="263.0" y="1205.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
+  </g>
+  <line x1="263.0" y1="1323.0" x2="263.0" y2="1436.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="244.6,1152.4 140.0,1257.0 140.0,1380.0 140.0,1503.0 237.3,1600.3" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="122.0" y="1366.0" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="140.0" y="1380.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
+  </g>
+  <line x1="263.0" y1="1487.0" x2="263.0" y2="1600.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="263.0" y1="1651.0" x2="263.0" y2="1764.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="263.0" y1="1815.0" x2="263.0" y2="1928.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="263.0" y1="1979.0" x2="263.0" y2="2092.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="252.6" y1="2139.3" x2="195.6" y2="2256.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="201.3" y="2173.7" width="45.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="224.1" y="2187.7" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">收到反馈</text>
+  </g>
+  <polyline points="165.0,2257.0 80.0,2139.0 100.0,2016.0 120.0,1893.0 227.5,1815.6" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="273.5" y1="2139.3" x2="312.4" y2="2218.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="273.8" y="2154.8" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="292.9" y="2168.8" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">无反馈</text>
+  </g>
+  <rect x="188.6" y="1601.0" width="148.8" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="263.0" y="1626.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">6.3 规范文档生成引擎</text>
+  <rect x="173.8" y="617.0" width="178.4" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="263.0" y="642.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">6.1.1 跨模态融合与冲突检测</text>
+  <rect x="184.9" y="453.0" width="156.2" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="263.0" y="478.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">6.1 多模态输入理解引擎</text>
+  <rect x="192.3" y="1929.0" width="141.4" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="263.0" y="1954.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">6.4 规范一致性验证</text>
+  <polygon points="263.0,1109.0 333.0,1134.0 263.0,1159.0 193.0,1134.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="263.0" y="1134.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">发现缺失或冲突?</text>
+  <ellipse cx="343.7" cy="2282.0" rx="70.0" ry="70.0" fill="#e9d8fd" stroke="#2d3748" stroke-width="2" />
+  <text x="343.7" y="2282.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">结束</text>
+  <rect x="193.0" y="1437.0" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="263.0" y="1462.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">等待用户澄清</text>
+  <rect x="193.0" y="1273.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="263.0" y="1298.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">生成澄清问题列表</text>
+  <ellipse cx="263.0" cy="150.0" rx="70.0" ry="70.0" fill="#e9d8fd" stroke="#2d3748" stroke-width="2" />
+  <text x="263.0" y="150.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">开始</text>
+  <rect x="184.9" y="945.0" width="156.2" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="263.0" y="970.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">6.2 需求完整性检查引擎</text>
+  <rect x="193.0" y="1765.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="263.0" y="1790.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">生成完整规范文档</text>
+  <rect x="112.3" y="2257.0" width="141.4" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="183.0" y="2282.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">6.5 交互式规范细化</text>
+  <polygon points="263.0,2093.0 333.0,2118.0 263.0,2143.0 193.0,2118.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="263.0" y="2118.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">等待用户反馈</text>
+  <rect x="193.0" y="781.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="263.0" y="806.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">生成统一需求表示</text>
+  <rect x="193.0" y="289.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="263.0" y="314.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">接收多模态输入</text>
+</svg>
