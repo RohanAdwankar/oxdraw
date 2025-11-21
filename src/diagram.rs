@@ -1543,7 +1543,7 @@ impl Diagram {
             return best_points;
         }
 
-        for candidate in generate_axis_detours(from, to, from_bounds, to_bounds) {
+        for candidate in generate_orthogonal_routes(from, to, self.direction) {
             if evaluate_candidate_route(
                 self,
                 edge,
@@ -1559,6 +1559,27 @@ impl Diagram {
             ) {
                 found_perfect = true;
                 break;
+            }
+        }
+
+        if !found_perfect {
+            for candidate in generate_axis_detours(from, to, from_bounds, to_bounds) {
+                if evaluate_candidate_route(
+                    self,
+                    edge,
+                    edge_id,
+                    from,
+                    to,
+                    node_bounds,
+                    existing_routes,
+                    existing_label_bounds,
+                    candidate,
+                    &mut best_metric,
+                    &mut best_points,
+                ) {
+                    found_perfect = true;
+                    break;
+                }
             }
         }
 
@@ -2101,6 +2122,105 @@ fn generate_axis_detours(
     }
 
     candidates
+}
+
+fn generate_orthogonal_routes(from: Point, to: Point, direction: Direction) -> Vec<Vec<Point>> {
+    let dx = to.x - from.x;
+    let dy = to.y - from.y;
+    
+    if dx.abs() < 1e-3_f32 || dy.abs() < 1e-3_f32 {
+        return Vec::new();
+    }
+
+    let vertical_stub = compute_orthogonal_stub(dy);
+    let horizontal_stub = compute_orthogonal_stub(dx);
+
+    let mut routes = Vec::new();
+
+    let vertical_first = build_orthogonal_route(from, to, dx, dy, vertical_stub, horizontal_stub, true);
+    let horizontal_first = build_orthogonal_route(from, to, dx, dy, vertical_stub, horizontal_stub, false);
+
+    match direction {
+        Direction::TopDown | Direction::BottomTop => {
+            routes.push(vertical_first);
+            routes.push(horizontal_first);
+        }
+        Direction::LeftRight | Direction::RightLeft => {
+            routes.push(horizontal_first);
+            routes.push(vertical_first);
+        }
+    }
+
+    routes
+}
+
+fn compute_orthogonal_stub(delta: f32) -> f32 {
+    let span = delta.abs();
+    if span >= EDGE_ORTHO_MIN_STUB * 2.0 {
+        EDGE_ORTHO_MIN_STUB
+    } else {
+        span * 0.5
+    }
+}
+
+fn build_orthogonal_route(
+    from: Point,
+    to: Point,
+    dx: f32,
+    dy: f32,
+    vertical_stub: f32,
+    horizontal_stub: f32,
+    vertical_first: bool,
+) -> Vec<Point> {
+    let mut points = Vec::new();
+
+    if vertical_first {
+        let v_sign = if dy >= 0.0 { 1.0 } else { -1.0 };
+        let h_sign = if dx >= 0.0 { 1.0 } else { -1.0 };
+        
+        if vertical_stub > 1e-2_f32 {
+            points.push(Point {
+                x: from.x,
+                y: from.y + v_sign * vertical_stub,
+            });
+        }
+        
+        points.push(Point {
+            x: from.x,
+            y: to.y,
+        });
+        
+        if horizontal_stub > 1e-2_f32 {
+            points.push(Point {
+                x: to.x - h_sign * horizontal_stub,
+                y: to.y,
+            });
+        }
+    } else {
+        let h_sign = if dx >= 0.0 { 1.0 } else { -1.0 };
+        let v_sign = if dy >= 0.0 { 1.0 } else { -1.0 };
+        
+        if horizontal_stub > 1e-2_f32 {
+            points.push(Point {
+                x: from.x + h_sign * horizontal_stub,
+                y: from.y,
+            });
+        }
+        
+        points.push(Point {
+            x: to.x,
+            y: from.y,
+        });
+        
+        if vertical_stub > 1e-2_f32 {
+            points.push(Point {
+                x: to.x,
+                y: to.y - v_sign * vertical_stub,
+            });
+        }
+    }
+
+    points
 }
 
 fn format_points(points: &[(f32, f32)]) -> String {

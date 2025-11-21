@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1423" height="523" viewBox="0 0 1423 523" font-family="Inter, system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1507" height="546" viewBox="0 0 1507 546" font-family="Inter, system-ui, sans-serif">
   <defs>
         <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
             <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
@@ -9,51 +9,51 @@
         </marker>
   </defs>
   <rect width="100%" height="100%" fill="white" />
-  <line x1="231.6" y1="289.0" x2="250.6" y2="289.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <polyline points="406.1,299.9 432.5,304.6 465.1,291.9 497.7,279.2 527.5,239.8" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="243.6" y1="326.1" x2="262.6" y2="326.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="420.4,337.1 451.1,343.0 488.3,329.3 525.4,315.6 560.2,271.9" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="447.1" y="277.9" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="465.1" y="291.9" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
+    <rect x="470.3" y="315.3" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="488.3" y="329.3" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
   </g>
-  <line x1="634.0" y1="209.1" x2="681.0" y2="209.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <polyline points="712.7,179.1 583.0,80.0 433.9,100.0 284.9,120.0 179.3,258.3" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <polyline points="364.2,313.2 399.0,359.2 431.6,371.9 464.2,384.6 550.8,369.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="670.0" y1="246.1" x2="722.3" y2="246.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="761.8,221.1 616.0,108.1 457.9,128.1 299.9,148.1 181.8,300.4" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="380.5,347.0 419.3,395.6 456.4,409.3 493.6,423.0 580.8,406.1" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="412.5" y="357.9" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="431.6" y="371.9" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
+    <rect x="437.3" y="395.3" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="456.4" y="409.3" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
   </g>
-  <line x1="641.4" y1="369.0" x2="660.4" y2="369.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <line x1="777.2" y1="347.4" x2="902.7" y2="239.7" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="677.4" y1="406.1" x2="696.4" y2="406.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="817.5" y1="387.2" x2="960.6" y2="271.8" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="822.0" y="269.6" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="840.0" y="283.6" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
+    <rect x="871.0" y="305.5" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="889.0" y="319.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
   </g>
-  <polyline points="781.3,389.3 838.6,429.0 845.2,429.0 851.8,429.0 894.3,399.6" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="821.2,424.1 863.6,452.1 893.2,452.1 922.8,452.1 953.7,431.7" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="826.1" y="415.0" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="845.2" y="429.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
+    <rect x="874.1" y="438.1" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="893.2" y="452.1" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
   </g>
-  <line x1="1001.4" y1="339.0" x2="1042.4" y2="319.5" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <line x1="1178.4" y1="289.0" x2="1197.4" y2="289.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <polyline points="1270.5,259.0 1270.5,153.1 345.9,153.1 345.9,258.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <rect x="1198.4" y="259.0" width="144.2" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1270.5" y="289.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Deploy Hotfix</text>
-  <rect x="868.4" y="179.1" width="140.0" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
-  <text x="938.4" y="209.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Stable</text>
-  <polygon points="752.0,339.0 842.6,369.0 752.0,399.0 661.4,369.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="752.0" y="369.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Incident Detected?</text>
-  <rect x="682.0" y="179.1" width="140.0" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="752.0" y="209.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Notify Team</text>
-  <rect x="467.6" y="179.1" width="166.4" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="550.8" y="209.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Trigger Rollback</text>
-  <polygon points="345.9,259.0 440.2,289.0 345.9,319.0 251.6,289.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="345.9" y="289.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Health Checks Pass?</text>
-  <rect x="862.6" y="339.0" width="151.6" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="938.4" y="369.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Follow Runbook</text>
-  <rect x="80.0" y="259.0" width="151.6" height="60.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
-  <text x="155.8" y="289.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Deploy Release</text>
-  <rect x="460.2" y="339.0" width="181.2" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="550.8" y="369.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Continuous Monitor</text>
-  <rect x="1034.2" y="259.0" width="144.2" height="60.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1106.3" y="289.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Create Hotfix</text>
+  <line x1="1048.6" y1="381.1" x2="1115.2" y2="351.6" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1250.4" y1="326.1" x2="1269.4" y2="326.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="1323.5,301.1 1102.3,80.0 856.2,80.0 610.1,80.0 384.6,305.4" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polygon points="363.9,301.1 464.2,326.1 363.9,351.1 263.6,326.1" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="363.9" y="326.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Health Checks Pass?</text>
+  <rect x="484.2" y="381.1" width="193.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="580.8" y="406.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Continuous Monitor</text>
+  <rect x="910.6" y="381.1" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="992.4" y="406.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Follow Runbook</text>
+  <polygon points="794.0,381.1 890.6,406.1 794.0,431.1 697.4,406.1" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="794.0" y="406.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Incident Detected?</text>
+  <rect x="491.6" y="221.1" width="178.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="580.8" y="246.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Trigger Rollback</text>
+  <rect x="1270.4" y="301.1" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1348.5" y="326.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Deploy Hotfix</text>
+  <rect x="723.3" y="221.1" width="141.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="794.0" y="246.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Notify Team</text>
+  <rect x="922.4" y="221.1" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="992.4" y="246.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Stable</text>
+  <rect x="1094.2" y="301.1" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1172.3" y="326.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Create Hotfix</text>
+  <rect x="80.0" y="301.1" width="163.6" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="161.8" y="326.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Deploy Release</text>
 </svg>
