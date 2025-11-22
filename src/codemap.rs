@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 use walkdir::WalkDir;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -23,18 +24,45 @@ struct LlmResponse {
     mapping: HashMap<String, CodeLocation>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct CacheEntry {
+    commit: String,
+    mermaid: String,
+    mapping: CodeMapMapping,
+}
+
 pub async fn generate_code_map(
     path: &Path,
     api_key: Option<String>,
     model: Option<String>,
     api_url: Option<String>,
+    regen: bool,
+    custom_prompt: Option<String>,
 ) -> Result<(String, CodeMapMapping)> {
+    let git_info = get_git_info(path);
+    let cache_path = path.join(".oxdraw_cache.json");
+
+    if !regen {
+        if let Some((commit, is_clean)) = &git_info {
+            if *is_clean {
+                if let Ok(cache_content) = fs::read_to_string(&cache_path) {
+                    if let Ok(cache) = serde_json::from_str::<CacheEntry>(&cache_content) {
+                        if cache.commit == *commit {
+                            println!("Using cached code map for commit {}", commit);
+                            return Ok((cache.mermaid, cache.mapping));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     println!("Scanning codebase at {}...", path.display());
     let file_summaries = scan_codebase(path)?;
     
     println!("Found {} files. Generating code map...", file_summaries.len());
     
-    let prompt = format!(
+    let mut prompt = format!(
         "You are an expert software architect. Analyze the following codebase and generate a Mermaid flowchart that explains the high-level architecture and data flow.
         
         For each node in the diagram, you MUST provide a mapping to the specific file and line numbers that the node represents.
@@ -48,13 +76,17 @@ pub async fn generate_code_map(
                 \"B\": {{ \"file\": \"src/lib.rs\", \"start_line\": 5, \"end_line\": 15 }}
             }}
         }}
-
-        Here are the files:
-        
-        {}
-        ",
-        file_summaries.join("\n\n")
+        "
     );
+
+    if let Some(custom) = custom_prompt {
+        prompt.push_str(&format!("\n\nUser Instructions:\n{}\n", custom));
+    }
+
+    prompt.push_str(&format!(
+        "\n\nHere are the files:\n\n{}",
+        file_summaries.join("\n\n")
+    ));
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
@@ -129,7 +161,47 @@ pub async fn generate_code_map(
 
     let result: LlmResponse = serde_json::from_str(clean_json).context("Failed to parse generated JSON from LLM")?;
 
+    // Save to cache if we have git info and it's clean
+    if let Some((commit, is_clean)) = git_info {
+        if is_clean {
+            let cache_entry = CacheEntry {
+                commit,
+                mermaid: result.mermaid.clone(),
+                mapping: CodeMapMapping { nodes: result.mapping.clone() },
+            };
+            if let Ok(json) = serde_json::to_string_pretty(&cache_entry) {
+                let _ = fs::write(cache_path, json);
+            }
+        }
+    }
+
     Ok((result.mermaid, CodeMapMapping { nodes: result.mapping }))
+}
+
+fn get_git_info(path: &Path) -> Option<(String, bool)> {
+    // Get commit hash
+    let output = Command::new("git")
+        .args(&["rev-parse", "HEAD"])
+        .current_dir(path)
+        .output()
+        .ok()?;
+    
+    if !output.status.success() {
+        return None;
+    }
+    
+    let commit = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    
+    // Check for changes
+    let status_output = Command::new("git")
+        .args(&["status", "--porcelain"])
+        .current_dir(path)
+        .output()
+        .ok()?;
+        
+    let is_clean = status_output.stdout.is_empty();
+    
+    Some((commit, is_clean))
 }
 
 fn scan_codebase(root_path: &Path) -> Result<Vec<String>> {
@@ -138,8 +210,8 @@ fn scan_codebase(root_path: &Path) -> Result<Vec<String>> {
     const MAX_TOTAL_CHARS: usize = 100_000; // Limit total context size
     
     // Basic ignore list
-    let ignore_dirs = vec!["target", "node_modules", ".git", "dist", "build", ".next"];
     let include_exts = vec!["rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "c", "cpp", "h"];
+    let ignore_dirs = vec!["target", "node_modules", ".git", "dist", "build", ".next", "out"];
 
     let walker = WalkDir::new(root_path).into_iter();
     
@@ -158,8 +230,8 @@ fn scan_codebase(root_path: &Path) -> Result<Vec<String>> {
             if include_exts.contains(&ext) {
                 if let Ok(content) = fs::read_to_string(path) {
                     // Truncate if too large
-                    let truncated = if content.len() > 5000 {
-                        format!("{}... (truncated)", &content[..5000])
+                    let truncated = if content.len() > 10000 {
+                        format!("{}... (truncated)", &content[..10000])
                     } else {
                         content
                     };

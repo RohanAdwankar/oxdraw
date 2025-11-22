@@ -99,6 +99,14 @@ pub struct RenderArgs {
     /// API URL for the LLM.
     #[arg(long = "api-url")]
     pub api_url: Option<String>,
+
+    /// Force regeneration of the code map even if a cache exists.
+    #[arg(long = "regen")]
+    pub regen: bool,
+
+    /// Custom prompt to append to the LLM instructions.
+    #[arg(long = "prompt")]
+    pub prompt: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
@@ -387,6 +395,8 @@ async fn run_new(cli: RenderArgs) -> Result<()> {
         api_key: None,
         model: None,
         api_url: None,
+        regen: false,
+        prompt: None,
     };
 
     run_edit(edit_args).await
@@ -401,6 +411,8 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
         cli.api_key,
         cli.model,
         cli.api_url,
+        cli.regen,
+        cli.prompt,
     ).await?;
 
     // Create a temporary file for the diagram
