@@ -20,11 +20,11 @@ export default function CodePanel({
   const codeRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (codeRef.current && startLine) {
-      // Simple scrolling to line
-      // Assuming line height is roughly 20px or we can find the element
-      // For now, just scroll to top if no line, or try to estimate
-      // A better way is to render lines as separate elements
+    if (startLine) {
+      const element = document.getElementById(`line-${startLine}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     }
   }, [startLine, content]);
 

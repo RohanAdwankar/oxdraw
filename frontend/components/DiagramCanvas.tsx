@@ -1291,6 +1291,13 @@ export default function DiagramCanvas({
     event.preventDefault();
     event.stopPropagation();
     closeContextMenu();
+
+    if (selectedNodeId !== id) {
+      onSelectNode(id);
+      onSelectEdge(null);
+      return;
+    }
+
     const diagramPoint = clientToDiagram(event);
     if (!diagramPoint) {
       return;
