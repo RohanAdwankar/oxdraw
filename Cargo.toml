@@ -32,7 +32,11 @@ clap = { version = "4.5", features = ["derive"] }
 axum = { version = "0.7", features = ["json"], optional = true }
 dialoguer = "0.11"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = "1.0"
+thiserror = "1.0"
+walkdir = "2.4"
+directories = "5.0"
+
 tokio = { version = "1", features = [
 	"macros",
 	"rt-multi-thread",
@@ -46,7 +50,7 @@ resvg = { version = "0.43", features = ["text"] }
 tiny-skia = { version = "0.11", features = ["png"], default-features = false }
 base64 = "0.22"
 reqwest = { version = "0.11", features = ["json"] }
-walkdir = "2"
+
 
 [features]
 default = ["server"]

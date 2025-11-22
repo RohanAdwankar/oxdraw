@@ -1,10 +1,15 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::Path;
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
+use std::path::{Path};
 use std::process::Command;
 use walkdir::WalkDir;
+use directories::ProjectDirs;
+
+use crate::Diagram;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CodeMapMapping {
@@ -27,6 +32,7 @@ struct LlmResponse {
 #[derive(Debug, Serialize, Deserialize)]
 struct CacheEntry {
     commit: String,
+    diff_hash: u64,
     mermaid: String,
     mapping: CodeMapMapping,
 }
@@ -40,17 +46,25 @@ pub async fn generate_code_map(
     custom_prompt: Option<String>,
 ) -> Result<(String, CodeMapMapping)> {
     let git_info = get_git_info(path);
-    let cache_path = path.join(".oxdraw_cache.json");
+    
+    let project_dirs = ProjectDirs::from("", "", "oxdraw")
+        .ok_or_else(|| anyhow!("Could not determine config directory"))?;
+    let config_dir = project_dirs.config_dir();
+    fs::create_dir_all(config_dir).context("Failed to create config directory")?;
+
+    let abs_path = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let mut hasher = DefaultHasher::new();
+    abs_path.hash(&mut hasher);
+    let path_hash = hasher.finish();
+    let cache_path = config_dir.join(format!("cache_{:x}.json", path_hash));
 
     if !regen {
-        if let Some((commit, is_clean)) = &git_info {
-            if *is_clean {
-                if let Ok(cache_content) = fs::read_to_string(&cache_path) {
-                    if let Ok(cache) = serde_json::from_str::<CacheEntry>(&cache_content) {
-                        if cache.commit == *commit {
-                            println!("Using cached code map for commit {}", commit);
-                            return Ok((cache.mermaid, cache.mapping));
-                        }
+        if let Some((commit, diff_hash)) = &git_info {
+            if let Ok(cache_content) = fs::read_to_string(&cache_path) {
+                if let Ok(cache) = serde_json::from_str::<CacheEntry>(&cache_content) {
+                    if cache.commit == *commit && cache.diff_hash == *diff_hash {
+                        println!("Using cached code map for commit {} (diff hash: {:x})", commit, diff_hash);
+                        return Ok((cache.mermaid, cache.mapping));
                     }
                 }
             }
@@ -94,91 +108,147 @@ pub async fn generate_code_map(
     let url = api_url.unwrap_or_else(|| "http://localhost:8080/v1/responses".to_string());
     let model = model.unwrap_or_else(|| "gemini-2.0-flash".to_string());
     
-    // ...existing code...
-    
-    let mut body = HashMap::new();
-    body.insert("model", model);
-    body.insert("input", prompt);
+    let mut attempts = 0;
+    const MAX_ATTEMPTS: usize = 4;
 
-    let mut request = client.post(&url)
-        .json(&body);
+    loop {
+        attempts += 1;
+        if attempts > MAX_ATTEMPTS {
+             bail!("Failed to generate valid code map after {} attempts", MAX_ATTEMPTS);
+        }
 
-    if let Some(key) = api_key {
-        request = request.header("Authorization", format!("Bearer {}", key));
-    }
+        if attempts > 1 {
+            println!("Attempt {}/{}...", attempts, MAX_ATTEMPTS);
+        }
 
-    let response = request.send().await.context("Failed to send request to LLM")?;
-    
-    if !response.status().is_success() {
-        let text = response.text().await?;
-        return Err(anyhow!("LLM API returned error: {}", text));
-    }
+        let mut body = HashMap::new();
+        body.insert("model", model.clone());
+        body.insert("input", prompt.clone());
 
-    let response_json: serde_json::Value = response.json().await.context("Failed to parse LLM response JSON")?;
-    
-    // Try to extract text from different possible formats
-    let output_text = if let Some(text) = response_json.get("output_text").and_then(|v| v.as_str()) {
-        text.to_string()
-    } else if let Some(choices) = response_json.get("choices").and_then(|v| v.as_array()) {
-        // Standard OpenAI format
-        choices.first()
-            .and_then(|c| c.get("message"))
-            .and_then(|m| m.get("content"))
-            .and_then(|c| c.as_str())
-            .ok_or_else(|| anyhow!("Could not find content in OpenAI response"))?
-            .to_string()
-    } else {
-        // Fallback for the custom format in the issue which has "output": [ { "content": [ { "text": "..." } ] } ]
-        if let Some(output) = response_json.get("output").and_then(|v| v.as_array()) {
-             if let Some(first) = output.first() {
-                 if let Some(content) = first.get("content").and_then(|v| v.as_array()) {
-                     if let Some(first_content) = content.first() {
-                         if let Some(text) = first_content.get("text").and_then(|v| v.as_str()) {
-                             text.to_string()
+        let mut request = client.post(&url)
+            .json(&body);
+
+        if let Some(key) = &api_key {
+            request = request.header("Authorization", format!("Bearer {}", key));
+        }
+
+        let response = request.send().await.context("Failed to send request to LLM")?;
+        
+        if !response.status().is_success() {
+            let text = response.text().await?;
+            return Err(anyhow!("LLM API returned error: {}", text));
+        }
+
+        let response_json: serde_json::Value = response.json().await.context("Failed to parse LLM response JSON")?;
+        
+        // Try to extract text from different possible formats
+        let output_text = if let Some(text) = response_json.get("output_text").and_then(|v| v.as_str()) {
+            text.to_string()
+        } else if let Some(choices) = response_json.get("choices").and_then(|v| v.as_array()) {
+            // Standard OpenAI format
+            choices.first()
+                .and_then(|c| c.get("message"))
+                .and_then(|m| m.get("content"))
+                .and_then(|c| c.as_str())
+                .ok_or_else(|| anyhow!("Could not find content in OpenAI response"))?
+                .to_string()
+        } else {
+            // Fallback for the custom format
+            if let Some(output) = response_json.get("output").and_then(|v| v.as_array()) {
+                 if let Some(first) = output.first() {
+                     if let Some(content) = first.get("content").and_then(|v| v.as_array()) {
+                         if let Some(first_content) = content.first() {
+                             if let Some(text) = first_content.get("text").and_then(|v| v.as_str()) {
+                                 text.to_string()
+                             } else {
+                                 return Err(anyhow!("Unknown response format (deep nested)"));
+                             }
                          } else {
-                             return Err(anyhow!("Unknown response format (deep nested)"));
+                             return Err(anyhow!("Unknown response format (empty content)"));
                          }
                      } else {
-                         return Err(anyhow!("Unknown response format (empty content)"));
+                         return Err(anyhow!("Unknown response format (no content array)"));
                      }
                  } else {
-                     return Err(anyhow!("Unknown response format (no content array)"));
+                     return Err(anyhow!("Unknown response format (empty output)"));
                  }
-             } else {
-                 return Err(anyhow!("Unknown response format (empty output)"));
-             }
-        } else {
-             return Err(anyhow!("Unknown response format: {:?}", response_json));
+            } else {
+                 return Err(anyhow!("Unknown response format: {:?}", response_json));
+            }
+        };
+
+        // Clean up the output text (remove markdown code blocks if present)
+        let clean_json = output_text.trim()
+            .trim_start_matches("```json")
+            .trim_start_matches("```")
+            .trim_end_matches("```")
+            .trim();
+
+        let result: LlmResponse = match serde_json::from_str(clean_json) {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Failed to parse JSON: {}", e);
+                prompt.push_str(&format!("\n\nYour previous response was not valid JSON: {}. Please return ONLY valid JSON.", e));
+                continue;
+            }
+        };
+
+        // Validate the result
+        match validate_response(&result) {
+            Ok(_) => {
+                // Save to cache if we have git info
+                if let Some((commit, diff_hash)) = git_info {
+                    let cache_entry = CacheEntry {
+                        commit,
+                        diff_hash,
+                        mermaid: result.mermaid.clone(),
+                        mapping: CodeMapMapping { nodes: result.mapping.clone() },
+                    };
+                    if let Ok(json) = serde_json::to_string_pretty(&cache_entry) {
+                        let _ = fs::write(cache_path, json);
+                    }
+                }
+                return Ok((result.mermaid, CodeMapMapping { nodes: result.mapping }));
+            },
+            Err(e) => {
+                println!("Validation failed: {}", e);
+                prompt.push_str(&format!("\n\nYour previous response failed validation: {}. Please fix the diagram and mapping.", e));
+                continue;
+            }
         }
-    };
+    }
+}
 
-    // Clean up the output text (remove markdown code blocks if present)
-    let clean_json = output_text.trim()
-        .trim_start_matches("```json")
-        .trim_start_matches("```")
-        .trim_end_matches("```")
-        .trim();
+fn validate_response(response: &LlmResponse) -> Result<()> {
+    // 1. Parse Mermaid
+    let diagram = Diagram::parse(&response.mermaid).context("Failed to parse generated Mermaid diagram")?;
 
-    let result: LlmResponse = serde_json::from_str(clean_json).context("Failed to parse generated JSON from LLM")?;
+    // 2. Check Mapping Completeness
+    for node_id in diagram.nodes.keys() {
+        if !response.mapping.contains_key(node_id) {
+            bail!("Node '{}' is present in the diagram but missing from the mapping object.", node_id);
+        }
+    }
 
-    // Save to cache if we have git info and it's clean
-    if let Some((commit, is_clean)) = git_info {
-        if is_clean {
-            let cache_entry = CacheEntry {
-                commit,
-                mermaid: result.mermaid.clone(),
-                mapping: CodeMapMapping { nodes: result.mapping.clone() },
-            };
-            if let Ok(json) = serde_json::to_string_pretty(&cache_entry) {
-                let _ = fs::write(cache_path, json);
+    // 3. Check for Isolated Nodes (if more than 1 node)
+    if diagram.nodes.len() > 1 {
+        let mut connected_nodes = HashSet::new();
+        for edge in &diagram.edges {
+            connected_nodes.insert(&edge.from);
+            connected_nodes.insert(&edge.to);
+        }
+
+        for node_id in diagram.nodes.keys() {
+            if !connected_nodes.contains(node_id) {
+                bail!("Node '{}' is isolated (not connected to any other node). All nodes must be connected.", node_id);
             }
         }
     }
 
-    Ok((result.mermaid, CodeMapMapping { nodes: result.mapping }))
+    Ok(())
 }
 
-fn get_git_info(path: &Path) -> Option<(String, bool)> {
+fn get_git_info(path: &Path) -> Option<(String, u64)> {
     // Get commit hash
     let output = Command::new("git")
         .args(&["rev-parse", "HEAD"])
@@ -192,16 +262,18 @@ fn get_git_info(path: &Path) -> Option<(String, bool)> {
     
     let commit = String::from_utf8_lossy(&output.stdout).trim().to_string();
     
-    // Check for changes
-    let status_output = Command::new("git")
-        .args(&["status", "--porcelain"])
+    // Get diff hash
+    let diff_output = Command::new("git")
+        .args(&["diff", "HEAD"])
         .current_dir(path)
         .output()
         .ok()?;
-        
-    let is_clean = status_output.stdout.is_empty();
+
+    let mut hasher = DefaultHasher::new();
+    diff_output.stdout.hash(&mut hasher);
+    let diff_hash = hasher.finish();
     
-    Some((commit, is_clean))
+    Some((commit, diff_hash))
 }
 
 fn scan_codebase(root_path: &Path) -> Result<Vec<String>> {
