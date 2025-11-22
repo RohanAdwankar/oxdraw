@@ -1139,16 +1139,16 @@ export default function Home() {
 
   const handleLineClick = useCallback((line: number) => {
     if (!codeMapMapping || !selectedFile) return;
-    
+
     // Find the most specific node that covers this line
     let bestNodeId: string | null = null;
     let bestRangeSize = Infinity;
 
     for (const [nodeId, location] of Object.entries(codeMapMapping.nodes)) {
-      if (location.file === selectedFile.path && 
-          location.start_line !== undefined && 
-          location.end_line !== undefined) {
-        
+      if (location.file === selectedFile.path &&
+        location.start_line !== undefined &&
+        location.end_line !== undefined) {
+
         if (line >= location.start_line && line <= location.end_line) {
           const rangeSize = location.end_line - location.start_line;
           if (rangeSize < bestRangeSize) {

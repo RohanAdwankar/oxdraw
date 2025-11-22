@@ -453,8 +453,8 @@ function computeNodeAlignment(
     if (otherId === nodeId) {
       continue;
     }
-  const otherDimensions = resolveNodeDimensions(otherId, dimensions);
-  const otherBox = createNodeBox(point, otherDimensions.width, otherDimensions.height);
+    const otherDimensions = resolveNodeDimensions(otherId, dimensions);
+    const otherBox = createNodeBox(point, otherDimensions.width, otherDimensions.height);
 
     const verticalCandidates = [
       {
@@ -2770,7 +2770,7 @@ export default function DiagramCanvas({
                   handleOpenInEditor("nvim");
                 }}
               >
-                Open in Neovim
+                Open in Vi
               </button>
               <div className="context-menu-separator" />
             </>

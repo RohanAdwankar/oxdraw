@@ -473,34 +473,55 @@ async fn open_in_editor(
     State(state): State<Arc<ServeState>>,
     Json(payload): Json<OpenRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let root = state.code_map_root.as_ref().ok_or((StatusCode::BAD_REQUEST, "Code map mode not active".to_string()))?;
+    let root = state.code_map_root.as_ref().ok_or((
+        StatusCode::BAD_REQUEST,
+        "Code map mode not active".to_string(),
+    ))?;
     let full_path = root.join(&payload.path);
 
     if !full_path.exists() {
-         return Err((StatusCode::NOT_FOUND, "File not found".to_string()));
+        return Err((StatusCode::NOT_FOUND, "File not found".to_string()));
     }
 
     let line = payload.line.unwrap_or(1);
 
     let result = match payload.editor.as_str() {
-        "vscode" => {
-            std::process::Command::new("code")
-                .arg("-g")
-                .arg(format!("{}:{}", full_path.display(), line))
-                .spawn()
-        },
+        "vscode" => std::process::Command::new("code")
+            .arg("-g")
+            .arg(format!("{}:{}", full_path.display(), line))
+            .spawn(),
         "nvim" => {
-             std::process::Command::new("nvim")
-                .arg(format!("+{}", line))
-                .arg(full_path)
-                .spawn()
-        },
+            // On macOS, we need to open a new terminal window for nvim
+            #[cfg(target_os = "macos")]
+            {
+                std::process::Command::new("osascript")
+                    .arg("-e")
+                    .arg(format!(
+                        "tell application \"Terminal\" to do script \"vi +{} {}\"",
+                        line,
+                        full_path.display()
+                    ))
+                    .spawn()
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                // Fallback for other OSs - this might still fail if not in a GUI environment
+                // or if the server is headless.
+                std::process::Command::new("vi")
+                    .arg(format!("+{}", line))
+                    .arg(full_path)
+                    .spawn()
+            }
+        }
         _ => return Err((StatusCode::BAD_REQUEST, "Unknown editor".to_string())),
     };
 
     match result {
         Ok(_) => Ok(StatusCode::NO_CONTENT),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to launch editor: {}", e))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to launch editor: {}", e),
+        )),
     }
 }
 
@@ -953,18 +974,24 @@ async fn get_codemap_file(
     State(state): State<Arc<ServeState>>,
     axum::extract::Query(params): axum::extract::Query<FileRequest>,
 ) -> Result<String, (StatusCode, String)> {
-    let root = state.code_map_root.as_ref().ok_or((StatusCode::BAD_REQUEST, "Code map mode not active".to_string()))?;
-    
+    let root = state.code_map_root.as_ref().ok_or((
+        StatusCode::BAD_REQUEST,
+        "Code map mode not active".to_string(),
+    ))?;
+
     // Prevent directory traversal
     if params.path.contains("..") {
         return Err((StatusCode::FORBIDDEN, "Invalid path".to_string()));
     }
 
     let full_path = root.join(&params.path);
-    
+
     // Ensure the path is actually inside the root
     if !full_path.starts_with(root) {
-        return Err((StatusCode::FORBIDDEN, "Path outside of codebase root".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Path outside of codebase root".to_string(),
+        ));
     }
 
     let content = tokio::fs::read_to_string(&full_path)
