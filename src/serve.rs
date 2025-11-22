@@ -14,6 +14,7 @@ use axum::{Json, Router};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use clap::Parser;
+use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
 use tower::ServiceExt;
@@ -461,6 +462,48 @@ impl ServeState {
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct OpenRequest {
+    path: String,
+    line: Option<usize>,
+    editor: String,
+}
+
+async fn open_in_editor(
+    State(state): State<Arc<ServeState>>,
+    Json(payload): Json<OpenRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let root = state.code_map_root.as_ref().ok_or((StatusCode::BAD_REQUEST, "Code map mode not active".to_string()))?;
+    let full_path = root.join(&payload.path);
+
+    if !full_path.exists() {
+         return Err((StatusCode::NOT_FOUND, "File not found".to_string()));
+    }
+
+    let line = payload.line.unwrap_or(1);
+
+    let result = match payload.editor.as_str() {
+        "vscode" => {
+            std::process::Command::new("code")
+                .arg("-g")
+                .arg(format!("{}:{}", full_path.display(), line))
+                .spawn()
+        },
+        "nvim" => {
+             std::process::Command::new("nvim")
+                .arg(format!("+{}", line))
+                .arg(full_path)
+                .spawn()
+        },
+        _ => return Err((StatusCode::BAD_REQUEST, "Unknown editor".to_string())),
+    };
+
+    match result {
+        Ok(_) => Ok(StatusCode::NO_CONTENT),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to launch editor: {}", e))),
+    }
+}
+
 pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> {
     let initial_source = fs::read_to_string(&args.input)
         .with_context(|| format!("failed to read '{}'", args.input.display()))?;
@@ -486,6 +529,7 @@ pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> 
         .route("/api/diagram/edges/:id", delete(delete_edge))
         .route("/api/codemap/mapping", get(get_codemap_mapping))
         .route("/api/codemap/file", get(get_codemap_file))
+        .route("/api/codemap/open", axum::routing::post(open_in_editor))
         .layer(DefaultBodyLimit::max(MAX_IMAGE_REQUEST_BYTES))
         .with_state(state);
 

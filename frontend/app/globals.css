@@ -555,6 +555,12 @@ body > div:first-of-type {
   outline: none;
 }
 
+.context-menu-separator {
+  height: 1px;
+  background: rgba(248, 250, 252, 0.15);
+  margin: 0.25rem 0;
+}
+
 .alignment-guide {
   stroke: rgba(56, 178, 172, 0.85);
   stroke-width: 1.5;

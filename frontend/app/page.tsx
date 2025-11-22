@@ -21,6 +21,7 @@ import {
   updateStyle,
   fetchCodeMapMapping,
   fetchCodeMapFile,
+  openInEditor,
 } from "../lib/api";
 import {
   DiagramData,
@@ -1328,6 +1329,30 @@ export default function Home() {
                   >
                     Reset node style
                   </button>
+                  {codeMapMode && selectedNode && codeMapMapping?.nodes[selectedNode.id] && (
+                    <div className="style-controls" style={{ marginTop: "0.5rem" }}>
+                      <button
+                        type="button"
+                        className="style-reset"
+                        onClick={() => {
+                          const loc = codeMapMapping.nodes[selectedNode.id];
+                          void openInEditor(loc.file, loc.start_line, "vscode");
+                        }}
+                      >
+                        Open in VS Code
+                      </button>
+                      <button
+                        type="button"
+                        className="style-reset"
+                        onClick={() => {
+                          const loc = codeMapMapping.nodes[selectedNode.id];
+                          void openInEditor(loc.file, loc.start_line, "nvim");
+                        }}
+                      >
+                        Open in Neovim
+                      </button>
+                    </div>
+                  )}
                 </section>
 
                 <section className="style-section">
@@ -1409,6 +1434,7 @@ export default function Home() {
               onDragStateChange={setDragging}
               onDeleteNode={handleDeleteNodeDirect}
               onDeleteEdge={handleDeleteEdgeDirect}
+              codeMapMapping={codeMapMapping}
             />
             {codeMapMode ? (
               <CodePanel

@@ -233,3 +233,18 @@ export async function fetchCodeMapFile(path: string): Promise<string> {
   }
   return response.text();
 }
+
+export async function openInEditor(path: string, line: number | undefined, editor: "vscode" | "nvim"): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/codemap/open`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ path, line, editor }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to open editor: ${response.status}`);
+  }
+}
