@@ -4,6 +4,7 @@ import {
   LayoutUpdate,
   NodeStyleUpdate,
   StyleUpdate,
+  CodeMapMapping,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_OXDRAW_API ?? "http://127.0.0.1:5151";
@@ -215,4 +216,20 @@ export async function updateNodeImage(
     const message = await response.text();
     throw new Error(message || `Failed to update node image: ${response.status}`);
   }
+}
+
+export async function fetchCodeMapMapping(): Promise<CodeMapMapping | null> {
+  const response = await fetch(`${API_BASE}/api/codemap/mapping`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch code map mapping: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function fetchCodeMapFile(path: string): Promise<string> {
+  const response = await fetch(`${API_BASE}/api/codemap/file?path=${encodeURIComponent(path)}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch file content: ${response.statusText}`);
+  }
+  return response.text();
 }

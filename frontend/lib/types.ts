@@ -112,3 +112,13 @@ export interface StyleUpdate {
   nodeStyles?: Record<string, NodeStyleUpdate | null | undefined>;
   edgeStyles?: Record<string, EdgeStyleUpdate | null | undefined>;
 }
+
+export interface CodeLocation {
+  file: string;
+  start_line?: number;
+  end_line?: number;
+}
+
+export interface CodeMapMapping {
+  nodes: Record<string, CodeLocation>;
+}

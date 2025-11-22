@@ -45,19 +45,9 @@ tower = { version = "0.5", optional = true }
 resvg = { version = "0.43", features = ["text"] }
 tiny-skia = { version = "0.11", features = ["png"], default-features = false }
 base64 = "0.22"
+reqwest = { version = "0.11", features = ["json"] }
+walkdir = "2"
 
 [features]
 default = ["server"]
 server = ["axum", "tokio", "tower-http", "tower"]
-
-[dev-dependencies]
-wasm-bindgen-test = "0.3"
-
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-assert_cmd = { version = "2", default-features = false }
-predicates = "3"
-tempfile = "3"
-
-[profile.release]
-codegen-units = 1
-lto = true

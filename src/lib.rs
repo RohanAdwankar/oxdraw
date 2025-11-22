@@ -7,6 +7,7 @@ pub mod diagram;
 #[cfg(feature = "server")]
 pub mod serve;
 pub mod utils;
+pub mod codemap;
 
 pub use diagram::*;
 #[cfg(feature = "server")]

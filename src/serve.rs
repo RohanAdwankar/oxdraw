@@ -21,6 +21,7 @@ use tower::service_fn;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
+use crate::codemap::CodeMapMapping;
 use crate::diagram::decode_image_dimensions;
 use crate::*;
 
@@ -46,6 +47,14 @@ pub struct ServeArgs {
     /// Background color for rendered SVG previews.
     #[arg(long = "background-color", default_value = "white")]
     pub background_color: String,
+
+    /// Path to the codebase for code map mode.
+    #[clap(skip)]
+    pub code_map_root: Option<PathBuf>,
+
+    /// Mapping data for code map mode.
+    #[clap(skip)]
+    pub code_map_mapping: Option<CodeMapMapping>,
 }
 
 struct ServeState {
@@ -53,6 +62,8 @@ struct ServeState {
     background: String,
     overrides: RwLock<LayoutOverrides>,
     source_lock: Mutex<()>,
+    code_map_root: Option<PathBuf>,
+    code_map_mapping: Option<CodeMapMapping>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -460,6 +471,8 @@ pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> 
         background: args.background_color.clone(),
         overrides: RwLock::new(overrides),
         source_lock: Mutex::new(()),
+        code_map_root: args.code_map_root,
+        code_map_mapping: args.code_map_mapping,
     });
 
     let mut app = Router::new()
@@ -471,6 +484,8 @@ pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> 
         .route("/api/diagram/nodes/:id/image", put(put_node_image))
         .route("/api/diagram/nodes/:id", delete(delete_node))
         .route("/api/diagram/edges/:id", delete(delete_edge))
+        .route("/api/codemap/mapping", get(get_codemap_mapping))
+        .route("/api/codemap/file", get(get_codemap_file))
         .layer(DefaultBodyLimit::max(MAX_IMAGE_REQUEST_BYTES))
         .with_state(state);
 
@@ -877,4 +892,40 @@ struct EdgeStylePatch {
     color: Option<Option<String>>,
     #[serde(default)]
     arrow: Option<Option<EdgeArrowDirection>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FileRequest {
+    path: String,
+}
+
+async fn get_codemap_mapping(
+    State(state): State<Arc<ServeState>>,
+) -> Result<Json<Option<CodeMapMapping>>, (StatusCode, String)> {
+    Ok(Json(state.code_map_mapping.clone()))
+}
+
+async fn get_codemap_file(
+    State(state): State<Arc<ServeState>>,
+    axum::extract::Query(params): axum::extract::Query<FileRequest>,
+) -> Result<String, (StatusCode, String)> {
+    let root = state.code_map_root.as_ref().ok_or((StatusCode::BAD_REQUEST, "Code map mode not active".to_string()))?;
+    
+    // Prevent directory traversal
+    if params.path.contains("..") {
+        return Err((StatusCode::FORBIDDEN, "Invalid path".to_string()));
+    }
+
+    let full_path = root.join(&params.path);
+    
+    // Ensure the path is actually inside the root
+    if !full_path.starts_with(root) {
+        return Err((StatusCode::FORBIDDEN, "Path outside of codebase root".to_string()));
+    }
+
+    let content = tokio::fs::read_to_string(&full_path)
+        .await
+        .map_err(|e| (StatusCode::NOT_FOUND, format!("Failed to read file: {}", e)))?;
+
+    Ok(content)
 }

@@ -83,6 +83,22 @@ pub struct RenderArgs {
     /// Suppress informational output.
     #[arg(short = 'q', long = "quiet", action = ArgAction::SetTrue)]
     quiet: bool,
+
+    /// Generate a code map from the given codebase path.
+    #[arg(long = "code-map", conflicts_with = "input")]
+    pub code_map: Option<String>,
+
+    /// API Key for the LLM (optional, defaults to environment variable if not set).
+    #[arg(long = "api-key")]
+    pub api_key: Option<String>,
+
+    /// Model to use for code map generation.
+    #[arg(long = "model")]
+    pub model: Option<String>,
+
+    /// API URL for the LLM.
+    #[arg(long = "api-url")]
+    pub api_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
@@ -183,7 +199,16 @@ fn ensure_unique_path(path: PathBuf) -> PathBuf {
 }
 
 pub async fn run_render_or_edit(cli: RenderArgs) -> Result<()> {
-    if cli.edit {
+    if let Some(code_map_path) = cli.code_map.clone() {
+        #[cfg(feature = "server")]
+        {
+            return run_code_map(cli, code_map_path).await;
+        }
+        #[cfg(not(feature = "server"))]
+        {
+            bail!("--code-map requires the 'server' feature to be enabled");
+        }
+    } else if cli.edit {
         #[cfg(feature = "server")]
         {
             return run_edit(cli).await;
@@ -242,6 +267,8 @@ async fn run_edit(cli: RenderArgs) -> Result<()> {
         host: host.clone(),
         port,
         background_color: cli.background_color.clone(),
+        code_map_root: None,
+        code_map_mapping: None,
     };
 
     println!("Launching editor for {}", canonical_input.display());
@@ -356,9 +383,49 @@ async fn run_new(cli: RenderArgs) -> Result<()> {
         serve_port,
         background_color,
         quiet,
+        code_map: None,
+        api_key: None,
+        model: None,
+        api_url: None,
     };
 
     run_edit(edit_args).await
+}
+
+#[cfg(feature = "server")]
+async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
+    let root_path = PathBuf::from(code_map_path).canonicalize()?;
+    
+    let (mermaid, mapping) = oxdraw::codemap::generate_code_map(
+        &root_path,
+        cli.api_key,
+        cli.model,
+        cli.api_url,
+    ).await?;
+
+    // Create a temporary file for the diagram
+    let temp_dir = std::env::temp_dir().join("oxdraw-codemap");
+    fs::create_dir_all(&temp_dir)?;
+    let diagram_path = temp_dir.join("codemap.mmd");
+    fs::write(&diagram_path, mermaid)?;
+
+    let ui_root = locate_ui_dist()?;
+    let host = cli.serve_host.unwrap_or_else(|| "127.0.0.1".to_string());
+    let port = cli.serve_port.unwrap_or(5151);
+
+    let serve_args = ServeArgs {
+        input: diagram_path,
+        host: host.clone(),
+        port,
+        background_color: cli.background_color,
+        code_map_root: Some(root_path),
+        code_map_mapping: Some(mapping),
+    };
+
+    println!("Launching code map viewer...");
+    println!("Visit http://{}:{} in your browser", host, port);
+
+    run_serve(serve_args, Some(ui_root)).await
 }
 
 fn run_render(cli: RenderArgs) -> Result<()> {
