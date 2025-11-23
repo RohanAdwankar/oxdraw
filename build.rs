@@ -1,9 +1,9 @@
-use std::env;
-use std::path::Path;
-
 fn main() {
     #[cfg(feature = "server")]
     {
+        use std::env;
+        use std::path::Path;
+
         println!("cargo:rerun-if-changed=frontend/out");
 
         let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR missing");
