@@ -54,6 +54,9 @@ reqwest = { version = "0.11", features = ["json"] }
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 assert_cmd = "2.1.1"
 
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
 [features]
 default = ["server"]
 server = ["axum", "tokio", "tower-http", "tower"]

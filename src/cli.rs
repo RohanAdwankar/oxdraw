@@ -210,7 +210,10 @@ pub async fn run_render_or_edit(cli: RenderArgs) -> Result<()> {
     if let Some(code_map_path) = cli.code_map.clone() {
         #[cfg(feature = "server")]
         {
+            #[cfg(not(target_arch = "wasm32"))]
             return run_code_map(cli, code_map_path).await;
+            #[cfg(target_arch = "wasm32")]
+            bail!("--code-map is not supported in WASM");
         }
         #[cfg(not(feature = "server"))]
         {
@@ -402,7 +405,7 @@ async fn run_new(cli: RenderArgs) -> Result<()> {
     run_edit(edit_args).await
 }
 
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", not(target_arch = "wasm32")))]
 async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
     let root_path = PathBuf::from(code_map_path).canonicalize()?;
     
