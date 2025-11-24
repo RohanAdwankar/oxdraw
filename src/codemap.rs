@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
-use std::path::{Path};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
 use directories::ProjectDirs;
@@ -66,7 +66,7 @@ pub async fn generate_code_map(
     let cache_path = config_dir.join(format!("cache_{:x}.json", path_hash));
 
     if !regen {
-        if let Some((commit, diff_hash)) = &git_info {
+        if let Some((commit, diff_hash, _)) = &git_info {
             if let Ok(cache_content) = fs::read_to_string(&cache_path) {
                 if let Ok(cache) = serde_json::from_str::<CacheEntry>(&cache_content) {
                     if cache.commit == *commit && cache.diff_hash == *diff_hash {
@@ -103,7 +103,7 @@ pub async fn generate_code_map(
     let mut prompt = format!(
         "{}
         
-        Return ONLY a JSON object with the following structure:
+        Return ONLY a JSON object with the following structure. Do not include other components of mermaid syntax such as as style This is the JSON schema to follow:
         {{
             \"mermaid\": \"graph TD\\n    A[Node Label] --> B[Another Node]\",
             \"mapping\": {{
@@ -218,7 +218,7 @@ pub async fn generate_code_map(
         match validate_response(&result) {
             Ok(_) => {
                 // Save to cache if we have git info
-                if let Some((commit, diff_hash)) = git_info {
+                if let Some((commit, diff_hash, _)) = git_info {
                     let cache_entry = CacheEntry {
                         commit,
                         diff_hash,
@@ -269,7 +269,20 @@ fn validate_response(response: &LlmResponse) -> Result<()> {
     Ok(())
 }
 
-pub fn get_git_info(path: &Path) -> Option<(String, u64)> {
+pub fn get_git_info(path: &Path) -> Option<(String, u64, PathBuf)> {
+    // Get git root
+    let root_output = Command::new("git")
+        .args(&["rev-parse", "--show-toplevel"])
+        .current_dir(path)
+        .output()
+        .ok()?;
+
+    if !root_output.status.success() {
+        return None;
+    }
+    let root_str = String::from_utf8_lossy(&root_output.stdout).trim().to_string();
+    let root_path = PathBuf::from(root_str);
+
     // Get commit hash
     let output = Command::new("git")
         .args(&["rev-parse", "HEAD"])
@@ -294,7 +307,7 @@ pub fn get_git_info(path: &Path) -> Option<(String, u64)> {
     diff_output.stdout.hash(&mut hasher);
     let diff_hash = hasher.finish();
     
-    Some((commit, diff_hash))
+    Some((commit, diff_hash, root_path))
 }
 
 #[derive(Debug, PartialEq)]

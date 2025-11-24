@@ -428,9 +428,23 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
         let mut warning = None;
         // Check sync status
         if let Some(path_str) = &metadata.path {
-             let source_path = PathBuf::from(path_str);
+             // Try to resolve the path
+             let mut source_path = PathBuf::from(path_str);
+             
+             // If the path is relative and doesn't exist, try to resolve it relative to the git root
+             if !source_path.exists() && source_path.is_relative() {
+                 if let Ok(cwd) = std::env::current_dir() {
+                     if let Some((_, _, git_root)) = oxdraw::codemap::get_git_info(&cwd) {
+                         let resolved = git_root.join(path_str);
+                         if resolved.exists() {
+                             source_path = resolved;
+                         }
+                     }
+                 }
+             }
+
              if source_path.exists() {
-                 if let Some((current_commit, current_diff)) = oxdraw::codemap::get_git_info(&source_path) {
+                 if let Some((current_commit, current_diff, _)) = oxdraw::codemap::get_git_info(&source_path) {
                      let mut warnings = Vec::new();
                      if let Some(meta_commit) = &metadata.commit {
                          if meta_commit != &current_commit {
@@ -460,7 +474,23 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
             host: host.clone(),
             port,
             background_color: cli.background_color,
-            code_map_root: metadata.path.map(PathBuf::from),
+            code_map_root: if let Some(path_str) = &metadata.path {
+                // Try to resolve the path again for the server state
+                let mut source_path = PathBuf::from(path_str);
+                if !source_path.exists() && source_path.is_relative() {
+                    if let Ok(cwd) = std::env::current_dir() {
+                        if let Some((_, _, git_root)) = oxdraw::codemap::get_git_info(&cwd) {
+                            let resolved = git_root.join(path_str);
+                            if resolved.exists() {
+                                source_path = resolved;
+                            }
+                        }
+                    }
+                }
+                Some(source_path)
+            } else {
+                None
+            },
             code_map_mapping: Some(mapping),
             code_map_warning: warning,
         };
@@ -484,9 +514,17 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
 
     let git_info = oxdraw::codemap::get_git_info(&root_path);
     let metadata = oxdraw::codemap::CodeMapMetadata {
-        path: Some(root_path.to_string_lossy().to_string()),
-        commit: git_info.as_ref().map(|(c, _)| c.clone()),
-        diff_hash: git_info.as_ref().map(|(_, d)| *d),
+        path: if let Some((_, _, git_root)) = &git_info {
+            // If we are in a git repo, store the path relative to the git root
+            match root_path.strip_prefix(git_root) {
+                Ok(p) => Some(p.to_string_lossy().to_string()),
+                Err(_) => Some(root_path.to_string_lossy().to_string()),
+            }
+        } else {
+            Some(root_path.to_string_lossy().to_string())
+        },
+        commit: git_info.as_ref().map(|(c, _, _)| c.clone()),
+        diff_hash: git_info.as_ref().map(|(_, d, _)| *d),
     };
 
     let full_content = oxdraw::codemap::serialize_codemap(&mermaid, &mapping, &metadata);
