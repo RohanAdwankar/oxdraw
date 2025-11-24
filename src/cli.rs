@@ -265,6 +265,13 @@ async fn run_edit(cli: RenderArgs) -> Result<()> {
         .canonicalize()
         .with_context(|| format!("failed to canonicalize '{}'", input_path.display()))?;
 
+    // Try to extract code mappings from the file content
+    let content = fs::read_to_string(&canonical_input)?;
+    #[cfg(not(target_arch = "wasm32"))]
+    let mapping = Some(oxdraw::codemap::extract_code_mappings(&content));
+    #[cfg(target_arch = "wasm32")]
+    let mapping = None;
+
     let ui_root = locate_ui_dist()?;
 
     let host = cli
@@ -279,7 +286,7 @@ async fn run_edit(cli: RenderArgs) -> Result<()> {
         port,
         background_color: cli.background_color.clone(),
         code_map_root: None,
-        code_map_mapping: None,
+        code_map_mapping: mapping,
     };
 
     println!("Launching editor for {}", canonical_input.display());

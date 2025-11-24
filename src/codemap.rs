@@ -72,15 +72,29 @@ pub async fn generate_code_map(
     }
 
     println!("Scanning codebase at {}...", path.display());
-    let file_summaries = scan_codebase(path)?;
+    let (file_summaries, granularity) = scan_codebase(path)?;
     
     println!("Found {} files. Generating code map...", file_summaries.len());
     
-    let mut prompt = format!(
-        "You are an expert software architect. Analyze the following codebase and generate a Mermaid flowchart that explains the high-level architecture and data flow.
+    let base_prompt = match granularity {
+        Granularity::File => "You are an expert software engineer. Analyze the following source file and generate a Mermaid flowchart that explains its internal logic, control flow, and structure.
+        
+        For each node in the diagram, you MUST provide a mapping to the specific line numbers in the file that the node represents.
+        IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
+        
+        Granularity::Directory => "You are an expert software architect. Analyze the files in the following directory and generate a Mermaid flowchart that explains the relationships and data flow between them.
         
         For each node in the diagram, you MUST provide a mapping to the specific file and line numbers that the node represents.
-        IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.
+        IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
+        
+        Granularity::Repo => "You are an expert software architect. Analyze the following codebase and generate a Mermaid flowchart that explains the high-level architecture and data flow.
+        
+        For each node in the diagram, you MUST provide a mapping to the specific file and line numbers that the node represents.
+        IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
+    };
+
+    let mut prompt = format!(
+        "{}
         
         Return ONLY a JSON object with the following structure:
         {{
@@ -90,7 +104,7 @@ pub async fn generate_code_map(
                 \"B\": {{ \"file\": \"src/lib.rs\", \"start_line\": 5, \"end_line\": 15 }}
             }}
         }}
-        "
+        ", base_prompt
     );
 
     if let Some(custom) = custom_prompt {
@@ -276,11 +290,26 @@ fn get_git_info(path: &Path) -> Option<(String, u64)> {
     Some((commit, diff_hash))
 }
 
-fn scan_codebase(root_path: &Path) -> Result<Vec<String>> {
+#[derive(Debug, PartialEq)]
+enum Granularity {
+    Repo,
+    Directory,
+    File,
+}
+
+fn scan_codebase(root_path: &Path) -> Result<(Vec<String>, Granularity)> {
     let mut summaries = Vec::new();
     let mut total_chars = 0;
     const MAX_TOTAL_CHARS: usize = 100_000; // Limit total context size
     
+    if root_path.is_file() {
+        if let Ok(content) = fs::read_to_string(root_path) {
+            let file_name = root_path.file_name().unwrap_or_default().to_string_lossy();
+            summaries.push(format!("File: {}\n```\n{}\n```", file_name, content));
+            return Ok((summaries, Granularity::File));
+        }
+    }
+
     // Basic ignore list
     let include_exts = vec!["rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "c", "cpp", "h"];
     let ignore_dirs = vec!["target", "node_modules", ".git", "dist", "build", ".next", "out"];
@@ -322,5 +351,45 @@ fn scan_codebase(root_path: &Path) -> Result<Vec<String>> {
         }
     }
     
-    Ok(summaries)
+    // Determine if it's a repo or just a directory
+    let granularity = if root_path.join(".git").exists() {
+        Granularity::Repo
+    } else {
+        Granularity::Directory
+    };
+    
+    Ok((summaries, granularity))
+}
+
+pub fn extract_code_mappings(source: &str) -> CodeMapMapping {
+    let mut nodes = HashMap::new();
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("%% OXDRAW CODE") {
+            // Parse: %% OXDRAW CODE <NodeID> <FilePath> [line:<Start>-<End>]
+            let parts: Vec<&str> = trimmed.split_whitespace().collect();
+            if parts.len() >= 4 {
+                let node_id = parts[3].to_string();
+                let file_path = parts[4].to_string();
+                let mut start_line = None;
+                let mut end_line = None;
+                
+                if parts.len() >= 5 {
+                    if let Some(range) = parts[5].strip_prefix("line:") {
+                        if let Some((start, end)) = range.split_once('-') {
+                            start_line = start.parse().ok();
+                            end_line = end.parse().ok();
+                        }
+                    }
+                }
+                
+                nodes.insert(node_id, CodeLocation {
+                    file: file_path,
+                    start_line,
+                    end_line,
+                });
+            }
+        }
+    }
+    CodeMapMapping { nodes }
 }
