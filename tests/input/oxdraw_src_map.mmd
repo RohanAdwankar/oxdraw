@@ -1,0 +1,34 @@
+graph TD
+    A[cli::RenderArgs] --> B{cli.edit or cli.new or cli.code_map?}
+    B -- edit --> C[run_edit]
+    B -- new --> D[run_new]
+    B -- code_map --> E[run_code_map]
+    B -- render --> F[run_render]
+    C --> G[serve::ServeArgs]
+    G --> H[run_serve]
+    D --> I[select_graph_type]
+    I --> J[fs::OpenOptions::new().write(true).create_new(true).open(&target_path)]
+    E --> K[codemap::generate_code_map]
+    K --> L[reqwest::Client::builder().timeout(std::time::Duration::from_secs(120)).build()?]
+    L --> M[client.post(&url).json(&body)]
+    M --> N[serde_json::from_str(clean_json)]
+    N --> O[validate_response]
+    O --> P{diagram::Diagram::parse(&response.mermaid)?}
+
+%% OXDRAW CODE N codemap.rs line:242-242
+%% OXDRAW CODE I cli.rs line:378-378
+%% OXDRAW CODE H cli.rs line:354-354
+%% OXDRAW CODE J cli.rs line:429-433
+%% OXDRAW CODE G cli.rs line:334-342
+%% OXDRAW CODE D cli.rs line:303-303
+%% OXDRAW CODE M codemap.rs line:171-172
+%% OXDRAW CODE C cli.rs line:302-302
+%% OXDRAW CODE O codemap.rs line:250-250
+%% OXDRAW CODE B cli.rs line:301-301
+%% OXDRAW CODE F cli.rs line:305-305
+%% OXDRAW CODE L codemap.rs line:154-156
+%% OXDRAW CODE P codemap.rs line:259-259
+%% OXDRAW CODE E cli.rs line:304-304
+%% OXDRAW CODE A cli.rs line:29-147
+%% OXDRAW CODE K cli.rs line:283-283
+%% OXDRAW META path:/Users/rohanadwankar/oxdraw/src commit:1688a4213574dec7721863ff2a2189c8c014dbc3 diff_hash:4926987689878210640

@@ -56,6 +56,10 @@ pub struct ServeArgs {
     /// Mapping data for code map mode.
     #[clap(skip)]
     pub code_map_mapping: Option<CodeMapMapping>,
+
+    /// Warning message if the code map is out of sync.
+    #[clap(skip)]
+    pub code_map_warning: Option<String>,
 }
 
 struct ServeState {
@@ -65,6 +69,7 @@ struct ServeState {
     source_lock: Mutex<()>,
     code_map_root: Option<PathBuf>,
     code_map_mapping: Option<CodeMapMapping>,
+    code_map_warning: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -537,6 +542,7 @@ pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> 
         source_lock: Mutex::new(()),
         code_map_root: args.code_map_root,
         code_map_mapping: args.code_map_mapping,
+        code_map_warning: args.code_map_warning,
     });
 
     let mut app = Router::new()
@@ -549,6 +555,7 @@ pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> 
         .route("/api/diagram/nodes/:id", delete(delete_node))
         .route("/api/diagram/edges/:id", delete(delete_edge))
         .route("/api/codemap/mapping", get(get_codemap_mapping))
+        .route("/api/codemap/status", get(get_codemap_status))
         .route("/api/codemap/file", get(get_codemap_file))
         .route("/api/codemap/open", axum::routing::post(open_in_editor))
         .layer(DefaultBodyLimit::max(MAX_IMAGE_REQUEST_BYTES))
@@ -949,6 +956,11 @@ struct SourcePayload {
     source: String,
 }
 
+#[derive(Debug, Serialize)]
+struct CodeMapStatus {
+    warning: Option<String>,
+}
+
 #[derive(Debug, Deserialize, Default)]
 struct EdgeStylePatch {
     #[serde(default)]
@@ -968,6 +980,14 @@ async fn get_codemap_mapping(
     State(state): State<Arc<ServeState>>,
 ) -> Result<Json<Option<CodeMapMapping>>, (StatusCode, String)> {
     Ok(Json(state.code_map_mapping.clone()))
+}
+
+async fn get_codemap_status(
+    State(state): State<Arc<ServeState>>,
+) -> Result<Json<CodeMapStatus>, (StatusCode, String)> {
+    Ok(Json(CodeMapStatus {
+        warning: state.code_map_warning.clone(),
+    }))
 }
 
 async fn get_codemap_file(

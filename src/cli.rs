@@ -268,9 +268,12 @@ async fn run_edit(cli: RenderArgs) -> Result<()> {
     // Try to extract code mappings from the file content
     let content = fs::read_to_string(&canonical_input)?;
     #[cfg(not(target_arch = "wasm32"))]
-    let mapping = Some(oxdraw::codemap::extract_code_mappings(&content));
+    let (mapping, code_map_root) = {
+        let (m, meta) = oxdraw::codemap::extract_code_mappings(&content);
+        (Some(m), meta.path.map(PathBuf::from))
+    };
     #[cfg(target_arch = "wasm32")]
-    let mapping = None;
+    let (mapping, code_map_root) = (None, None);
 
     let ui_root = locate_ui_dist()?;
 
@@ -285,8 +288,9 @@ async fn run_edit(cli: RenderArgs) -> Result<()> {
         host: host.clone(),
         port,
         background_color: cli.background_color.clone(),
-        code_map_root: None,
+        code_map_root,
         code_map_mapping: mapping,
+        code_map_warning: None,
     };
 
     println!("Launching editor for {}", canonical_input.display());
@@ -414,7 +418,60 @@ async fn run_new(cli: RenderArgs) -> Result<()> {
 
 #[cfg(all(feature = "server", not(target_arch = "wasm32")))]
 async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
-    let root_path = PathBuf::from(code_map_path).canonicalize()?;
+    let path = PathBuf::from(&code_map_path);
+    
+    // Check if it's an existing .mmd file
+    if path.extension().and_then(|s| s.to_str()) == Some("mmd") && path.exists() {
+        let content = fs::read_to_string(&path)?;
+        let (mapping, metadata) = oxdraw::codemap::extract_code_mappings(&content);
+        
+        let mut warning = None;
+        // Check sync status
+        if let Some(path_str) = &metadata.path {
+             let source_path = PathBuf::from(path_str);
+             if source_path.exists() {
+                 if let Some((current_commit, current_diff)) = oxdraw::codemap::get_git_info(&source_path) {
+                     let mut warnings = Vec::new();
+                     if let Some(meta_commit) = &metadata.commit {
+                         if meta_commit != &current_commit {
+                             warnings.push(format!("Commit mismatch: map({}) vs HEAD({})", meta_commit, current_commit));
+                         }
+                     }
+                     if let Some(meta_diff) = &metadata.diff_hash {
+                         if meta_diff != &current_diff {
+                             warnings.push("Working directory has changed since map generation".to_string());
+                         }
+                     }
+                     if !warnings.is_empty() {
+                         let msg = warnings.join("; ");
+                         println!("Warning: {}", msg);
+                         warning = Some(msg);
+                     }
+                 }
+             }
+        }
+
+        let ui_root = locate_ui_dist()?;
+        let host = cli.serve_host.unwrap_or_else(|| "127.0.0.1".to_string());
+        let port = cli.serve_port.unwrap_or(5151);
+
+        let serve_args = ServeArgs {
+            input: path.canonicalize()?,
+            host: host.clone(),
+            port,
+            background_color: cli.background_color,
+            code_map_root: metadata.path.map(PathBuf::from),
+            code_map_mapping: Some(mapping),
+            code_map_warning: warning,
+        };
+
+        println!("Launching code map viewer for existing map...");
+        println!("Visit http://{}:{} in your browser", host, port);
+
+        return run_serve(serve_args, Some(ui_root)).await;
+    }
+
+    let root_path = path.canonicalize()?;
     
     let (mermaid, mapping) = oxdraw::codemap::generate_code_map(
         &root_path,
@@ -425,11 +482,34 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
         cli.prompt,
     ).await?;
 
+    let git_info = oxdraw::codemap::get_git_info(&root_path);
+    let metadata = oxdraw::codemap::CodeMapMetadata {
+        path: Some(root_path.to_string_lossy().to_string()),
+        commit: git_info.as_ref().map(|(c, _)| c.clone()),
+        diff_hash: git_info.as_ref().map(|(_, d)| *d),
+    };
+
+    let full_content = oxdraw::codemap::serialize_codemap(&mermaid, &mapping, &metadata);
+
+    if let Some(output_path) = cli.output {
+        let target_path = if output_path == "-" {
+             // stdout
+             println!("{}", full_content);
+             return Ok(());
+        } else {
+             PathBuf::from(output_path)
+        };
+        
+        fs::write(&target_path, full_content)?;
+        println!("Code map saved to {}", target_path.display());
+        return Ok(());
+    }
+
     // Create a temporary file for the diagram
     let temp_dir = std::env::temp_dir().join("oxdraw-codemap");
     fs::create_dir_all(&temp_dir)?;
     let diagram_path = temp_dir.join("codemap.mmd");
-    fs::write(&diagram_path, mermaid)?;
+    fs::write(&diagram_path, full_content)?;
 
     let ui_root = locate_ui_dist()?;
     let host = cli.serve_host.unwrap_or_else(|| "127.0.0.1".to_string());
@@ -442,6 +522,7 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
         background_color: cli.background_color,
         code_map_root: Some(root_path),
         code_map_mapping: Some(mapping),
+        code_map_warning: None,
     };
 
     println!("Launching code map viewer...");

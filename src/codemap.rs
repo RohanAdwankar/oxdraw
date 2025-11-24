@@ -37,6 +37,13 @@ struct CacheEntry {
     mapping: CodeMapMapping,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CodeMapMetadata {
+    pub path: Option<String>,
+    pub commit: Option<String>,
+    pub diff_hash: Option<u64>,
+}
+
 pub async fn generate_code_map(
     path: &Path,
     api_key: Option<String>,
@@ -262,7 +269,7 @@ fn validate_response(response: &LlmResponse) -> Result<()> {
     Ok(())
 }
 
-fn get_git_info(path: &Path) -> Option<(String, u64)> {
+pub fn get_git_info(path: &Path) -> Option<(String, u64)> {
     // Get commit hash
     let output = Command::new("git")
         .args(&["rev-parse", "HEAD"])
@@ -361,8 +368,10 @@ fn scan_codebase(root_path: &Path) -> Result<(Vec<String>, Granularity)> {
     Ok((summaries, granularity))
 }
 
-pub fn extract_code_mappings(source: &str) -> CodeMapMapping {
+pub fn extract_code_mappings(source: &str) -> (CodeMapMapping, CodeMapMetadata) {
     let mut nodes = HashMap::new();
+    let mut metadata = CodeMapMetadata { path: None, commit: None, diff_hash: None };
+
     for line in source.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with("%% OXDRAW CODE") {
@@ -389,7 +398,51 @@ pub fn extract_code_mappings(source: &str) -> CodeMapMapping {
                     end_line,
                 });
             }
+        } else if trimmed.starts_with("%% OXDRAW META") {
+             // Parse: %% OXDRAW META path:<Path> commit:<Commit> diff_hash:<Hash>
+             let parts: Vec<&str> = trimmed.split_whitespace().collect();
+             for part in parts.iter().skip(3) { // Skip "%%", "OXDRAW", "META"
+                 if let Some(val) = part.strip_prefix("path:") {
+                     metadata.path = Some(val.to_string());
+                 } else if let Some(val) = part.strip_prefix("commit:") {
+                     metadata.commit = Some(val.to_string());
+                 } else if let Some(val) = part.strip_prefix("diff_hash:") {
+                     metadata.diff_hash = val.parse().ok();
+                 }
+             }
         }
     }
-    CodeMapMapping { nodes }
+    (CodeMapMapping { nodes }, metadata)
+}
+
+pub fn serialize_codemap(mermaid: &str, mapping: &CodeMapMapping, metadata: &CodeMapMetadata) -> String {
+    let mut output = mermaid.to_string();
+    if !output.ends_with('\n') {
+        output.push('\n');
+    }
+    output.push_str("\n");
+    
+    for (node_id, location) in &mapping.nodes {
+        let line_part = if let (Some(start), Some(end)) = (location.start_line, location.end_line) {
+            format!(" line:{}-{}", start, end)
+        } else {
+            String::new()
+        };
+        output.push_str(&format!("%% OXDRAW CODE {} {}{}\n", node_id, location.file, line_part));
+    }
+
+    let mut meta_line = String::from("%% OXDRAW META");
+    if let Some(path) = &metadata.path {
+        meta_line.push_str(&format!(" path:{}", path));
+    }
+    if let Some(commit) = &metadata.commit {
+        meta_line.push_str(&format!(" commit:{}", commit));
+    }
+    if let Some(diff_hash) = &metadata.diff_hash {
+        meta_line.push_str(&format!(" diff_hash:{}", diff_hash));
+    }
+    output.push_str(&meta_line);
+    output.push('\n');
+    
+    output
 }
