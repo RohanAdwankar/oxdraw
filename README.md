@@ -32,6 +32,13 @@ oxdraw --input flow.mmd
 oxdraw --input flow.mmd --edit
 ```
 
+### Have AI generate a codemap for the repo you're in 
+#### This will also launch the interactive viewer mapping the nodes to files in the repo 
+
+```bash
+oxdraw --code-map ./
+```
+
 ## Features
 
 ### CLI Flags
@@ -48,6 +55,12 @@ oxdraw --input flow.mmd --edit
 | `-b, --background-color <COLOR>` | Background fill passed to the renderer (currently SVG only). Applies to both one-off renders and the editor preview. |
 | `-q, --quiet` | Suppress informational stdout such as the success message after rendering to disk. |
 | `-n, --new` | Create new mermaid file and serves for editing. |
+| `--code-map <PATH>` | Generate a code map from the given codebase path. |
+| `--api-key <KEY>` | API Key for the LLM (optional, defaults to environment variable if not set). |
+| `--model <MODEL>` | Model to use for code map generation. |
+| `--api-url <URL>` | API URL for the LLM. |
+| `--regen` | Force regeneration of the code map even if a cache exists. |
+| `--prompt <PROMPT>` | Custom prompt to append to the LLM instructions. |
 
 ### Frontend Features
 
@@ -70,7 +83,7 @@ oxdraw --input flow.mmd --edit
 - The source panel mirrors the Mermaid file, auto-saves after short idle periods, and surfaces pending/saving/error states alongside the current selection.
 - Status text in the top toolbar signals loading, saving, and the currently edited file path.
 
-## The Diagram Algorithm
+### The Diagram Algorithm
 
 https://github.com/user-attachments/assets/4430147a-83d8-4d83-aca6-7beec197c0e3
 
