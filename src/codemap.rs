@@ -21,6 +21,7 @@ pub struct CodeLocation {
     pub file: String,
     pub start_line: Option<usize>,
     pub end_line: Option<usize>,
+    pub symbol: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -86,17 +87,20 @@ pub async fn generate_code_map(
     let base_prompt = match granularity {
         Granularity::File => "You are an expert software engineer. Analyze the following source file and generate a Mermaid flowchart that explains its internal logic, control flow, and structure.
         
-        For each node in the diagram, you MUST provide a mapping to the specific line numbers in the file that the node represents.
+        For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
+        Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
         IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
         
         Granularity::Directory => "You are an expert software architect. Analyze the files in the following directory and generate a Mermaid flowchart that explains the relationships and data flow between them.
         
-        For each node in the diagram, you MUST provide a mapping to the specific file and line numbers that the node represents.
+        For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
+        Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
         IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
         
         Granularity::Repo => "You are an expert software architect. Analyze the following codebase and generate a Mermaid flowchart that explains the high-level architecture and data flow.
         
-        For each node in the diagram, you MUST provide a mapping to the specific file and line numbers that the node represents.
+        For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
+        Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
         IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
     };
 
@@ -107,8 +111,8 @@ pub async fn generate_code_map(
         {{
             \"mermaid\": \"graph TD\\n    A[Node Label] --> B[Another Node]\",
             \"mapping\": {{
-                \"A\": {{ \"file\": \"src/main.rs\", \"start_line\": 10, \"end_line\": 20 }},
-                \"B\": {{ \"file\": \"src/lib.rs\", \"start_line\": 5, \"end_line\": 15 }}
+                \"A\": {{ \"file\": \"src/main.rs\", \"symbol\": \"main\", \"start_line\": 10, \"end_line\": 20 }},
+                \"B\": {{ \"file\": \"src/lib.rs\", \"symbol\": \"MyStruct\", \"start_line\": 5, \"end_line\": 15 }}
             }}
         }}
         ", base_prompt
@@ -388,20 +392,23 @@ pub fn extract_code_mappings(source: &str) -> (CodeMapMapping, CodeMapMetadata) 
     for line in source.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with("%% OXDRAW CODE") {
-            // Parse: %% OXDRAW CODE <NodeID> <FilePath> [line:<Start>-<End>]
+            // Parse: %% OXDRAW CODE <NodeID> <FilePath> [line:<Start>-<End>] [def:<Symbol>]
             let parts: Vec<&str> = trimmed.split_whitespace().collect();
             if parts.len() >= 4 {
                 let node_id = parts[3].to_string();
                 let file_path = parts[4].to_string();
                 let mut start_line = None;
                 let mut end_line = None;
+                let mut symbol = None;
                 
-                if parts.len() >= 5 {
-                    if let Some(range) = parts[5].strip_prefix("line:") {
+                for part in parts.iter().skip(5) {
+                    if let Some(range) = part.strip_prefix("line:") {
                         if let Some((start, end)) = range.split_once('-') {
                             start_line = start.parse().ok();
                             end_line = end.parse().ok();
                         }
+                    } else if let Some(sym) = part.strip_prefix("def:") {
+                        symbol = Some(sym.to_string());
                     }
                 }
                 
@@ -409,6 +416,7 @@ pub fn extract_code_mappings(source: &str) -> (CodeMapMapping, CodeMapMetadata) 
                     file: file_path,
                     start_line,
                     end_line,
+                    symbol,
                 });
             }
         } else if trimmed.starts_with("%% OXDRAW META") {
@@ -436,12 +444,21 @@ pub fn serialize_codemap(mermaid: &str, mapping: &CodeMapMapping, metadata: &Cod
     output.push_str("\n");
     
     for (node_id, location) in &mapping.nodes {
-        let line_part = if let (Some(start), Some(end)) = (location.start_line, location.end_line) {
-            format!(" line:{}-{}", start, end)
-        } else {
+        let mut parts = Vec::new();
+        if let (Some(start), Some(end)) = (location.start_line, location.end_line) {
+            parts.push(format!("line:{}-{}", start, end));
+        }
+        if let Some(symbol) = &location.symbol {
+            parts.push(format!("def:{}", symbol));
+        }
+        
+        let extra = if parts.is_empty() {
             String::new()
+        } else {
+            format!(" {}", parts.join(" "))
         };
-        output.push_str(&format!("%% OXDRAW CODE {} {}{}\n", node_id, location.file, line_part));
+        
+        output.push_str(&format!("%% OXDRAW CODE {} {}{}\n", node_id, location.file, extra));
     }
 
     let mut meta_line = String::from("%% OXDRAW META");
@@ -458,4 +475,123 @@ pub fn serialize_codemap(mermaid: &str, mapping: &CodeMapMapping, metadata: &Cod
     output.push('\n');
     
     output
+}
+
+impl CodeMapMapping {
+    pub fn resolve_symbols(&mut self, root: &Path) {
+        for location in self.nodes.values_mut() {
+            // If we already have line numbers, we might want to verify them or just keep them.
+            // But if we have a symbol and no lines (or we want to refresh), we resolve.
+            // For now, let's prioritize the symbol if present.
+            if let Some(symbol) = &location.symbol {
+                let file_path = root.join(&location.file);
+                if file_path.exists() {
+                    if let Ok(content) = fs::read_to_string(&file_path) {
+                        if let Some((start, end)) = find_symbol_definition(&content, symbol, &location.file) {
+                            location.start_line = Some(start);
+                            location.end_line = Some(end);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn find_symbol_definition(content: &str, symbol: &str, file_path: &str) -> Option<(usize, usize)> {
+    let ext = Path::new(file_path).extension().and_then(|s| s.to_str()).unwrap_or("");
+    
+    // Simple regex-based finder for now.
+    // This is not perfect but covers many cases without heavy dependencies.
+    
+    let patterns = match ext {
+        "rs" => vec![
+            format!(r"fn\s+{}\b", regex::escape(symbol)),
+            format!(r"struct\s+{}\b", regex::escape(symbol)),
+            format!(r"enum\s+{}\b", regex::escape(symbol)),
+            format!(r"trait\s+{}\b", regex::escape(symbol)),
+            format!(r"mod\s+{}\b", regex::escape(symbol)),
+            format!(r"type\s+{}\b", regex::escape(symbol)),
+            format!(r"const\s+{}\b", regex::escape(symbol)),
+        ],
+        "ts" | "tsx" | "js" | "jsx" => vec![
+            format!(r"function\s+{}\b", regex::escape(symbol)),
+            format!(r"class\s+{}\b", regex::escape(symbol)),
+            format!(r"interface\s+{}\b", regex::escape(symbol)),
+            format!(r"type\s+{}\b", regex::escape(symbol)),
+            format!(r"const\s+{}\s*=", regex::escape(symbol)),
+            format!(r"let\s+{}\s*=", regex::escape(symbol)),
+            format!(r"var\s+{}\s*=", regex::escape(symbol)),
+        ],
+        "py" => vec![
+            format!(r"def\s+{}\b", regex::escape(symbol)),
+            format!(r"class\s+{}\b", regex::escape(symbol)),
+        ],
+        "go" => vec![
+            format!(r"func\s+{}\b", regex::escape(symbol)),
+            format!(r"type\s+{}\b", regex::escape(symbol)),
+        ],
+        _ => vec![
+            format!(r"{}\b", regex::escape(symbol)), // Fallback: just the name
+        ],
+    };
+
+    for pattern in patterns {
+        if let Ok(re) = regex::Regex::new(&pattern) {
+            if let Some(mat) = re.find(content) {
+                // Found the start. Now try to estimate the end.
+                // This is hard without a parser.
+                // For now, let's just return the line where it starts, and maybe 10 lines after?
+                // Or just the single line if we can't determine scope.
+                
+                let start_byte = mat.start();
+                let start_line = content[..start_byte].lines().count();
+                
+                // Heuristic for end line: count braces?
+                // This is very rough.
+                let end_line = estimate_block_end(content, start_byte).unwrap_or(start_line);
+                
+                return Some((start_line, end_line));
+            }
+        }
+    }
+
+    None
+}
+
+fn estimate_block_end(content: &str, start_byte: usize) -> Option<usize> {
+    let mut open_braces = 0;
+    let mut found_brace = false;
+    let mut lines = 0;
+    let start_line_num = content[..start_byte].lines().count();
+
+    for (_i, char) in content[start_byte..].char_indices() {
+        if char == '{' {
+            open_braces += 1;
+            found_brace = true;
+        } else if char == '}' {
+            open_braces -= 1;
+        }
+        
+        if char == '\n' {
+            lines += 1;
+        }
+
+        if found_brace && open_braces == 0 {
+            return Some(start_line_num + lines);
+        }
+        
+        // Safety break for very long blocks or missing braces
+        if lines > 500 {
+            break;
+        }
+    }
+    
+    // If no braces found (e.g. Python), maybe look for indentation?
+    // For now, fallback to just a few lines.
+    if !found_brace {
+        return Some(start_line_num + 5); 
+    }
+
+    None
 }

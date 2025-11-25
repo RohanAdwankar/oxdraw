@@ -979,7 +979,15 @@ struct FileRequest {
 async fn get_codemap_mapping(
     State(state): State<Arc<ServeState>>,
 ) -> Result<Json<Option<CodeMapMapping>>, (StatusCode, String)> {
-    Ok(Json(state.code_map_mapping.clone()))
+    let mut mapping = state.code_map_mapping.clone();
+    
+    if let Some(mapping) = &mut mapping {
+        if let Some(root) = &state.code_map_root {
+            mapping.resolve_symbols(root);
+        }
+    }
+    
+    Ok(Json(mapping))
 }
 
 async fn get_codemap_status(
