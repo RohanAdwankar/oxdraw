@@ -53,6 +53,7 @@ pub async fn generate_code_map(
     regen: bool,
     custom_prompt: Option<String>,
     no_ai: bool,
+    max_nodes: usize,
 ) -> Result<(String, CodeMapMapping)> {
     let git_info = get_git_info(path);
     
@@ -82,7 +83,7 @@ pub async fn generate_code_map(
 
     if no_ai {
         println!("Generating deterministic code map (no AI)...");
-        let (mermaid, mapping) = generate_deterministic_map(path)?;
+        let (mermaid, mapping) = generate_deterministic_map(path, max_nodes)?;
         
         // Cache the result
         if let Some((commit, diff_hash, _)) = git_info {
@@ -624,7 +625,7 @@ fn estimate_block_end(content: &str, start_byte: usize) -> Option<usize> {
     None
 }
 
-fn generate_deterministic_map(root_path: &Path) -> Result<(String, CodeMapMapping)> {
+fn generate_deterministic_map(root_path: &Path, max_nodes: usize) -> Result<(String, CodeMapMapping)> {
     let mut nodes = HashMap::new();
     let mut edges = Vec::new();
     let mut symbol_to_node_id = HashMap::new();
@@ -635,7 +636,6 @@ fn generate_deterministic_map(root_path: &Path) -> Result<(String, CodeMapMappin
     let ignore_dirs = vec!["target", "node_modules", ".git", "dist", "build", ".next", "out"];
 
     let mut files_content = HashMap::new();
-    const MAX_NODES: usize = 20;
 
     'outer: for entry in walker.filter_entry(|e| {
         let file_name = e.file_name().to_string_lossy();
@@ -657,8 +657,8 @@ fn generate_deterministic_map(root_path: &Path) -> Result<(String, CodeMapMappin
                     
                     let defs = find_all_definitions(&content, ext);
                     for (symbol, start, end) in defs {
-                        if nodes.len() >= MAX_NODES {
-                            println!("Warning: Hit node limit ({}). Stopping scan to prevent huge diagrams.", MAX_NODES);
+                        if nodes.len() >= max_nodes {
+                            println!("Warning: Hit node limit ({}). Stopping scan to prevent huge diagrams.", max_nodes);
                             break 'outer;
                         }
 

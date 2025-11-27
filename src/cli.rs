@@ -111,6 +111,10 @@ pub struct RenderArgs {
     /// Use deterministic generation instead of AI (only for code-map).
     #[arg(long = "no-ai")]
     pub no_ai: bool,
+
+    /// Maximum number of nodes to generate in deterministic mode.
+    #[arg(long = "max-nodes", default_value_t = 20)]
+    pub max_nodes: usize,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
@@ -416,6 +420,7 @@ async fn run_new(cli: RenderArgs) -> Result<()> {
         regen: false,
         prompt: None,
         no_ai: false,
+        max_nodes: 20,
     };
 
     run_edit(edit_args).await
@@ -516,6 +521,7 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
         cli.regen,
         cli.prompt,
         cli.no_ai,
+        cli.max_nodes,
     ).await?;
 
     let git_info = oxdraw::codemap::get_git_info(&root_path);
