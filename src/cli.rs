@@ -564,7 +564,11 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
         host: host.clone(),
         port,
         background_color: cli.background_color,
-        code_map_root: Some(root_path),
+        code_map_root: if root_path.is_file() {
+            root_path.parent().map(|p| p.to_path_buf())
+        } else {
+            Some(root_path)
+        },
         code_map_mapping: Some(mapping),
         code_map_warning: None,
     };

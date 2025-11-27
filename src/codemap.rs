@@ -648,7 +648,11 @@ fn generate_deterministic_map(root_path: &Path) -> Result<(String, CodeMapMappin
         if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
             if include_exts.contains(&ext) {
                 if let Ok(content) = fs::read_to_string(path) {
-                    let rel_path = path.strip_prefix(root_path).unwrap_or(path).to_string_lossy().to_string();
+                    let rel_path = if root_path.is_file() {
+                        path.file_name().unwrap_or_default().to_string_lossy().to_string()
+                    } else {
+                        path.strip_prefix(root_path).unwrap_or(path).to_string_lossy().to_string()
+                    };
                     files_content.insert(rel_path.clone(), (content.clone(), ext.to_string()));
                     
                     let defs = find_all_definitions(&content, ext);
