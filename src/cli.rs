@@ -541,17 +541,42 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
 
     let full_content = oxdraw::codemap::serialize_codemap(&mermaid, &mapping, &metadata);
 
-    if let Some(output_path) = cli.output {
-        let target_path = if output_path == "-" {
+    if let Some(output_path_str) = cli.output {
+        if output_path_str == "-" {
              // stdout
              println!("{}", full_content);
              return Ok(());
+        }
+
+        let output_path = PathBuf::from(&output_path_str);
+        let extension = output_path.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+
+        if extension == "svg" || extension == "png" {
+            // Save .mmd as well
+            let mut mmd_path = output_path.clone();
+            mmd_path.set_extension("mmd");
+            
+            fs::write(&mmd_path, &full_content)?;
+            println!("Code map saved to {}", mmd_path.display());
+
+            // Render
+            let diagram = Diagram::parse(&full_content)?;
+            let output_bytes = if extension == "png" {
+                if cli.scale <= 0.0 {
+                    bail!("--scale must be greater than zero for PNG output");
+                }
+                diagram.render_png(&cli.background_color, None, cli.scale)?
+            } else {
+                diagram.render_svg(&cli.background_color, None)?.into_bytes()
+            };
+            
+            fs::write(&output_path, output_bytes)?;
+            println!("Rendered diagram saved to {}", output_path.display());
         } else {
-             PathBuf::from(output_path)
-        };
-        
-        fs::write(&target_path, full_content)?;
-        println!("Code map saved to {}", target_path.display());
+            fs::write(&output_path, full_content)?;
+            println!("Code map saved to {}", output_path.display());
+        }
+
         return Ok(());
     }
 
