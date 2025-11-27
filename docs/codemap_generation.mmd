@@ -1,0 +1,34 @@
+graph TD
+    Start[generate_code_map] --> CheckCache{Cached?}
+    CheckCache -- Yes --> ReturnCached[Return Cached Map]
+    CheckCache -- No --> Scan[Scan Codebase]
+    Scan --> BuildPrompt[Build Initial Prompt]
+    BuildPrompt --> LoopStart((Loop Start))
+    LoopStart --> CheckAttempts{Max Attempts?}
+    CheckAttempts -- Yes --> Error[Return Error]
+    CheckAttempts -- No --> CallLLM[Call LLM API]
+    CallLLM --> Parse{Parse JSON?}
+    Parse -- Success --> Validate{Validate Map?}
+    Parse -- Failure --> UpdatePrompt1[Append Parse Error]
+    UpdatePrompt1 --> LoopStart
+    Validate -- Valid --> SaveCache[Save to Cache]
+    Validate -- Invalid --> UpdatePrompt2[Append Validation Error]
+    UpdatePrompt2 --> LoopStart
+    SaveCache --> ReturnNew[Return New Map]
+
+%% OXDRAW CODE Start src/codemap.rs def:generate_code_map
+%% OXDRAW CODE CheckCache src/codemap.rs line:69-80
+%% OXDRAW CODE Scan src/codemap.rs def:scan_codebase
+%% OXDRAW CODE BuildPrompt src/codemap.rs line:106-144
+%% OXDRAW CODE LoopStart src/codemap.rs line:172-173
+%% OXDRAW CODE Error src/codemap.rs line:175-175
+%% OXDRAW CODE CheckAttempts src/codemap.rs line:169-171
+%% OXDRAW CODE CallLLM src/codemap.rs line:177-199
+%% OXDRAW CODE Parse src/codemap.rs line:206-259
+%% OXDRAW CODE Validate src/codemap.rs def:validate_response
+%% OXDRAW CODE SaveCache src/codemap.rs line:279-287
+%% OXDRAW CODE UpdatePrompt1 src/codemap.rs line:256-257
+%% OXDRAW CODE UpdatePrompt2 src/codemap.rs line:294-297
+%% OXDRAW CODE ReturnCached src/codemap.rs line:77-77
+%% OXDRAW CODE ReturnNew src/codemap.rs line:291-291
+%% OXDRAW META path: commit:93e6d002b6aaec11cd30e7bd362e12047534db2c diff_hash:13646096770106105413
