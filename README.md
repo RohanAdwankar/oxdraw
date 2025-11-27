@@ -4,9 +4,10 @@ https://github.com/user-attachments/assets/de5222bb-9b65-43cf-a35b-5613d06343e8
 ## Overview
 
 The goal of `oxdraw` is to make it easy to create and maintain high-quality diagrams using a declarative and reproducible syntax.
-Charts are written in [Mermaid](https://mermaid.js.org/) syntax, while a web interface allows users to fine-tune positions connector paths, colors, and other styling components. Whenever a diagram is tweaked visually, the structural changes are persisted back to the source file as declarative code so that everything remains deterministic and versionable.
+Charts are written in [Mermaid](https://mermaid.js.org/) syntax, while a web interface allows users to fine-tune positions, connector paths, colors, and other styling components. Whenever a diagram is tweaked visually, the structural changes are persisted back to the source file as declarative code so that everything remains deterministic and versionable.
+Aside from the normal diagrams, oxdraw can also embed images directly into the diagrams and view codemaps of codebase where nodes are linked to codesegments.
 The changes are saved as comments in the mermaid file so it remains compatible with other Mermaid tools.
-The repo is composed of the Rust CLI to compile `.mmd` files into images and the React based web interface to editing the files.
+The repo is composed of the Rust CLI to compile `.mmd` files into images, a React based web interface to editing the files, and some AI and static analysis algorithm options for automatic generation of code maps.
 
 ## Vision
 
@@ -34,9 +35,12 @@ oxdraw --input flow.mmd --edit
 
 ### Have AI generate a codemap for the repo you're in 
 #### This will also launch the interactive viewer mapping the nodes to files in the repo 
+#### You can refer to docs/ai.md for free resources on setting up AI access
 
 ```bash
-oxdraw --code-map ./
+oxdraw --code-map ./ --gemini YOUR_API_KEY
+# or if you don't have AI access set up, you can use this simple static analysis based code map generator to get an idea of the feature:
+oxdraw --code-map ./src/diagram.rs --no-ai --output test.png
 ```
 
 ## Features

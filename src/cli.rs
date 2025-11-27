@@ -115,6 +115,10 @@ pub struct RenderArgs {
     /// Maximum number of nodes to generate in deterministic mode.
     #[arg(long = "max-nodes", default_value_t = 20)]
     pub max_nodes: usize,
+
+    /// Use Google Gemini API with the provided key.
+    #[arg(long = "gemini", conflicts_with = "api_key")]
+    pub gemini: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
@@ -421,6 +425,7 @@ async fn run_new(cli: RenderArgs) -> Result<()> {
         prompt: None,
         no_ai: false,
         max_nodes: 20,
+        gemini: None,
     };
 
     run_edit(edit_args).await
@@ -522,6 +527,7 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
         cli.prompt,
         cli.no_ai,
         cli.max_nodes,
+        cli.gemini,
     ).await?;
 
     let git_info = oxdraw::codemap::get_git_info(&root_path);

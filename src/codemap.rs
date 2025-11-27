@@ -54,6 +54,7 @@ pub async fn generate_code_map(
     custom_prompt: Option<String>,
     no_ai: bool,
     max_nodes: usize,
+    gemini_key: Option<String>,
 ) -> Result<(String, CodeMapMapping)> {
     let git_info = get_git_info(path);
     
@@ -151,8 +152,19 @@ pub async fn generate_code_map(
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
         .build()?;
-    let url = api_url.unwrap_or_else(|| "http://localhost:8080/v1/responses".to_string());
-    let model = model.unwrap_or_else(|| "gemini-2.0-flash".to_string());
+    
+    let (url, model) = if let Some(key) = &gemini_key {
+        let model = model.unwrap_or_else(|| "gemini-2.0-flash".to_string());
+        (
+            format!("https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}", model, key),
+            model
+        )
+    } else {
+        (
+            api_url.unwrap_or_else(|| "http://localhost:8080/v1/responses".to_string()),
+            model.unwrap_or_else(|| "gemini-2.0-flash".to_string())
+        )
+    };
     
     let mut attempts = 0;
     const MAX_ATTEMPTS: usize = 4;
@@ -167,15 +179,26 @@ pub async fn generate_code_map(
             println!("Attempt {}/{}...", attempts, MAX_ATTEMPTS);
         }
 
-        let mut body = HashMap::new();
-        body.insert("model", model.clone());
-        body.insert("input", prompt.clone());
+        let mut request = client.post(&url);
 
-        let mut request = client.post(&url)
-            .json(&body);
+        if gemini_key.is_some() {
+            let body = serde_json::json!({
+                "contents": [{
+                    "parts": [{
+                        "text": prompt
+                    }]
+                }]
+            });
+            request = request.json(&body);
+        } else {
+            let mut body = HashMap::new();
+            body.insert("model", model.clone());
+            body.insert("input", prompt.clone());
+            request = request.json(&body);
 
-        if let Some(key) = &api_key {
-            request = request.header("Authorization", format!("Bearer {}", key));
+            if let Some(key) = &api_key {
+                request = request.header("Authorization", format!("Bearer {}", key));
+            }
         }
 
         let response = request.send().await.context("Failed to send request to LLM")?;
@@ -190,6 +213,17 @@ pub async fn generate_code_map(
         // Try to extract text from different possible formats
         let output_text = if let Some(text) = response_json.get("output_text").and_then(|v| v.as_str()) {
             text.to_string()
+        } else if let Some(candidates) = response_json.get("candidates").and_then(|v| v.as_array()) {
+            // Gemini format
+            candidates.first()
+                .and_then(|c| c.get("content"))
+                .and_then(|c| c.get("parts"))
+                .and_then(|p| p.as_array())
+                .and_then(|p| p.first())
+                .and_then(|p| p.get("text"))
+                .and_then(|t| t.as_str())
+                .ok_or_else(|| anyhow!("Could not find content in Gemini response"))?
+                .to_string()
         } else if let Some(choices) = response_json.get("choices").and_then(|v| v.as_array()) {
             // Standard OpenAI format
             choices.first()
