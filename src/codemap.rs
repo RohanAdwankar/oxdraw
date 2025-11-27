@@ -52,6 +52,7 @@ pub async fn generate_code_map(
     api_url: Option<String>,
     regen: bool,
     custom_prompt: Option<String>,
+    no_ai: bool,
 ) -> Result<(String, CodeMapMapping)> {
     let git_info = get_git_info(path);
     
@@ -77,6 +78,25 @@ pub async fn generate_code_map(
                 }
             }
         }
+    }
+
+    if no_ai {
+        println!("Generating deterministic code map (no AI)...");
+        let (mermaid, mapping) = generate_deterministic_map(path)?;
+        
+        // Cache the result
+        if let Some((commit, diff_hash, _)) = git_info {
+            let cache_entry = CacheEntry {
+                commit,
+                diff_hash,
+                mermaid: mermaid.clone(),
+                mapping: CodeMapMapping { nodes: mapping.nodes.clone() },
+            };
+            if let Ok(json) = serde_json::to_string_pretty(&cache_entry) {
+                let _ = fs::write(cache_path, json);
+            }
+        }
+        return Ok((mermaid, mapping));
     }
 
     println!("Scanning codebase at {}...", path.display());
@@ -479,18 +499,26 @@ pub fn serialize_codemap(mermaid: &str, mapping: &CodeMapMapping, metadata: &Cod
 
 impl CodeMapMapping {
     pub fn resolve_symbols(&mut self, root: &Path) {
+        let mut file_cache: HashMap<String, String> = HashMap::new();
+
         for location in self.nodes.values_mut() {
             // If we already have line numbers, we might want to verify them or just keep them.
             // But if we have a symbol and no lines (or we want to refresh), we resolve.
             // For now, let's prioritize the symbol if present.
             if let Some(symbol) = &location.symbol {
-                let file_path = root.join(&location.file);
-                if file_path.exists() {
-                    if let Ok(content) = fs::read_to_string(&file_path) {
-                        if let Some((start, end)) = find_symbol_definition(&content, symbol, &location.file) {
-                            location.start_line = Some(start);
-                            location.end_line = Some(end);
+                if !file_cache.contains_key(&location.file) {
+                    let file_path = root.join(&location.file);
+                    if file_path.exists() {
+                        if let Ok(content) = fs::read_to_string(&file_path) {
+                            file_cache.insert(location.file.clone(), content);
                         }
+                    }
+                }
+
+                if let Some(content) = file_cache.get(&location.file) {
+                    if let Some((start, end)) = find_symbol_definition(content, symbol, &location.file) {
+                        location.start_line = Some(start);
+                        location.end_line = Some(end);
                     }
                 }
             }
@@ -545,11 +573,11 @@ fn find_symbol_definition(content: &str, symbol: &str, file_path: &str) -> Optio
                 // Or just the single line if we can't determine scope.
                 
                 let start_byte = mat.start();
-                let start_line = content[..start_byte].lines().count();
+                let start_line = content[..start_byte].lines().count() + 1;
                 
                 // Heuristic for end line: count braces?
                 // This is very rough.
-                let end_line = estimate_block_end(content, start_byte).unwrap_or(start_line);
+                let end_line = estimate_block_end(content, start_byte).map(|l| l + 1).unwrap_or(start_line);
                 
                 return Some((start_line, end_line));
             }
@@ -594,4 +622,155 @@ fn estimate_block_end(content: &str, start_byte: usize) -> Option<usize> {
     }
 
     None
+}
+
+fn generate_deterministic_map(root_path: &Path) -> Result<(String, CodeMapMapping)> {
+    let mut nodes = HashMap::new();
+    let mut edges = Vec::new();
+    let mut symbol_to_node_id = HashMap::new();
+    
+    // 1. Scan files and find definitions
+    let walker = WalkDir::new(root_path).into_iter();
+    let include_exts = vec!["rs", "ts", "tsx", "js", "jsx", "py", "go"];
+    let ignore_dirs = vec!["target", "node_modules", ".git", "dist", "build", ".next", "out"];
+
+    let mut files_content = HashMap::new();
+    const MAX_NODES: usize = 20;
+
+    'outer: for entry in walker.filter_entry(|e| {
+        let file_name = e.file_name().to_string_lossy();
+        !ignore_dirs.iter().any(|d| file_name == *d)
+    }) {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() { continue; }
+
+        if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+            if include_exts.contains(&ext) {
+                if let Ok(content) = fs::read_to_string(path) {
+                    let rel_path = path.strip_prefix(root_path).unwrap_or(path).to_string_lossy().to_string();
+                    files_content.insert(rel_path.clone(), (content.clone(), ext.to_string()));
+                    
+                    let defs = find_all_definitions(&content, ext);
+                    for (symbol, start, end) in defs {
+                        if nodes.len() >= MAX_NODES {
+                            println!("Warning: Hit node limit ({}). Stopping scan to prevent huge diagrams.", MAX_NODES);
+                            break 'outer;
+                        }
+
+                        let node_id = format!("node_{}", nodes.len());
+                        nodes.insert(node_id.clone(), CodeLocation {
+                            file: rel_path.clone(),
+                            start_line: Some(start),
+                            end_line: Some(end),
+                            symbol: Some(symbol.clone()),
+                        });
+                        symbol_to_node_id.insert(symbol, node_id);
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Scan bodies for calls
+    for (node_id, location) in &nodes {
+        if location.symbol.is_some() {
+            if let Some((content, _)) = files_content.get(&location.file) {
+                let start_line = location.start_line.unwrap_or(0);
+                let end_line = location.end_line.unwrap_or(content.lines().count());
+                
+                // Extract body content (approximate)
+                let take_count = if end_line >= start_line {
+                    end_line - start_line + 1
+                } else {
+                    0
+                };
+
+                let body: String = content.lines()
+                    .skip(start_line.saturating_sub(1)) 
+                    .take(take_count)
+                    .collect::<Vec<&str>>()
+                    .join("\n");
+
+                for (target_symbol, target_id) in &symbol_to_node_id {
+                    if target_id == node_id { continue; } // Don't link to self
+                    
+                    // Check if body contains target_symbol
+                    if body.contains(target_symbol) {
+                         // Verify with regex for word boundary
+                         if let Ok(re) = regex::Regex::new(&format!(r"\b{}\b", regex::escape(target_symbol))) {
+                             if re.is_match(&body) {
+                                 edges.push((node_id.clone(), target_id.clone()));
+                             }
+                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Generate Mermaid
+    let mut mermaid = String::from("graph TD\n");
+    for (id, location) in &nodes {
+        let label = location.symbol.as_deref().unwrap_or("?");
+        // Sanitize label for Mermaid
+        let safe_label = label.replace("\"", "'").replace("[", "(").replace("]", ")");
+        mermaid.push_str(&format!("    {}[{}]\n", id, safe_label));
+    }
+    
+    // Deduplicate edges
+    edges.sort();
+    edges.dedup();
+    
+    for (from, to) in edges {
+        mermaid.push_str(&format!("    {} --> {}\n", from, to));
+    }
+
+    Ok((mermaid, CodeMapMapping { nodes }))
+}
+
+fn find_all_definitions(content: &str, ext: &str) -> Vec<(String, usize, usize)> {
+    let mut defs = Vec::new();
+    
+    let patterns = match ext {
+        "rs" => vec![
+            r"fn\s+(\w+)",
+            r"struct\s+(\w+)",
+            r"enum\s+(\w+)",
+            r"trait\s+(\w+)",
+            r"mod\s+(\w+)",
+        ],
+        "ts" | "tsx" | "js" | "jsx" => vec![
+            r"function\s+(\w+)",
+            r"class\s+(\w+)",
+            r"interface\s+(\w+)",
+            r"const\s+(\w+)\s*=",
+            r"let\s+(\w+)\s*=",
+        ],
+        "py" => vec![
+            r"def\s+(\w+)",
+            r"class\s+(\w+)",
+        ],
+        "go" => vec![
+            r"func\s+(\w+)",
+            r"type\s+(\w+)",
+        ],
+        _ => vec![],
+    };
+
+    for pattern in patterns {
+        if let Ok(re) = regex::Regex::new(pattern) {
+            for cap in re.captures_iter(content) {
+                if let Some(m) = cap.get(1) {
+                    let symbol = m.as_str().to_string();
+                    let start_byte = m.start();
+                    let start_line = content[..start_byte].lines().count() + 1; // 1-based
+                    let end_line = estimate_block_end(content, start_byte).map(|l| l + 1).unwrap_or(start_line);
+                    defs.push((symbol, start_line, end_line));
+                }
+            }
+        }
+    }
+    
+    defs
 }

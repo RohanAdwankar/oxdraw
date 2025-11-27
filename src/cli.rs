@@ -107,6 +107,10 @@ pub struct RenderArgs {
     /// Custom prompt to append to the LLM instructions.
     #[arg(long = "prompt")]
     pub prompt: Option<String>,
+
+    /// Use deterministic generation instead of AI (only for code-map).
+    #[arg(long = "no-ai")]
+    pub no_ai: bool,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
@@ -411,6 +415,7 @@ async fn run_new(cli: RenderArgs) -> Result<()> {
         api_url: None,
         regen: false,
         prompt: None,
+        no_ai: false,
     };
 
     run_edit(edit_args).await
@@ -510,6 +515,7 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
         cli.api_url,
         cli.regen,
         cli.prompt,
+        cli.no_ai,
     ).await?;
 
     let git_info = oxdraw::codemap::get_git_info(&root_path);

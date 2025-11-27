@@ -979,15 +979,21 @@ struct FileRequest {
 async fn get_codemap_mapping(
     State(state): State<Arc<ServeState>>,
 ) -> Result<Json<Option<CodeMapMapping>>, (StatusCode, String)> {
-    let mut mapping = state.code_map_mapping.clone();
-    
-    if let Some(mapping) = &mut mapping {
-        if let Some(root) = &state.code_map_root {
-            mapping.resolve_symbols(root);
-        }
+    let mapping = state.code_map_mapping.clone();
+    let root = state.code_map_root.clone();
+
+    if let (Some(mut mapping), Some(root)) = (mapping, root) {
+        let mapping = tokio::task::spawn_blocking(move || {
+            mapping.resolve_symbols(&root);
+            mapping
+        })
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+        Ok(Json(Some(mapping)))
+    } else {
+        Ok(Json(state.code_map_mapping.clone()))
     }
-    
-    Ok(Json(mapping))
 }
 
 async fn get_codemap_status(
