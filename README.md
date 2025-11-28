@@ -1,5 +1,13 @@
-
-https://github.com/user-attachments/assets/de5222bb-9b65-43cf-a35b-5613d06343e8
+<table>
+  <tr>
+    <td width="50%">
+        <video src="https://github.com/user-attachments/assets/de5222bb-9b65-43cf-a35b-5613d06343e8"></video>
+    </td>
+    <td width="50%">
+        <video src="https://github.com/user-attachments/assets/20f7c60a-0369-41d7-bb36-af8b347bc889"></video>
+    </td>
+  </tr>
+</table>
 
 ## Overview
 
@@ -21,22 +29,20 @@ The reason I started this project was I used Mermaid a lot in the past when maki
 cargo install oxdraw
 ```
 
-### Render a diagram from a file
+### Render a Diagram from a File
 
 ```bash
 oxdraw --input flow.mmd  
 ```
 
-### Launch the interactive editor
+### Launch the Interactive Editor
 
 ```bash
 oxdraw --input flow.mmd --edit
 ```
 
-### Have AI generate a codemap for the repo you're in 
+### Have AI Generate a Codemap
 This will also launch the interactive viewer mapping the nodes to files in the repo. You can refer to [ai.md](docs/ai.md) for free resources on setting up AI access
-
-https://github.com/user-attachments/assets/49891bec-7bcd-4af4-a357-d59708bb1812
 
 ```bash
 oxdraw --code-map ./ --gemini YOUR_API_KEY
