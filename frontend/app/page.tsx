@@ -1349,7 +1349,7 @@ export default function Home() {
                           void openInEditor(loc.file, loc.start_line, "nvim");
                         }}
                       >
-                        Open in Neovim
+                        Open in Vi
                       </button>
                     </div>
                   )}

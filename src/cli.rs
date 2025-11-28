@@ -282,7 +282,40 @@ async fn run_edit(cli: RenderArgs) -> Result<()> {
     #[cfg(not(target_arch = "wasm32"))]
     let (mapping, code_map_root) = {
         let (m, meta) = oxdraw::codemap::extract_code_mappings(&content);
-        (Some(m), meta.path.map(PathBuf::from))
+        let root = if let Some(path_str) = &meta.path {
+            let path = PathBuf::from(path_str);
+            if path.is_absolute() && path.exists() {
+                Some(path)
+            } else {
+                // Try to resolve relative to the input file's git root
+                let input_dir = canonical_input.parent().unwrap_or(&canonical_input);
+                if let Some((_, _, git_root)) = oxdraw::codemap::get_git_info(input_dir) {
+                    let resolved = git_root.join(path_str);
+                    if resolved.exists() {
+                        Some(resolved)
+                    } else {
+                        // Fallback: try relative to input file directory
+                        let resolved_direct = input_dir.join(path_str);
+                        if resolved_direct.exists() {
+                            Some(resolved_direct)
+                        } else {
+                            Some(path)
+                        }
+                    }
+                } else {
+                     // Fallback: try relative to input file directory
+                     let resolved_direct = input_dir.join(path_str);
+                     if resolved_direct.exists() {
+                         Some(resolved_direct)
+                     } else {
+                         Some(path)
+                     }
+                }
+            }
+        } else {
+            None
+        };
+        (Some(m), root)
     };
     #[cfg(target_arch = "wasm32")]
     let (mapping, code_map_root) = (None, None);
@@ -446,14 +479,13 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
              // Try to resolve the path
              let mut source_path = PathBuf::from(path_str);
              
-             // If the path is relative and doesn't exist, try to resolve it relative to the git root
+             // If the path is relative and doesn't exist, try to resolve it relative to the git root of the input file
              if !source_path.exists() && source_path.is_relative() {
-                 if let Ok(cwd) = std::env::current_dir() {
-                     if let Some((_, _, git_root)) = oxdraw::codemap::get_git_info(&cwd) {
-                         let resolved = git_root.join(path_str);
-                         if resolved.exists() {
-                             source_path = resolved;
-                         }
+                 let input_dir = path.parent().unwrap_or(&path);
+                 if let Some((_, _, git_root)) = oxdraw::codemap::get_git_info(input_dir) {
+                     let resolved = git_root.join(path_str);
+                     if resolved.exists() {
+                         source_path = resolved;
                      }
                  }
              }
@@ -493,12 +525,11 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
                 // Try to resolve the path again for the server state
                 let mut source_path = PathBuf::from(path_str);
                 if !source_path.exists() && source_path.is_relative() {
-                    if let Ok(cwd) = std::env::current_dir() {
-                        if let Some((_, _, git_root)) = oxdraw::codemap::get_git_info(&cwd) {
-                            let resolved = git_root.join(path_str);
-                            if resolved.exists() {
-                                source_path = resolved;
-                            }
+                    let input_dir = path.parent().unwrap_or(&path);
+                    if let Some((_, _, git_root)) = oxdraw::codemap::get_git_info(input_dir) {
+                        let resolved = git_root.join(path_str);
+                        if resolved.exists() {
+                            source_path = resolved;
                         }
                     }
                 }

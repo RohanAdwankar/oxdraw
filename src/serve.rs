@@ -499,12 +499,14 @@ async fn open_in_editor(
             // On macOS, we need to open a new terminal window for nvim
             #[cfg(target_os = "macos")]
             {
+                let cmd = format!("cd {:?} && vi +{} {:?}", root, line, payload.path);
+                let escaped_cmd = cmd.replace("\\", "\\\\").replace("\"", "\\\"");
+                
                 std::process::Command::new("osascript")
                     .arg("-e")
                     .arg(format!(
-                        "tell application \"Terminal\" to do script \"vi +{} {}\"",
-                        line,
-                        full_path.display()
+                        "tell application \"Terminal\" to do script \"{}\"",
+                        escaped_cmd
                     ))
                     .spawn()
             }
@@ -513,8 +515,9 @@ async fn open_in_editor(
                 // Fallback for other OSs - this might still fail if not in a GUI environment
                 // or if the server is headless.
                 std::process::Command::new("vi")
+                    .current_dir(root)
                     .arg(format!("+{}", line))
-                    .arg(full_path)
+                    .arg(&payload.path)
                     .spawn()
             }
         }
