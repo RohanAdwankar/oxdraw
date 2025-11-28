@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "react-syntax-highlighter": "^16.1.0"
+  }
+}

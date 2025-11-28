@@ -291,11 +291,63 @@ export default function Home() {
   const [codeMapMode, setCodeMapMode] = useState(false);
   const [selectedFile, setSelectedFile] = useState<{ path: string; content: string } | null>(null);
   const [highlightedLines, setHighlightedLines] = useState<{ start: number; end: number } | null>(null);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [leftPanelWidth, setLeftPanelWidth] = useState(280);
+  const [isLeftPanelResizing, setIsLeftPanelResizing] = useState(false);
+  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
+
+  const [rightPanelWidth, setRightPanelWidth] = useState(380);
+  const [isRightPanelResizing, setIsRightPanelResizing] = useState(false);
+  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
 
   const saveTimer = useRef<number | null>(null);
   const lastSubmittedSource = useRef<string | null>(null);
   const nodeImageInputRef = useRef<HTMLInputElement | null>(null);
   const imagePaddingValueRef = useRef(imagePaddingValue);
+
+  useEffect(() => {
+    document.body.setAttribute("data-theme", theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  }, []);
+
+  const startLeftPanelResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsLeftPanelResizing(true);
+  }, []);
+
+  const startRightPanelResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsRightPanelResizing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isLeftPanelResizing && !isRightPanelResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isLeftPanelResizing) {
+        setLeftPanelWidth(Math.max(200, Math.min(e.clientX, 600)));
+      } else if (isRightPanelResizing) {
+        const newWidth = document.body.clientWidth - e.clientX;
+        setRightPanelWidth(Math.max(300, Math.min(newWidth, 800)));
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsLeftPanelResizing(false);
+      setIsRightPanelResizing(false);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isLeftPanelResizing, isRightPanelResizing]);
 
   const selectedNode = useMemo(() => {
     if (!diagram || !selectedNodeId) {
@@ -304,912 +356,937 @@ export default function Home() {
     return diagram.nodes.find((node) => node.id === selectedNodeId) ?? null;
   }, [diagram, selectedNodeId]);
 
-  const selectedEdge = useMemo(() => {
-    if (!diagram || !selectedEdgeId) {
-      return null;
-    }
-    return diagram.edges.find((edge) => edge.id === selectedEdgeId) ?? null;
-  }, [diagram, selectedEdgeId]);
+const selectedEdge = useMemo(() => {
+  if (!diagram || !selectedEdgeId) {
+    return null;
+  }
+  return diagram.edges.find((edge) => edge.id === selectedEdgeId) ?? null;
+}, [diagram, selectedEdgeId]);
 
-  useEffect(() => {
-    if (selectedNode?.image) {
-      setImagePaddingValue(formatPaddingValue(selectedNode.image.padding));
-    } else {
-      setImagePaddingValue("");
-    }
-  }, [selectedNode?.id, selectedNode?.image?.padding]);
+useEffect(() => {
+  if (selectedNode?.image) {
+    setImagePaddingValue(formatPaddingValue(selectedNode.image.padding));
+  } else {
+    setImagePaddingValue("");
+  }
+}, [selectedNode?.id, selectedNode?.image?.padding]);
 
-  useEffect(() => {
-    imagePaddingValueRef.current = imagePaddingValue;
-  }, [imagePaddingValue]);
+useEffect(() => {
+  imagePaddingValueRef.current = imagePaddingValue;
+}, [imagePaddingValue]);
 
-  const loadDiagram = useCallback(
-    async (options?: { silent?: boolean }) => {
-      const silent = options?.silent ?? false;
-      try {
-        if (!silent) {
-          setLoading(true);
-        }
-        setError(null);
-        const data = await fetchDiagram();
-        setDiagram(data);
-        setSource(data.source);
-        setSourceDraft(data.source);
-        lastSubmittedSource.current = data.source;
-        setSourceError(null);
-        setSourceSaving(false);
-        setSelectedNodeId((current) =>
-          current && data.nodes.some((node) => node.id === current) ? current : null
-        );
-        setSelectedEdgeId((current) =>
-          current && data.edges.some((edge) => edge.id === current) ? current : null
-        );
-        return data;
-      } catch (err) {
-        setError((err as Error).message);
-        if (!silent) {
-          setDiagram(null);
-        }
-        throw err;
-      } finally {
-        if (!silent) {
-          setLoading(false);
-        }
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    void loadDiagram().catch(() => undefined);
-    fetchCodeMapMapping().then((mapping) => {
-      if (mapping) {
-        setCodeMapMapping(mapping);
-        setCodeMapMode(true);
-      }
-    }).catch(() => {
-      // Ignore error, likely not in code map mode
-    });
-  }, [loadDiagram]);
-
-  useEffect(() => {
-    if (codeMapMode && selectedNodeId && codeMapMapping) {
-      const location = codeMapMapping.nodes[selectedNodeId];
-      if (location) {
-        fetchCodeMapFile(location.file).then((content) => {
-          setSelectedFile({ path: location.file, content });
-          if (location.start_line && location.end_line) {
-            setHighlightedLines({ start: location.start_line, end: location.end_line });
-          } else {
-            setHighlightedLines(null);
-          }
-        }).catch((err) => {
-          console.error("Failed to fetch file", err);
-          setSelectedFile(null);
-        });
-      } else {
-        setSelectedFile(null);
-        setHighlightedLines(null);
-      }
-    }
-  }, [codeMapMode, selectedNodeId, codeMapMapping]);
-
-  const applyUpdate = useCallback(
-    async (update: LayoutUpdate) => {
-      try {
-        setSaving(true);
-        await updateLayout(update);
-        await loadDiagram({ silent: true });
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setSaving(false);
-      }
-    },
-    [loadDiagram]
-  );
-
-  const submitStyleUpdate = useCallback(
-    async (update: {
-      nodeStyles?: Record<string, NodeStyleUpdate | null>;
-      edgeStyles?: Record<string, EdgeStyleUpdate | null>;
-    }) => {
-      const hasNodeStyles = update.nodeStyles && Object.keys(update.nodeStyles).length > 0;
-      const hasEdgeStyles = update.edgeStyles && Object.keys(update.edgeStyles).length > 0;
-      if (!hasNodeStyles && !hasEdgeStyles) {
-        return;
-      }
-
-      try {
-        setSaving(true);
-        setError(null);
-        await updateStyle({
-          nodeStyles: update.nodeStyles,
-          edgeStyles: update.edgeStyles,
-        });
-        await loadDiagram({ silent: true });
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setSaving(false);
-      }
-    },
-    [loadDiagram]
-  );
-
-  const handleNodeFillChange = useCallback(
-    (value: string) => {
-      if (!selectedNode) {
-        return;
-      }
-      const normalized = normalizeColorInput(value);
-      const fallback = DEFAULT_NODE_COLORS[selectedNode.shape];
-      const currentFill = resolveColor(selectedNode.fillColor, fallback);
-      if (currentFill === normalized) {
-        return;
-      }
-      void submitStyleUpdate({
-        nodeStyles: {
-          [selectedNode.id]: {
-            fill: normalized,
-          },
-        },
-      });
-    },
-    [selectedNode, submitStyleUpdate]
-  );
-
-  const handleNodeStrokeChange = useCallback(
-    (value: string) => {
-      if (!selectedNode) {
-        return;
-      }
-      const normalized = normalizeColorInput(value);
-      const currentStroke = resolveColor(selectedNode.strokeColor, DEFAULT_EDGE_COLOR);
-      if (currentStroke === normalized) {
-        return;
-      }
-      void submitStyleUpdate({
-        nodeStyles: {
-          [selectedNode.id]: {
-            stroke: normalized,
-          },
-        },
-      });
-    },
-    [selectedNode, submitStyleUpdate]
-  );
-
-  const handleNodeTextColorChange = useCallback(
-    (value: string) => {
-      if (!selectedNode) {
-        return;
-      }
-      const normalized = normalizeColorInput(value);
-      const currentText = resolveColor(selectedNode.textColor, DEFAULT_NODE_TEXT);
-      if (currentText === normalized) {
-        return;
-      }
-      void submitStyleUpdate({
-        nodeStyles: {
-          [selectedNode.id]: {
-            text: normalized,
-          },
-        },
-      });
-    },
-    [selectedNode, submitStyleUpdate]
-  );
-
-  const handleNodeLabelFillChange = useCallback(
-    (value: string) => {
-      if (!selectedNode || !selectedNode.image) {
-        return;
-      }
-      const normalized = normalizeColorInput(value);
-      const baseFill = resolveColor(selectedNode.fillColor, DEFAULT_NODE_COLORS[selectedNode.shape]);
-      const currentLabel = resolveColor(selectedNode.labelFillColor, baseFill);
-      if (currentLabel === normalized) {
-        return;
-      }
-      void submitStyleUpdate({
-        nodeStyles: {
-          [selectedNode.id]: {
-            labelFill: normalized,
-          },
-        },
-      });
-    },
-    [selectedNode, submitStyleUpdate]
-  );
-
-  const handleNodeImageFillChange = useCallback(
-    (value: string) => {
-      if (!selectedNode || !selectedNode.image) {
-        return;
-      }
-      const normalized = normalizeColorInput(value);
-      const baseFill = resolveColor(selectedNode.fillColor, DEFAULT_NODE_COLORS[selectedNode.shape]);
-      const currentImage = resolveColor(selectedNode.imageFillColor, baseFill);
-      if (currentImage === normalized) {
-        return;
-      }
-      void submitStyleUpdate({
-        nodeStyles: {
-          [selectedNode.id]: {
-            imageFill: normalized,
-          },
-        },
-      });
-    },
-    [selectedNode, submitStyleUpdate]
-  );
-
-  const handleNodeImageFileChange = useCallback(
-    async (event: ChangeEvent<HTMLInputElement>) => {
-      if (!selectedNode || saving) {
-        event.target.value = "";
-        return;
-      }
-
-      const file = event.target.files && event.target.files[0] ? event.target.files[0] : null;
-      event.target.value = "";
-
-      if (!file) {
-        return;
-      }
-
-      const declaredType = file.type ? file.type.toLowerCase() : "";
-      const effectiveType =
-        declaredType || (file.name.toLowerCase().endsWith(".png") ? "image/png" : "");
-
-      if (effectiveType !== "image/png") {
-        setError("Only PNG images are supported for nodes.");
-        return;
-      }
-
-      let preparedImage: {
-        base64: string;
-        resized: boolean;
-        originalSize: number;
-        finalSize: number;
-      } | null = null;
-
-      try {
-        preparedImage = await ensureImageWithinLimit(file, MAX_IMAGE_FILE_BYTES);
-      } catch (err) {
-        const message = (err as Error).message;
-        setError(message);
-        window.alert(`${message} Maximum allowed size is ${formatByteSize(MAX_IMAGE_FILE_BYTES)}.`);
-        return;
-      }
-
-      if (!preparedImage) {
-        return;
-      }
-
-      if (preparedImage.resized) {
-        window.alert(
-          `The selected image was ${formatByteSize(preparedImage.originalSize)}. We resized it to ${formatByteSize(preparedImage.finalSize)} to stay under the ${formatByteSize(MAX_IMAGE_FILE_BYTES)} limit.`
-        );
-      }
-
-      try {
-        setSaving(true);
-        setError(null);
-        const fallbackPadding = selectedNode.image ? selectedNode.image.padding : 0;
-        const parsedPadding = Number.parseFloat(imagePaddingValueRef.current);
-        const nextPadding = Number.isFinite(parsedPadding)
-          ? normalizePadding(Math.max(0, parsedPadding))
-          : normalizePadding(fallbackPadding);
-        await updateNodeImage(selectedNode.id, {
-          mimeType: effectiveType,
-          data: preparedImage.base64,
-          padding: nextPadding,
-        });
-        setImagePaddingValue(formatPaddingValue(nextPadding));
-        await loadDiagram({ silent: true });
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setSaving(false);
-      }
-    },
-    [selectedNode, saving, loadDiagram]
-  );
-
-  const handleNodeImageRemove = useCallback(async () => {
-    if (!selectedNode || saving || !selectedNode.image) {
-      return;
-    }
+const loadDiagram = useCallback(
+  async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
     try {
-      setSaving(true);
+      if (!silent) {
+        setLoading(true);
+      }
       setError(null);
-      await updateNodeImage(selectedNode.id, null);
-      await loadDiagram({ silent: true });
+      const data = await fetchDiagram();
+      setDiagram(data);
+      setSource(data.source);
+      setSourceDraft(data.source);
+      lastSubmittedSource.current = data.source;
+      setSourceError(null);
+      setSourceSaving(false);
+      setSelectedNodeId((current) =>
+        current && data.nodes.some((node) => node.id === current) ? current : null
+      );
+      setSelectedEdgeId((current) =>
+        current && data.edges.some((edge) => edge.id === current) ? current : null
+      );
+      return data;
     } catch (err) {
       setError((err as Error).message);
+      if (!silent) {
+        setDiagram(null);
+      }
+      throw err;
     } finally {
-      setSaving(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
-  }, [selectedNode, saving, loadDiagram]);
+  },
+  []
+);
 
-  const handleNodeImagePaddingChange = useCallback((value: string) => {
-    setImagePaddingValue(value);
-  }, []);
-
-  const commitNodeImagePadding = useCallback(async () => {
-    if (!selectedNode || !selectedNode.image || saving) {
-      return;
+useEffect(() => {
+  void loadDiagram().catch(() => undefined);
+  fetchCodeMapMapping().then((mapping) => {
+    if (mapping) {
+      setCodeMapMapping(mapping);
+      setCodeMapMode(true);
     }
+  }).catch(() => {
+    // Ignore error, likely not in code map mode
+  });
+}, [loadDiagram]);
 
-    const parsed = Number.parseFloat(imagePaddingValue);
-    if (!Number.isFinite(parsed)) {
-      setImagePaddingValue(formatPaddingValue(selectedNode.image.padding));
-      return;
-    }
-
-    const normalized = normalizePadding(Math.max(0, parsed));
-    const current = normalizePadding(selectedNode.image.padding);
-    if (Math.abs(normalized - current) < PADDING_EPSILON) {
-      setImagePaddingValue(formatPaddingValue(current));
-      return;
-    }
-
-    try {
-      setSaving(true);
-      setError(null);
-      await updateNodeImage(selectedNode.id, { padding: normalized });
-      setImagePaddingValue(formatPaddingValue(normalized));
-      await loadDiagram({ silent: true });
-    } catch (err) {
-      setError((err as Error).message);
-      setImagePaddingValue(formatPaddingValue(current));
-    } finally {
-      setSaving(false);
-    }
-  }, [selectedNode, saving, imagePaddingValue, loadDiagram]);
-
-  const handleNodeImagePaddingBlur = useCallback(() => {
-    if (!selectedNode?.image) {
-      setImagePaddingValue("");
-      return;
-    }
-    void commitNodeImagePadding();
-  }, [commitNodeImagePadding, selectedNode]);
-
-  const handleNodeImagePaddingKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLInputElement>) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        void commitNodeImagePadding();
-      } else if (event.key === "Escape") {
-        event.preventDefault();
-        if (selectedNode?.image) {
-          setImagePaddingValue(formatPaddingValue(selectedNode.image.padding));
+useEffect(() => {
+  if (codeMapMode && selectedNodeId && codeMapMapping) {
+    const location = codeMapMapping.nodes[selectedNodeId];
+    if (location) {
+      fetchCodeMapFile(location.file).then((content) => {
+        setSelectedFile({ path: location.file, content });
+        if (location.start_line && location.end_line) {
+          setHighlightedLines({ start: location.start_line, end: location.end_line });
         } else {
-          setImagePaddingValue("");
+          setHighlightedLines(null);
         }
-        event.currentTarget.blur();
-      }
-    },
-    [commitNodeImagePadding, selectedNode]
-  );
+      }).catch((err) => {
+        console.error("Failed to fetch file", err);
+        setSelectedFile(null);
+      });
+    } else {
+      setSelectedFile(null);
+      setHighlightedLines(null);
+    }
+  }
+}, [codeMapMode, selectedNodeId, codeMapMapping]);
 
-  const handleNodeStyleReset = useCallback(() => {
+const applyUpdate = useCallback(
+  async (update: LayoutUpdate) => {
+    try {
+      setSaving(true);
+      await updateLayout(update);
+      await loadDiagram({ silent: true });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  },
+  [loadDiagram]
+);
+
+const submitStyleUpdate = useCallback(
+  async (update: {
+    nodeStyles?: Record<string, NodeStyleUpdate | null>;
+    edgeStyles?: Record<string, EdgeStyleUpdate | null>;
+  }) => {
+    const hasNodeStyles = update.nodeStyles && Object.keys(update.nodeStyles).length > 0;
+    const hasEdgeStyles = update.edgeStyles && Object.keys(update.edgeStyles).length > 0;
+    if (!hasNodeStyles && !hasEdgeStyles) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+      await updateStyle({
+        nodeStyles: update.nodeStyles,
+        edgeStyles: update.edgeStyles,
+      });
+      await loadDiagram({ silent: true });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  },
+  [loadDiagram]
+);
+
+const handleNodeFillChange = useCallback(
+  (value: string) => {
     if (!selectedNode) {
+      return;
+    }
+    const normalized = normalizeColorInput(value);
+    const fallback = DEFAULT_NODE_COLORS[selectedNode.shape];
+    const currentFill = resolveColor(selectedNode.fillColor, fallback);
+    if (currentFill === normalized) {
       return;
     }
     void submitStyleUpdate({
       nodeStyles: {
-        [selectedNode.id]: null,
+        [selectedNode.id]: {
+          fill: normalized,
+        },
       },
     });
-  }, [selectedNode, submitStyleUpdate]);
+  },
+  [selectedNode, submitStyleUpdate]
+);
 
-  const handleEdgeColorChange = useCallback(
-    (value: string) => {
-      if (!selectedEdge) {
-        return;
-      }
-      const normalized = normalizeColorInput(value);
-      const currentColor = resolveColor(selectedEdge.color, DEFAULT_EDGE_COLOR);
-      if (currentColor === normalized) {
-        return;
-      }
-      void submitStyleUpdate({
-        edgeStyles: {
-          [selectedEdge.id]: {
-            color: normalized,
-          },
+const handleNodeStrokeChange = useCallback(
+  (value: string) => {
+    if (!selectedNode) {
+      return;
+    }
+    const normalized = normalizeColorInput(value);
+    const currentStroke = resolveColor(selectedNode.strokeColor, DEFAULT_EDGE_COLOR);
+    if (currentStroke === normalized) {
+      return;
+    }
+    void submitStyleUpdate({
+      nodeStyles: {
+        [selectedNode.id]: {
+          stroke: normalized,
         },
-      });
-    },
-    [selectedEdge, submitStyleUpdate]
-  );
+      },
+    });
+  },
+  [selectedNode, submitStyleUpdate]
+);
 
-  const handleEdgeLineStyleChange = useCallback(
-    (value: EdgeKind) => {
-      if (!selectedEdge) {
-        return;
-      }
-      if (selectedEdge.kind === value) {
-        return;
-      }
-      void submitStyleUpdate({
-        edgeStyles: {
-          [selectedEdge.id]: {
-            line: value,
-          },
+const handleNodeTextColorChange = useCallback(
+  (value: string) => {
+    if (!selectedNode) {
+      return;
+    }
+    const normalized = normalizeColorInput(value);
+    const currentText = resolveColor(selectedNode.textColor, DEFAULT_NODE_TEXT);
+    if (currentText === normalized) {
+      return;
+    }
+    void submitStyleUpdate({
+      nodeStyles: {
+        [selectedNode.id]: {
+          text: normalized,
         },
-      });
-    },
-    [selectedEdge, submitStyleUpdate]
-  );
+      },
+    });
+  },
+  [selectedNode, submitStyleUpdate]
+);
 
-  const handleEdgeArrowChange = useCallback(
-    (value: EdgeArrowDirection) => {
-      if (!selectedEdge) {
-        return;
-      }
-      const currentArrow = selectedEdge.arrowDirection ?? "forward";
-      if (currentArrow === value) {
-        return;
-      }
-      void submitStyleUpdate({
-        edgeStyles: {
-          [selectedEdge.id]: {
-            arrow: value,
-          },
+const handleNodeLabelFillChange = useCallback(
+  (value: string) => {
+    if (!selectedNode || !selectedNode.image) {
+      return;
+    }
+    const normalized = normalizeColorInput(value);
+    const baseFill = resolveColor(selectedNode.fillColor, DEFAULT_NODE_COLORS[selectedNode.shape]);
+    const currentLabel = resolveColor(selectedNode.labelFillColor, baseFill);
+    if (currentLabel === normalized) {
+      return;
+    }
+    void submitStyleUpdate({
+      nodeStyles: {
+        [selectedNode.id]: {
+          labelFill: normalized,
         },
-      });
-    },
-    [selectedEdge, submitStyleUpdate]
-  );
+      },
+    });
+  },
+  [selectedNode, submitStyleUpdate]
+);
 
-  const handleEdgeStyleReset = useCallback(() => {
+const handleNodeImageFillChange = useCallback(
+  (value: string) => {
+    if (!selectedNode || !selectedNode.image) {
+      return;
+    }
+    const normalized = normalizeColorInput(value);
+    const baseFill = resolveColor(selectedNode.fillColor, DEFAULT_NODE_COLORS[selectedNode.shape]);
+    const currentImage = resolveColor(selectedNode.imageFillColor, baseFill);
+    if (currentImage === normalized) {
+      return;
+    }
+    void submitStyleUpdate({
+      nodeStyles: {
+        [selectedNode.id]: {
+          imageFill: normalized,
+        },
+      },
+    });
+  },
+  [selectedNode, submitStyleUpdate]
+);
+
+const handleNodeImageFileChange = useCallback(
+  async (event: ChangeEvent<HTMLInputElement>) => {
+    if (!selectedNode || saving) {
+      event.target.value = "";
+      return;
+    }
+
+    const file = event.target.files && event.target.files[0] ? event.target.files[0] : null;
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    const declaredType = file.type ? file.type.toLowerCase() : "";
+    const effectiveType =
+      declaredType || (file.name.toLowerCase().endsWith(".png") ? "image/png" : "");
+
+    if (effectiveType !== "image/png") {
+      setError("Only PNG images are supported for nodes.");
+      return;
+    }
+
+    let preparedImage: {
+      base64: string;
+      resized: boolean;
+      originalSize: number;
+      finalSize: number;
+    } | null = null;
+
+    try {
+      preparedImage = await ensureImageWithinLimit(file, MAX_IMAGE_FILE_BYTES);
+    } catch (err) {
+      const message = (err as Error).message;
+      setError(message);
+      window.alert(`${message} Maximum allowed size is ${formatByteSize(MAX_IMAGE_FILE_BYTES)}.`);
+      return;
+    }
+
+    if (!preparedImage) {
+      return;
+    }
+
+    if (preparedImage.resized) {
+      window.alert(
+        `The selected image was ${formatByteSize(preparedImage.originalSize)}. We resized it to ${formatByteSize(preparedImage.finalSize)} to stay under the ${formatByteSize(MAX_IMAGE_FILE_BYTES)} limit.`
+      );
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+      const fallbackPadding = selectedNode.image ? selectedNode.image.padding : 0;
+      const parsedPadding = Number.parseFloat(imagePaddingValueRef.current);
+      const nextPadding = Number.isFinite(parsedPadding)
+        ? normalizePadding(Math.max(0, parsedPadding))
+        : normalizePadding(fallbackPadding);
+      await updateNodeImage(selectedNode.id, {
+        mimeType: effectiveType,
+        data: preparedImage.base64,
+        padding: nextPadding,
+      });
+      setImagePaddingValue(formatPaddingValue(nextPadding));
+      await loadDiagram({ silent: true });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  },
+  [selectedNode, saving, loadDiagram]
+);
+
+const handleNodeImageRemove = useCallback(async () => {
+  if (!selectedNode || saving || !selectedNode.image) {
+    return;
+  }
+  try {
+    setSaving(true);
+    setError(null);
+    await updateNodeImage(selectedNode.id, null);
+    await loadDiagram({ silent: true });
+  } catch (err) {
+    setError((err as Error).message);
+  } finally {
+    setSaving(false);
+  }
+}, [selectedNode, saving, loadDiagram]);
+
+const handleNodeImagePaddingChange = useCallback((value: string) => {
+  setImagePaddingValue(value);
+}, []);
+
+const commitNodeImagePadding = useCallback(async () => {
+  if (!selectedNode || !selectedNode.image || saving) {
+    return;
+  }
+
+  const parsed = Number.parseFloat(imagePaddingValue);
+  if (!Number.isFinite(parsed)) {
+    setImagePaddingValue(formatPaddingValue(selectedNode.image.padding));
+    return;
+  }
+
+  const normalized = normalizePadding(Math.max(0, parsed));
+  const current = normalizePadding(selectedNode.image.padding);
+  if (Math.abs(normalized - current) < PADDING_EPSILON) {
+    setImagePaddingValue(formatPaddingValue(current));
+    return;
+  }
+
+  try {
+    setSaving(true);
+    setError(null);
+    await updateNodeImage(selectedNode.id, { padding: normalized });
+    setImagePaddingValue(formatPaddingValue(normalized));
+    await loadDiagram({ silent: true });
+  } catch (err) {
+    setError((err as Error).message);
+    setImagePaddingValue(formatPaddingValue(current));
+  } finally {
+    setSaving(false);
+  }
+}, [selectedNode, saving, imagePaddingValue, loadDiagram]);
+
+const handleNodeImagePaddingBlur = useCallback(() => {
+  if (!selectedNode?.image) {
+    setImagePaddingValue("");
+    return;
+  }
+  void commitNodeImagePadding();
+}, [commitNodeImagePadding, selectedNode]);
+
+const handleNodeImagePaddingKeyDown = useCallback(
+  (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void commitNodeImagePadding();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      if (selectedNode?.image) {
+        setImagePaddingValue(formatPaddingValue(selectedNode.image.padding));
+      } else {
+        setImagePaddingValue("");
+      }
+      event.currentTarget.blur();
+    }
+  },
+  [commitNodeImagePadding, selectedNode]
+);
+
+const handleNodeStyleReset = useCallback(() => {
+  if (!selectedNode) {
+    return;
+  }
+  void submitStyleUpdate({
+    nodeStyles: {
+      [selectedNode.id]: null,
+    },
+  });
+}, [selectedNode, submitStyleUpdate]);
+
+const handleEdgeColorChange = useCallback(
+  (value: string) => {
     if (!selectedEdge) {
+      return;
+    }
+    const normalized = normalizeColorInput(value);
+    const currentColor = resolveColor(selectedEdge.color, DEFAULT_EDGE_COLOR);
+    if (currentColor === normalized) {
       return;
     }
     void submitStyleUpdate({
       edgeStyles: {
-        [selectedEdge.id]: null,
+        [selectedEdge.id]: {
+          color: normalized,
+        },
       },
     });
-  }, [selectedEdge, submitStyleUpdate]);
+  },
+  [selectedEdge, submitStyleUpdate]
+);
 
-  const handleAddEdgeJoint = useCallback(() => {
+const handleEdgeLineStyleChange = useCallback(
+  (value: EdgeKind) => {
     if (!selectedEdge) {
       return;
     }
-
-    const route = selectedEdge.renderedPoints;
-    if (route.length < 2) {
+    if (selectedEdge.kind === value) {
       return;
     }
-
-    let bestSegment = 0;
-    let bestLength = -Infinity;
-    for (let index = 0; index < route.length - 1; index += 1) {
-      const start = route[index];
-      const end = route[index + 1];
-      const length = Math.hypot(end.x - start.x, end.y - start.y);
-      if (length > bestLength) {
-        bestLength = length;
-        bestSegment = index;
-      }
-    }
-
-    const start = route[bestSegment];
-    const end = route[bestSegment + 1];
-    const newPoint: Point = {
-      x: (start.x + end.x) / 2,
-      y: (start.y + end.y) / 2,
-    };
-
-    const currentOverrides = selectedEdge.overridePoints
-      ? selectedEdge.overridePoints.map((point) => ({ ...point }))
-      : [];
-
-    const alreadyPresent = currentOverrides.some((point) => {
-      const dx = point.x - newPoint.x;
-      const dy = point.y - newPoint.y;
-      return Math.hypot(dx, dy) < 0.25;
-    });
-    if (alreadyPresent) {
-      return;
-    }
-
-    const insertIndex = Math.min(bestSegment, currentOverrides.length);
-    currentOverrides.splice(insertIndex, 0, newPoint);
-
-    void applyUpdate({
-      edges: {
+    void submitStyleUpdate({
+      edgeStyles: {
         [selectedEdge.id]: {
-          points: currentOverrides,
+          line: value,
         },
       },
     });
-  }, [applyUpdate, selectedEdge]);
+  },
+  [selectedEdge, submitStyleUpdate]
+);
 
-  const handleNodeMove = useCallback(
-    (id: string, position: Point | null) => {
-      void applyUpdate({
-        nodes: {
-          [id]: position,
+const handleEdgeArrowChange = useCallback(
+  (value: EdgeArrowDirection) => {
+    if (!selectedEdge) {
+      return;
+    }
+    const currentArrow = selectedEdge.arrowDirection ?? "forward";
+    if (currentArrow === value) {
+      return;
+    }
+    void submitStyleUpdate({
+      edgeStyles: {
+        [selectedEdge.id]: {
+          arrow: value,
         },
-      });
-    },
-    [applyUpdate]
-  );
+      },
+    });
+  },
+  [selectedEdge, submitStyleUpdate]
+);
 
-  const handleLayoutUpdate = useCallback(
-    (update: LayoutUpdate) => {
-      const hasNodes = update.nodes && Object.keys(update.nodes).length > 0;
-      const hasEdges = update.edges && Object.keys(update.edges).length > 0;
-      if (!hasNodes && !hasEdges) {
-        return;
-      }
-      void applyUpdate(update);
+const handleEdgeStyleReset = useCallback(() => {
+  if (!selectedEdge) {
+    return;
+  }
+  void submitStyleUpdate({
+    edgeStyles: {
+      [selectedEdge.id]: null,
     },
-    [applyUpdate]
-  );
+  });
+}, [selectedEdge, submitStyleUpdate]);
 
-  const handleEdgeMove = useCallback(
-    (id: string, points: Point[] | null) => {
-      void applyUpdate({
-        edges: {
-          [id]: {
-            points,
-          },
+const handleAddEdgeJoint = useCallback(() => {
+  if (!selectedEdge) {
+    return;
+  }
+
+  const route = selectedEdge.renderedPoints;
+  if (route.length < 2) {
+    return;
+  }
+
+  let bestSegment = 0;
+  let bestLength = -Infinity;
+  for (let index = 0; index < route.length - 1; index += 1) {
+    const start = route[index];
+    const end = route[index + 1];
+    const length = Math.hypot(end.x - start.x, end.y - start.y);
+    if (length > bestLength) {
+      bestLength = length;
+      bestSegment = index;
+    }
+  }
+
+  const start = route[bestSegment];
+  const end = route[bestSegment + 1];
+  const newPoint: Point = {
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+  };
+
+  const currentOverrides = selectedEdge.overridePoints
+    ? selectedEdge.overridePoints.map((point) => ({ ...point }))
+    : [];
+
+  const alreadyPresent = currentOverrides.some((point) => {
+    const dx = point.x - newPoint.x;
+    const dy = point.y - newPoint.y;
+    return Math.hypot(dx, dy) < 0.25;
+  });
+  if (alreadyPresent) {
+    return;
+  }
+
+  const insertIndex = Math.min(bestSegment, currentOverrides.length);
+  currentOverrides.splice(insertIndex, 0, newPoint);
+
+  void applyUpdate({
+    edges: {
+      [selectedEdge.id]: {
+        points: currentOverrides,
+      },
+    },
+  });
+}, [applyUpdate, selectedEdge]);
+
+const handleNodeMove = useCallback(
+  (id: string, position: Point | null) => {
+    void applyUpdate({
+      nodes: {
+        [id]: position,
+      },
+    });
+  },
+  [applyUpdate]
+);
+
+const handleLayoutUpdate = useCallback(
+  (update: LayoutUpdate) => {
+    const hasNodes = update.nodes && Object.keys(update.nodes).length > 0;
+    const hasEdges = update.edges && Object.keys(update.edges).length > 0;
+    if (!hasNodes && !hasEdges) {
+      return;
+    }
+    void applyUpdate(update);
+  },
+  [applyUpdate]
+);
+
+const handleEdgeMove = useCallback(
+  (id: string, points: Point[] | null) => {
+    void applyUpdate({
+      edges: {
+        [id]: {
+          points,
         },
-      });
-    },
-    [applyUpdate]
-  );
+      },
+    });
+  },
+  [applyUpdate]
+);
 
-  const handleSourceChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
-    const value = event.target.value;
-    lastSubmittedSource.current = null;
-    setSourceDraft(value);
-    setError(null);
-    setSourceError(null);
-  }, []);
+const handleSourceChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
+  const value = event.target.value;
+  lastSubmittedSource.current = null;
+  setSourceDraft(value);
+  setError(null);
+  setSourceError(null);
+}, []);
 
-  const handleSelectNode = useCallback((id: string | null) => {
-    setSelectedNodeId(id);
-    if (id) {
-      setSelectedEdgeId(null);
-    }
-  }, []);
+const handleSelectNode = useCallback((id: string | null) => {
+  setSelectedNodeId(id);
+  if (id) {
+    setSelectedEdgeId(null);
+  }
+}, []);
 
-  const handleSelectEdge = useCallback((id: string | null) => {
-    setSelectedEdgeId(id);
-    if (id) {
-      setSelectedNodeId(null);
-    }
-  }, []);
+const handleSelectEdge = useCallback((id: string | null) => {
+  setSelectedEdgeId(id);
+  if (id) {
+    setSelectedNodeId(null);
+  }
+}, []);
 
-  const deleteTarget = useCallback(
-    async (target: { type: "node" | "edge"; id: string }) => {
-      if (saving || sourceSaving) {
-        return;
-      }
-      try {
-        setSaving(true);
-        setError(null);
-        if (target.type === "node") {
-          await deleteNode(target.id);
-          setSelectedNodeId((current) => (current === target.id ? null : current));
-          setSelectedEdgeId(null);
-        } else {
-          await deleteEdge(target.id);
-          setSelectedEdgeId((current) => (current === target.id ? null : current));
-        }
-        await loadDiagram({ silent: true });
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setSaving(false);
-      }
-    },
-    [deleteEdge, deleteNode, loadDiagram, saving, sourceSaving]
-  );
-
-  const handleDeleteSelection = useCallback(async () => {
-    if (selectedNodeId) {
-      await deleteTarget({ type: "node", id: selectedNodeId });
-    } else if (selectedEdgeId) {
-      await deleteTarget({ type: "edge", id: selectedEdgeId });
-    }
-  }, [deleteTarget, selectedEdgeId, selectedNodeId]);
-
-  const handleDeleteNodeDirect = useCallback(
-    async (id: string) => {
-      await deleteTarget({ type: "node", id });
-    },
-    [deleteTarget]
-  );
-
-  const handleDeleteEdgeDirect = useCallback(
-    async (id: string) => {
-      await deleteTarget({ type: "edge", id });
-    },
-    [deleteTarget]
-  );
-
-  const handleResetOverrides = useCallback(() => {
-    if (!diagram) {
+const deleteTarget = useCallback(
+  async (target: { type: "node" | "edge"; id: string }) => {
+    if (saving || sourceSaving) {
       return;
     }
-
-    const nodesUpdate: Record<string, Point | null> = {};
-    const edgesUpdate: Record<string, { points?: Point[] | null }> = {};
-
-    for (const node of diagram.nodes) {
-      if (node.overridePosition) {
-        nodesUpdate[node.id] = null;
+    try {
+      setSaving(true);
+      setError(null);
+      if (target.type === "node") {
+        await deleteNode(target.id);
+        setSelectedNodeId((current) => (current === target.id ? null : current));
+        setSelectedEdgeId(null);
+      } else {
+        await deleteEdge(target.id);
+        setSelectedEdgeId((current) => (current === target.id ? null : current));
       }
+      await loadDiagram({ silent: true });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
     }
+  },
+  [deleteEdge, deleteNode, loadDiagram, saving, sourceSaving]
+);
 
-    for (const edge of diagram.edges) {
-      if (edge.overridePoints && edge.overridePoints.length > 0) {
-        edgesUpdate[edge.id] = { points: null };
-      }
-    }
+const handleDeleteSelection = useCallback(async () => {
+  if (selectedNodeId) {
+    await deleteTarget({ type: "node", id: selectedNodeId });
+  } else if (selectedEdgeId) {
+    await deleteTarget({ type: "edge", id: selectedEdgeId });
+  }
+}, [deleteTarget, selectedEdgeId, selectedNodeId]);
 
-    if (Object.keys(nodesUpdate).length === 0 && Object.keys(edgesUpdate).length === 0) {
-      return;
-    }
+const handleDeleteNodeDirect = useCallback(
+  async (id: string) => {
+    await deleteTarget({ type: "node", id });
+  },
+  [deleteTarget]
+);
 
-    void applyUpdate({ nodes: nodesUpdate, edges: edgesUpdate });
-  }, [applyUpdate, diagram]);
+const handleDeleteEdgeDirect = useCallback(
+  async (id: string) => {
+    await deleteTarget({ type: "edge", id });
+  },
+  [deleteTarget]
+);
 
-  const statusMessage = useMemo(() => {
-    if (loading) {
-      return "Loading diagram...";
-    }
-    if (saving) {
-      return "Saving changes...";
-    }
-    if (sourceSaving) {
-      return "Syncing source...";
-    }
-    if (error) {
-      return `Error: ${error}`;
-    }
-    return diagram ? `Editing ${diagram.sourcePath}` : "No diagram selected";
-  }, [diagram, error, loading, saving, sourceSaving]);
+const handleResetOverrides = useCallback(() => {
+  if (!diagram) {
+    return;
+  }
 
-  useEffect(() => {
-    if (!diagram || dragging) {
-      if (saveTimer.current !== null) {
-        window.clearTimeout(saveTimer.current);
-        saveTimer.current = null;
-      }
-      return;
-    }
+  const nodesUpdate: Record<string, Point | null> = {};
+  const edgesUpdate: Record<string, { points?: Point[] | null }> = {};
 
+  for (const node of diagram.nodes) {
+    if (node.overridePosition) {
+      nodesUpdate[node.id] = null;
+    }
+  }
+
+  for (const edge of diagram.edges) {
+    if (edge.overridePoints && edge.overridePoints.length > 0) {
+      edgesUpdate[edge.id] = { points: null };
+    }
+  }
+
+  if (Object.keys(nodesUpdate).length === 0 && Object.keys(edgesUpdate).length === 0) {
+    return;
+  }
+
+  void applyUpdate({ nodes: nodesUpdate, edges: edgesUpdate });
+}, [applyUpdate, diagram]);
+
+const statusMessage = useMemo(() => {
+  if (loading) {
+    return "Loading diagram...";
+  }
+  if (saving) {
+    return "Saving changes...";
+  }
+  if (sourceSaving) {
+    return "Syncing source...";
+  }
+  if (error) {
+    return `Error: ${error}`;
+  }
+  return diagram ? `Editing ${diagram.sourcePath}` : "No diagram selected";
+}, [diagram, error, loading, saving, sourceSaving]);
+
+useEffect(() => {
+  if (!diagram || dragging) {
     if (saveTimer.current !== null) {
       window.clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
+    return;
+  }
 
-    if (sourceDraft === source) {
-      setSourceSaving(false);
-      if (sourceError) {
-        setSourceError(null);
-      }
-      lastSubmittedSource.current = sourceDraft;
-      return;
-    }
+  if (saveTimer.current !== null) {
+    window.clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+  }
 
-    if (lastSubmittedSource.current === sourceDraft && sourceError) {
-      return;
-    }
-
-    setSourceSaving(true);
-    saveTimer.current = window.setTimeout(() => {
-      const payload = sourceDraft;
-      lastSubmittedSource.current = payload;
-      void (async () => {
-        try {
-          await updateSource(payload);
-          setSourceSaving(false);
-          setSourceError(null);
-          await loadDiagram({ silent: true });
-        } catch (err) {
-          const message = (err as Error).message;
-          setSourceSaving(false);
-          setSourceError(message);
-          setError(message);
-        }
-      })();
-    }, 700);
-
-    return () => {
-      if (saveTimer.current !== null) {
-        window.clearTimeout(saveTimer.current);
-        saveTimer.current = null;
-      }
-    };
-  }, [diagram, dragging, sourceDraft, source, sourceError, loadDiagram]);
-
-  const sourceStatus = useMemo(() => {
+  if (sourceDraft === source) {
+    setSourceSaving(false);
     if (sourceError) {
-      return { label: sourceError, variant: "error" as const };
+      setSourceError(null);
     }
-    if (sourceSaving) {
-      return { label: "Saving changes…", variant: "saving" as const };
-    }
-    if (sourceDraft !== source) {
-      return { label: "Pending changes…", variant: "pending" as const };
-    }
-    return { label: "Synced", variant: "synced" as const };
-  }, [sourceError, sourceSaving, sourceDraft, source]);
+    lastSubmittedSource.current = sourceDraft;
+    return;
+  }
 
-  const selectionLabel = useMemo(() => {
-    if (selectedNodeId) {
-      return `Selected node: ${selectedNodeId}`;
-    }
-    if (selectedEdgeId) {
-      return `Selected edge: ${selectedEdgeId}`;
-    }
-    return "No selection";
-  }, [selectedEdgeId, selectedNodeId]);
+  if (lastSubmittedSource.current === sourceDraft && sourceError) {
+    return;
+  }
 
-  const hasSelection = selectedNodeId !== null || selectedEdgeId !== null;
-
-  const nodeFillValue = useMemo(() => {
-    if (!selectedNode) {
-      return DEFAULT_NODE_COLORS.rectangle.toLowerCase();
-    }
-    return resolveColor(selectedNode.fillColor, DEFAULT_NODE_COLORS[selectedNode.shape]);
-  }, [selectedNode]);
-
-  const nodeStrokeValue = useMemo(() => {
-    if (!selectedNode) {
-      return DEFAULT_EDGE_COLOR.toLowerCase();
-    }
-    return resolveColor(selectedNode.strokeColor, DEFAULT_EDGE_COLOR);
-  }, [selectedNode]);
-
-  const nodeTextValue = useMemo(() => {
-    if (!selectedNode) {
-      return DEFAULT_NODE_TEXT.toLowerCase();
-    }
-    return resolveColor(selectedNode.textColor, DEFAULT_NODE_TEXT);
-  }, [selectedNode]);
-
-  const nodeLabelFillValue = useMemo(() => {
-    if (!selectedNode) {
-      return nodeFillValue;
-    }
-    const fallback = selectedNode.image
-      ? resolveColor(selectedNode.fillColor, DEFAULT_NODE_COLORS[selectedNode.shape])
-      : nodeFillValue;
-    return resolveColor(selectedNode.labelFillColor, fallback);
-  }, [selectedNode, nodeFillValue]);
-
-  const nodeImageFillValue = useMemo(() => {
-    if (!selectedNode) {
-      return nodeFillValue;
-    }
-    if (!selectedNode.image) {
-      return nodeFillValue;
-    }
-    return resolveColor(selectedNode.imageFillColor, "#ffffff");
-  }, [selectedNode, nodeFillValue]);
-
-  const edgeColorValue = useMemo(() => {
-    if (!selectedEdge) {
-      return DEFAULT_EDGE_COLOR.toLowerCase();
-    }
-    return resolveColor(selectedEdge.color, DEFAULT_EDGE_COLOR);
-  }, [selectedEdge]);
-
-  const edgeLineValue = selectedEdge?.kind ?? "solid";
-  const edgeArrowValue = selectedEdge?.arrowDirection ?? "forward";
-
-  const nodeControlsDisabled = !selectedNode || saving;
-  const edgeControlsDisabled = !selectedEdge || saving;
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Delete" && event.key !== "Backspace") {
-        return;
+  setSourceSaving(true);
+  saveTimer.current = window.setTimeout(() => {
+    const payload = sourceDraft;
+    lastSubmittedSource.current = payload;
+    void (async () => {
+      try {
+        await updateSource(payload);
+        setSourceSaving(false);
+        setSourceError(null);
+        await loadDiagram({ silent: true });
+      } catch (err) {
+        const message = (err as Error).message;
+        setSourceSaving(false);
+        setSourceError(message);
+        setError(message);
       }
-      const active = document.activeElement as HTMLElement | null;
-      if (
-        active &&
-        (active.tagName === "TEXTAREA" || active.tagName === "INPUT" || active.isContentEditable)
-      ) {
-        return;
-      }
-      if (!selectedNodeId && !selectedEdgeId) {
-        return;
-      }
-      event.preventDefault();
-      void handleDeleteSelection();
-    };
+    })();
+  }, 700);
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleDeleteSelection, selectedEdgeId, selectedNodeId]);
+  return () => {
+    if (saveTimer.current !== null) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+  };
+}, [diagram, dragging, sourceDraft, source, sourceError, loadDiagram]);
 
-  const handleLineClick = useCallback((line: number) => {
-    if (!codeMapMapping || !selectedFile) return;
+const sourceStatus = useMemo(() => {
+  if (sourceError) {
+    return { label: sourceError, variant: "error" as const };
+  }
+  if (sourceSaving) {
+    return { label: "Saving changes…", variant: "saving" as const };
+  }
+  if (sourceDraft !== source) {
+    return { label: "Pending changes…", variant: "pending" as const };
+  }
+  return { label: "Synced", variant: "synced" as const };
+}, [sourceError, sourceSaving, sourceDraft, source]);
 
-    // Find the most specific node that covers this line
-    let bestNodeId: string | null = null;
-    let bestRangeSize = Infinity;
+const selectionLabel = useMemo(() => {
+  if (selectedNodeId) {
+    return `Selected node: ${selectedNodeId}`;
+  }
+  if (selectedEdgeId) {
+    return `Selected edge: ${selectedEdgeId}`;
+  }
+  return "No selection";
+}, [selectedEdgeId, selectedNodeId]);
 
-    for (const [nodeId, location] of Object.entries(codeMapMapping.nodes)) {
-      if (location.file === selectedFile.path &&
-        location.start_line !== undefined &&
-        location.end_line !== undefined) {
+const hasSelection = selectedNodeId !== null || selectedEdgeId !== null;
 
-        if (line >= location.start_line && line <= location.end_line) {
-          const rangeSize = location.end_line - location.start_line;
-          if (rangeSize < bestRangeSize) {
-            bestRangeSize = rangeSize;
-            bestNodeId = nodeId;
-          }
+const nodeFillValue = useMemo(() => {
+  if (!selectedNode) {
+    return DEFAULT_NODE_COLORS.rectangle.toLowerCase();
+  }
+  return resolveColor(selectedNode.fillColor, DEFAULT_NODE_COLORS[selectedNode.shape]);
+}, [selectedNode]);
+
+const nodeStrokeValue = useMemo(() => {
+  if (!selectedNode) {
+    return DEFAULT_EDGE_COLOR.toLowerCase();
+  }
+  return resolveColor(selectedNode.strokeColor, DEFAULT_EDGE_COLOR);
+}, [selectedNode]);
+
+const nodeTextValue = useMemo(() => {
+  if (!selectedNode) {
+    return DEFAULT_NODE_TEXT.toLowerCase();
+  }
+  return resolveColor(selectedNode.textColor, DEFAULT_NODE_TEXT);
+}, [selectedNode]);
+
+const nodeLabelFillValue = useMemo(() => {
+  if (!selectedNode) {
+    return nodeFillValue;
+  }
+  const fallback = selectedNode.image
+    ? resolveColor(selectedNode.fillColor, DEFAULT_NODE_COLORS[selectedNode.shape])
+    : nodeFillValue;
+  return resolveColor(selectedNode.labelFillColor, fallback);
+}, [selectedNode, nodeFillValue]);
+
+const nodeImageFillValue = useMemo(() => {
+  if (!selectedNode) {
+    return nodeFillValue;
+  }
+  if (!selectedNode.image) {
+    return nodeFillValue;
+  }
+  return resolveColor(selectedNode.imageFillColor, "#ffffff");
+}, [selectedNode, nodeFillValue]);
+
+const edgeColorValue = useMemo(() => {
+  if (!selectedEdge) {
+    return DEFAULT_EDGE_COLOR.toLowerCase();
+  }
+  return resolveColor(selectedEdge.color, DEFAULT_EDGE_COLOR);
+}, [selectedEdge]);
+
+const edgeLineValue = selectedEdge?.kind ?? "solid";
+const edgeArrowValue = selectedEdge?.arrowDirection ?? "forward";
+
+const nodeControlsDisabled = !selectedNode || saving;
+const edgeControlsDisabled = !selectedEdge || saving;
+
+useEffect(() => {
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Delete" && event.key !== "Backspace") {
+      return;
+    }
+    const active = document.activeElement as HTMLElement | null;
+    if (
+      active &&
+      (active.tagName === "TEXTAREA" || active.tagName === "INPUT" || active.isContentEditable)
+    ) {
+      return;
+    }
+    if (!selectedNodeId && !selectedEdgeId) {
+      return;
+    }
+    event.preventDefault();
+    void handleDeleteSelection();
+  };
+
+  window.addEventListener("keydown", handleKeyDown);
+  return () => window.removeEventListener("keydown", handleKeyDown);
+}, [handleDeleteSelection, selectedEdgeId, selectedNodeId]);
+
+const handleLineClick = useCallback((line: number) => {
+  if (!codeMapMapping || !selectedFile) return;
+
+  // Find the most specific node that covers this line
+  let bestNodeId: string | null = null;
+  let bestRangeSize = Infinity;
+
+  for (const [nodeId, location] of Object.entries(codeMapMapping.nodes)) {
+    if (location.file === selectedFile.path &&
+      location.start_line !== undefined &&
+      location.end_line !== undefined) {
+
+      if (line >= location.start_line && line <= location.end_line) {
+        const rangeSize = location.end_line - location.start_line;
+        if (rangeSize < bestRangeSize) {
+          bestRangeSize = rangeSize;
+          bestNodeId = nodeId;
         }
       }
     }
+  }
 
-    if (bestNodeId) {
-      handleSelectNode(bestNodeId);
-    }
-  }, [codeMapMapping, selectedFile, handleSelectNode]);
+  if (bestNodeId) {
+    handleSelectNode(bestNodeId);
+  }
+}, [codeMapMapping, selectedFile, handleSelectNode]);
 
-  return (
-    <div className="app">
-      <header className="toolbar">
-        <div className="status" role="status" aria-live="polite">
-          {statusMessage}
-        </div>
-        <div className="actions">
-          {codeMapMapping && (
-            <button
-              onClick={() => setCodeMapMode(!codeMapMode)}
-              title="Toggle Code Map Mode"
-            >
-              {codeMapMode ? "Edit Diagram" : "View Code Map"}
-            </button>
-          )}
+return (
+  <div className="app">
+    <header className="toolbar">
+      <div className="status" role="status" aria-live="polite">
+        {statusMessage}
+      </div>
+      <div className="actions">
+        <button onClick={toggleTheme} title="Toggle Theme">
+          {theme === "light" ? "Dark Mode" : "Light Mode"}
+        </button>
+        {codeMapMapping && (
           <button
-            onClick={handleResetOverrides}
-            disabled={!hasOverrides(diagram) || saving || sourceSaving}
-            title="Remove all manual positions"
+            onClick={() => setCodeMapMode(!codeMapMode)}
+            title="Toggle Code Map Mode"
           >
-            Reset overrides
+            {codeMapMode ? "Edit Diagram" : "View Code Map"}
           </button>
-          <button
-            onClick={() => void handleDeleteSelection()}
-            disabled={!hasSelection || saving || sourceSaving}
-            title="Delete the currently selected node or edge"
-          >
-            Delete selected
-          </button>
-        </div>
-      </header>
-      <main className="workspace">
-        {diagram && !loading ? (
-          <>
-            <aside className="style-panel">
-              <div className="panel-header">
-                <span className="panel-title">Style</span>
-                <span className="panel-caption">
-                  {selectedNode
-                    ? `Node: ${selectedNode.label || selectedNode.id}`
-                    : selectedEdge
-                      ? `Edge: ${selectedEdge.label || `${selectedEdge.from}→${selectedEdge.to}`}`
-                      : "Select an element"}
-                </span>
-              </div>
-              <div className="panel-body">
+        )}
+        <button
+          onClick={handleResetOverrides}
+          disabled={!hasOverrides(diagram) || saving || sourceSaving}
+          title="Remove all manual positions"
+        >
+          Reset overrides
+        </button>
+        <button
+          onClick={() => void handleDeleteSelection()}
+          disabled={!hasSelection || saving || sourceSaving}
+          title="Delete the currently selected node or edge"
+        >
+          Delete selected
+        </button>
+      </div>
+    </header>
+    <main className="workspace">
+      {diagram && !loading ? (
+        <>
+          {isLeftPanelCollapsed ? (
+            <div className="collapse-button collapsed-left" onClick={() => setIsLeftPanelCollapsed(false)} title="Expand Style Panel">
+              ›
+            </div>
+          ) : (
+              <aside className="style-panel" style={{ width: leftPanelWidth, maxWidth: "none" }}>
+                <div
+                  className="resize-handle"
+                  onMouseDown={startLeftPanelResizing}
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: "8px",
+                    cursor: "col-resize",
+                    zIndex: 10,
+                    background: "transparent",
+                  }}
+                />
+                <button className="collapse-button left" onClick={() => setIsLeftPanelCollapsed(true)} title="Collapse Style Panel">
+                  ‹
+                </button>
+                <div className="panel-header">
+                  <span className="panel-title">Style</span>
+                  <span className="panel-caption">
+                    {selectedNode
+                      ? `Node: ${selectedNode.label || selectedNode.id}`
+                      : selectedEdge
+                        ? `Edge: ${selectedEdge.label || `${selectedEdge.from}→${selectedEdge.to}`}`
+                        : "Select an element"}
+                  </span>
+                </div>
+                <div className="panel-body">
                 <section className="style-section">
                   <header className="section-heading">
                     <h3>Node</h3>
@@ -1422,6 +1499,7 @@ export default function Home() {
                 </section>
               </div>
             </aside>
+          )}
             <DiagramCanvas
               diagram={diagram}
               onNodeMove={handleNodeMove}
@@ -1437,16 +1515,38 @@ export default function Home() {
               codeMapMapping={codeMapMapping}
             />
             {codeMapMode ? (
-              <CodePanel
-                filePath={selectedFile?.path ?? null}
-                content={selectedFile?.content ?? null}
-                startLine={highlightedLines?.start}
-                endLine={highlightedLines?.end}
-                onClose={() => setSelectedFile(null)}
-                onLineClick={handleLineClick}
-              />
+            <CodePanel
+              filePath={selectedFile?.path ?? null}
+              content={selectedFile?.content ?? null}
+              startLine={highlightedLines?.start}
+              endLine={highlightedLines?.end}
+              onClose={() => setSelectedFile(null)}
+              onLineClick={handleLineClick}
+            />
+          ) : (
+            isRightPanelCollapsed ? (
+              <div className="collapse-button collapsed-right" onClick={() => setIsRightPanelCollapsed(false)} title="Expand Source Panel">
+                ‹
+              </div>
             ) : (
-              <aside className="source-panel">
+              <aside className="source-panel" style={{ width: rightPanelWidth, maxWidth: "none" }}>
+                <div
+                  className="resize-handle"
+                  onMouseDown={startRightPanelResizing}
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: "8px",
+                    cursor: "col-resize",
+                    zIndex: 10,
+                    background: "transparent",
+                  }}
+                />
+                <button className="collapse-button right" onClick={() => setIsRightPanelCollapsed(true)} title="Collapse Source Panel">
+                  ›
+                </button>
                 <div className="panel-header">
                   <span className="panel-title">Source</span>
                   <span className="panel-path">{diagram.sourcePath}</span>
@@ -1463,17 +1563,18 @@ export default function Home() {
                   <span className="selection-label">{selectionLabel}</span>
                 </div>
               </aside>
-            )}
-          </>
-        ) : (
-          <div className="placeholder">{loading ? "Loading…" : "No diagram"}</div>
-        )}
-      </main>
-      {error && (
-        <footer className="error" role="alert">
-          {error}
-        </footer>
+            )
+          )}
+        </>
+      ) : (
+        <div className="placeholder">{loading ? "Loading…" : "No diagram"}</div>
       )}
-    </div>
-  );
+    </main>
+    {error && (
+      <footer className="error" role="alert">
+        {error}
+      </footer>
+    )}
+  </div>
+);
 }
