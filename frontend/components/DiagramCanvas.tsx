@@ -719,7 +719,11 @@ export default function DiagramCanvas({
 }: DiagramCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const contentRef = useRef<SVGGElement | null>(null);
   const [dragState, setDragState] = useState<DragState>(null);
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const [isPanning, setIsPanning] = useState(false);
+  const lastPanPoint = useRef<{ x: number; y: number } | null>(null);
   const [draftNodes, setDraftNodes] = useState<DraftNodes>({});
   const [draftEdges, setDraftEdges] = useState<DraftEdges>({});
   const [draftSubgraphs, setDraftSubgraphs] = useState<DraftSubgraphs>({});
@@ -730,6 +734,24 @@ export default function DiagramCanvas({
     y: 0,
     target: null,
   });
+
+  const zoomIn = useCallback(() => {
+    setTransform((prev) => ({
+      ...prev,
+      scale: Math.min(prev.scale * 1.2, 5),
+    }));
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    setTransform((prev) => ({
+      ...prev,
+      scale: Math.max(prev.scale / 1.2, 0.1),
+    }));
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    setTransform({ x: 0, y: 0, scale: 1 });
+  }, []);
 
   const closeContextMenu = useCallback(() => {
     setContextMenu((prev) =>
@@ -1172,6 +1194,10 @@ export default function DiagramCanvas({
   const horizontalGuide = alignmentGuides.horizontal;
 
   const getDiagramPointFromClient = (clientX: number, clientY: number): Point | null => {
+    const element = contentRef.current || svgRef.current;
+    if (!element) {
+      return null;
+    }
     const svg = svgRef.current;
     if (!svg) {
       return null;
@@ -1179,7 +1205,7 @@ export default function DiagramCanvas({
     const point = svg.createSVGPoint();
     point.x = clientX;
     point.y = clientY;
-    const ctm = svg.getScreenCTM();
+    const ctm = element.getScreenCTM();
     if (!ctm) {
       return null;
     }
@@ -1199,8 +1225,39 @@ export default function DiagramCanvas({
     if (event.target === event.currentTarget) {
       onSelectNode(null);
       onSelectEdge(null);
+      setIsPanning(true);
+      lastPanPoint.current = { x: event.clientX, y: event.clientY };
+      (event.target as Element).setPointerCapture(event.pointerId);
     }
   };
+
+  const handleWheel = useCallback((event: React.WheelEvent) => {
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      const zoomSensitivity = -0.001;
+      const delta = event.deltaY * zoomSensitivity;
+      const newScale = Math.min(Math.max(0.1, transform.scale * (1 + delta)), 5);
+
+      const rect = wrapperRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const mouseX = event.clientX - rect.left;
+      const mouseY = event.clientY - rect.top;
+
+      // Calculate new position to keep mouse point stable
+      const newX = mouseX - (mouseX - transform.x) * (newScale / transform.scale);
+      const newY = mouseY - (mouseY - transform.y) * (newScale / transform.scale);
+
+      setTransform({ x: newX, y: newY, scale: newScale });
+    } else {
+      // Pan with wheel
+      setTransform((prev) => ({
+        ...prev,
+        x: prev.x - event.deltaX,
+        y: prev.y - event.deltaY,
+      }));
+    }
+  }, [transform]);
 
   const handleCanvasContextMenu = (event: ReactMouseEvent<SVGSVGElement>) => {
     event.preventDefault();
@@ -1440,6 +1497,14 @@ export default function DiagramCanvas({
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (isPanning && lastPanPoint.current) {
+      const dx = event.clientX - lastPanPoint.current.x;
+      const dy = event.clientY - lastPanPoint.current.y;
+      setTransform((prev) => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+      lastPanPoint.current = { x: event.clientX, y: event.clientY };
+      return;
+    }
+
     if (!dragState) {
       return;
     }
@@ -1558,6 +1623,13 @@ export default function DiagramCanvas({
   };
 
   const handlePointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (isPanning) {
+      setIsPanning(false);
+      lastPanPoint.current = null;
+      (event.target as Element).releasePointerCapture(event.pointerId);
+      return;
+    }
+
     if (!dragState) {
       return;
     }
@@ -1878,7 +1950,12 @@ export default function DiagramCanvas({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onContextMenu={handleCanvasContextMenu}
+        onWheel={handleWheel}
       >
+        <g
+          ref={contentRef}
+          transform={`translate(${transform.x}, ${transform.y}) scale(${transform.scale})`}
+        >
         {subgraphViews.map((subgraph) => {
           const offset = draftSubgraphs[subgraph.id];
           const offsetX = offset?.x ?? 0;
@@ -2745,7 +2822,13 @@ export default function DiagramCanvas({
             <path d="M10,2 L2,6 L10,10 z" fill="context-stroke" />
           </marker>
         </defs>
+        </g>
       </svg>
+      <div className="zoom-controls">
+        <button onClick={zoomOut} title="Zoom Out">−</button>
+        <button className="zoom-display" onClick={resetZoom} title="Reset Zoom">{Math.round(transform.scale * 100)}%</button>
+        <button onClick={zoomIn} title="Zoom In">+</button>
+      </div>
       {contextMenu.visible && contextMenu.target ? (
         <div
           className="context-menu"
