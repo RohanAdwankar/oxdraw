@@ -25,25 +25,25 @@ const getLanguage = (filename: string) => {
 };
 
 // Custom renderer for a single line to avoid heavy parsing of the whole file
-const CodeLine = React.memo(({ 
-  line, 
-  lineNumber, 
-  language, 
-  isDark, 
-  isHighlighted, 
+const CodeLine = React.memo(({
+  line,
+  lineNumber,
+  language,
+  isDark,
+  isHighlighted,
   isWrapped,
-  onLineClick 
-}: { 
-  line: string; 
-  lineNumber: number; 
-  language: string; 
-  isDark: boolean; 
-  isHighlighted: boolean; 
+  onLineClick
+}: {
+  line: string;
+  lineNumber: number;
+  language: string;
+  isDark: boolean;
+  isHighlighted: boolean;
   isWrapped: boolean;
   onLineClick?: (line: number) => void;
 }) => {
   return (
-    <div 
+    <div
       className={`code-line-row ${isHighlighted ? "highlighted" : ""}`}
       onClick={() => onLineClick?.(lineNumber)}
       style={{
@@ -55,18 +55,18 @@ const CodeLine = React.memo(({
         alignItems: "stretch",
       }}
     >
-      <div className="line-number" style={{ 
-        minWidth: "2.5rem", 
-        paddingRight: "0.5rem", 
-        textAlign: "right", 
-        color: "var(--text-secondary)", 
+      <div className="line-number" style={{
+        minWidth: "2.5rem",
+        paddingRight: "0.5rem",
+        textAlign: "right",
+        color: "var(--text-secondary)",
         userSelect: "none",
         flexShrink: 0
       }}>
         {lineNumber}
       </div>
-      <div className="line-content" style={{ 
-        flex: 1, 
+      <div className="line-content" style={{
+        flex: 1,
         whiteSpace: isWrapped ? "pre-wrap" : "pre",
         wordBreak: isWrapped ? "break-all" : "normal",
         fontFamily: '"JetBrains Mono", monospace',
@@ -255,16 +255,6 @@ export default function CodePanel({
       <div className="panel-header">
         <span className="panel-title">Codebase</span>
         <span className="panel-path">{filePath}</span>
-        <div className="panel-actions">
-          <button
-            className={isWrapped ? "active" : ""}
-            onClick={() => setIsWrapped(!isWrapped)}
-            title="Toggle Word Wrap"
-          >
-            Wrap
-          </button>
-          <button onClick={onClose} className="close-button">×</button>
-        </div>
       </div>
       <div
         ref={viewportRef}
