@@ -1,6 +1,6 @@
 [package]
 name = "oxdraw"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 include = [
 	"Cargo.toml",
@@ -14,7 +14,7 @@ authors = ["Rohan Adwankar <rohan.adwankar@gmail.com>"]
 description = "Library, CLI and Web View for Declarative Diagramming"
 repository = "https://github.com/RohanAdwankar/oxdraw"
 license = "MIT"
-keywords = ["diagram", "svg", "visualization", "mermaid", "render"]
+keywords = ["diagram", "svg", "visualization", "mermaid", "render", "AI", "devtool"]
 
 [lib]
 name = "oxdraw"
