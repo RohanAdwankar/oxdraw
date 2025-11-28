@@ -234,6 +234,24 @@ body > div:first-of-type {
   user-select: none;
 }
 
+[data-theme="dark"] .node rect,
+[data-theme="dark"] .node ellipse,
+[data-theme="dark"] .node polygon,
+[data-theme="dark"] .node path,
+[data-theme="dark"] .node line {
+  stroke: #94a3b8; /* slate-400 */
+}
+
+[data-theme="dark"] .edge path,
+[data-theme="dark"] .edge polygon {
+  stroke: #94a3b8;
+  fill: #94a3b8; /* For arrowheads */
+}
+
+[data-theme="dark"] .edge text {
+  fill: #e2e8f0;
+}
+
 .source-panel {
   width: 380px;
   max-width: 42%;
