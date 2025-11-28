@@ -13,6 +13,7 @@
     "next": "15.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-syntax-highlighter": "^16.1.0",
     "react-virtualized-auto-sizer": "^1.0.26",
     "react-window": "^2.2.3"
   },
