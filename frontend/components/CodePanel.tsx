@@ -51,6 +51,8 @@ const CodeLine = React.memo(({
         width: "100%",
         backgroundColor: isHighlighted ? (isDark ? "rgba(253, 230, 138, 0.15)" : "rgba(253, 230, 138, 0.5)") : undefined,
         cursor: onLineClick ? "pointer" : "default",
+        minHeight: LINE_HEIGHT_PX,
+        alignItems: "stretch",
       }}
     >
       <div className="line-number" style={{ 

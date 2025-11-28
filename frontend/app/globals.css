@@ -680,6 +680,7 @@ body > div:first-of-type {
 .code-line {
   display: flex;
   gap: 1rem;
+  width: 100%;
 }
 
 .code-line.highlighted {
@@ -696,6 +697,24 @@ body > div:first-of-type {
 .line-text {
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+.code-line-row {
+  width: 100%;
+}
+
+.code-line-row.highlighted {
+  background: rgba(253, 230, 138, 0.25);
+}
+
+.code-line-row [class*="language-"] {
+  background: transparent !important;
+  display: block;
+  width: 100%;
+}
+
+.code-line-row .token {
+  background: transparent !important;
 }
 
 /* New UI Elements */
@@ -722,22 +741,29 @@ body > div:first-of-type {
 }
 
 .zoom-controls button {
-  width: 2rem;
-  height: 2rem;
+  min-width: 2.2rem;
+  height: 2.2rem;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  font-size: 1.2rem;
+  font-size: 1rem;
   cursor: pointer;
   transition: all 0.2s;
+  padding: 0 0.5rem;
+  line-height: 1;
 }
 
 .zoom-controls button:hover {
   background: var(--bg-tertiary);
   color: var(--accent-primary);
+}
+
+.zoom-controls .zoom-display {
+  min-width: 4rem;
+  font-weight: 600;
 }
 
 .collapse-button {

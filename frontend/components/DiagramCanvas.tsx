@@ -2826,7 +2826,7 @@ export default function DiagramCanvas({
       </svg>
       <div className="zoom-controls">
         <button onClick={zoomOut} title="Zoom Out">−</button>
-        <button onClick={resetZoom} title="Reset Zoom">{Math.round(transform.scale * 100)}%</button>
+        <button className="zoom-display" onClick={resetZoom} title="Reset Zoom">{Math.round(transform.scale * 100)}%</button>
         <button onClick={zoomIn} title="Zoom In">+</button>
       </div>
       {contextMenu.visible && contextMenu.target ? (
