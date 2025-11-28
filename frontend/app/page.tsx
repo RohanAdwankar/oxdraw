@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import DiagramCanvas from "../components/DiagramCanvas";
+import CodePanel from "../components/CodePanel";
 import {
   deleteEdge,
   deleteNode,
@@ -18,6 +19,9 @@ import {
   updateNodeImage,
   updateSource,
   updateStyle,
+  fetchCodeMapMapping,
+  fetchCodeMapFile,
+  openInEditor,
 } from "../lib/api";
 import {
   DiagramData,
@@ -28,6 +32,8 @@ import {
   NodeStyleUpdate,
   NodeData,
   Point,
+  CodeMapMapping,
+  CodeLocation,
 } from "../lib/types";
 
 function hasOverrides(diagram: DiagramData | null): boolean {
@@ -281,6 +287,11 @@ export default function Home() {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [imagePaddingValue, setImagePaddingValue] = useState<string>("");
   const [dragging, setDragging] = useState(false);
+  const [codeMapMapping, setCodeMapMapping] = useState<CodeMapMapping | null>(null);
+  const [codeMapMode, setCodeMapMode] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<{ path: string; content: string } | null>(null);
+  const [highlightedLines, setHighlightedLines] = useState<{ start: number; end: number } | null>(null);
+
   const saveTimer = useRef<number | null>(null);
   const lastSubmittedSource = useRef<string | null>(null);
   const nodeImageInputRef = useRef<HTMLInputElement | null>(null);
@@ -351,7 +362,37 @@ export default function Home() {
 
   useEffect(() => {
     void loadDiagram().catch(() => undefined);
+    fetchCodeMapMapping().then((mapping) => {
+      if (mapping) {
+        setCodeMapMapping(mapping);
+        setCodeMapMode(true);
+      }
+    }).catch(() => {
+      // Ignore error, likely not in code map mode
+    });
   }, [loadDiagram]);
+
+  useEffect(() => {
+    if (codeMapMode && selectedNodeId && codeMapMapping) {
+      const location = codeMapMapping.nodes[selectedNodeId];
+      if (location) {
+        fetchCodeMapFile(location.file).then((content) => {
+          setSelectedFile({ path: location.file, content });
+          if (location.start_line && location.end_line) {
+            setHighlightedLines({ start: location.start_line, end: location.end_line });
+          } else {
+            setHighlightedLines(null);
+          }
+        }).catch((err) => {
+          console.error("Failed to fetch file", err);
+          setSelectedFile(null);
+        });
+      } else {
+        setSelectedFile(null);
+        setHighlightedLines(null);
+      }
+    }
+  }, [codeMapMode, selectedNodeId, codeMapMapping]);
 
   const applyUpdate = useCallback(
     async (update: LayoutUpdate) => {
@@ -1096,6 +1137,33 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleDeleteSelection, selectedEdgeId, selectedNodeId]);
 
+  const handleLineClick = useCallback((line: number) => {
+    if (!codeMapMapping || !selectedFile) return;
+
+    // Find the most specific node that covers this line
+    let bestNodeId: string | null = null;
+    let bestRangeSize = Infinity;
+
+    for (const [nodeId, location] of Object.entries(codeMapMapping.nodes)) {
+      if (location.file === selectedFile.path &&
+        location.start_line !== undefined &&
+        location.end_line !== undefined) {
+
+        if (line >= location.start_line && line <= location.end_line) {
+          const rangeSize = location.end_line - location.start_line;
+          if (rangeSize < bestRangeSize) {
+            bestRangeSize = rangeSize;
+            bestNodeId = nodeId;
+          }
+        }
+      }
+    }
+
+    if (bestNodeId) {
+      handleSelectNode(bestNodeId);
+    }
+  }, [codeMapMapping, selectedFile, handleSelectNode]);
+
   return (
     <div className="app">
       <header className="toolbar">
@@ -1103,6 +1171,14 @@ export default function Home() {
           {statusMessage}
         </div>
         <div className="actions">
+          {codeMapMapping && (
+            <button
+              onClick={() => setCodeMapMode(!codeMapMode)}
+              title="Toggle Code Map Mode"
+            >
+              {codeMapMode ? "Edit Diagram" : "View Code Map"}
+            </button>
+          )}
           <button
             onClick={handleResetOverrides}
             disabled={!hasOverrides(diagram) || saving || sourceSaving}
@@ -1253,6 +1329,30 @@ export default function Home() {
                   >
                     Reset node style
                   </button>
+                  {codeMapMode && selectedNode && codeMapMapping?.nodes[selectedNode.id] && (
+                    <div className="style-controls" style={{ marginTop: "0.5rem" }}>
+                      <button
+                        type="button"
+                        className="style-reset"
+                        onClick={() => {
+                          const loc = codeMapMapping.nodes[selectedNode.id];
+                          void openInEditor(loc.file, loc.start_line, "vscode");
+                        }}
+                      >
+                        Open in VS Code
+                      </button>
+                      <button
+                        type="button"
+                        className="style-reset"
+                        onClick={() => {
+                          const loc = codeMapMapping.nodes[selectedNode.id];
+                          void openInEditor(loc.file, loc.start_line, "nvim");
+                        }}
+                      >
+                        Open in Vi
+                      </button>
+                    </div>
+                  )}
                 </section>
 
                 <section className="style-section">
@@ -1334,24 +1434,36 @@ export default function Home() {
               onDragStateChange={setDragging}
               onDeleteNode={handleDeleteNodeDirect}
               onDeleteEdge={handleDeleteEdgeDirect}
+              codeMapMapping={codeMapMapping}
             />
-            <aside className="source-panel">
-              <div className="panel-header">
-                <span className="panel-title">Source</span>
-                <span className="panel-path">{diagram.sourcePath}</span>
-              </div>
-              <textarea
-                className="source-editor"
-                value={sourceDraft}
-                onChange={handleSourceChange}
-                spellCheck={false}
-                aria-label="Diagram source"
+            {codeMapMode ? (
+              <CodePanel
+                filePath={selectedFile?.path ?? null}
+                content={selectedFile?.content ?? null}
+                startLine={highlightedLines?.start}
+                endLine={highlightedLines?.end}
+                onClose={() => setSelectedFile(null)}
+                onLineClick={handleLineClick}
               />
-              <div className="panel-footer">
-                <span className={`source-status ${sourceStatus.variant}`}>{sourceStatus.label}</span>
-                <span className="selection-label">{selectionLabel}</span>
-              </div>
-            </aside>
+            ) : (
+              <aside className="source-panel">
+                <div className="panel-header">
+                  <span className="panel-title">Source</span>
+                  <span className="panel-path">{diagram.sourcePath}</span>
+                </div>
+                <textarea
+                  className="source-editor"
+                  value={sourceDraft}
+                  onChange={handleSourceChange}
+                  spellCheck={false}
+                  aria-label="Diagram source"
+                />
+                <div className="panel-footer">
+                  <span className={`source-status ${sourceStatus.variant}`}>{sourceStatus.label}</span>
+                  <span className="selection-label">{selectionLabel}</span>
+                </div>
+              </aside>
+            )}
           </>
         ) : (
           <div className="placeholder">{loading ? "Loading…" : "No diagram"}</div>

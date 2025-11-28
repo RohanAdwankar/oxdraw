@@ -1,0 +1,66 @@
+graph TD
+    A[cli::run_render_or_edit] --> B{cli.code_map?}
+    B -- Yes --> C[cli::run_code_map]
+    B -- No --> D{cli.edit?}
+    D -- Yes --> E[cli::run_edit]
+    D -- No --> F{cli.new?}
+    F -- Yes --> G[cli::run_new]
+    F -- No --> H[cli::run_render]
+
+    subgraph LLM Code Map Generation
+        C --> I[codemap::generate_code_map]
+        I --> J[Scan codebase (codemap::scan_codebase)]
+        J --> K[LLM API Request (reqwest)]
+        K --> L[Parse LLM Response]
+        L --> M[Validate Response (codemap::validate_response)]
+        M -- Valid --> N[Return Mermaid and Mapping]
+        M -- Invalid --> K
+    end
+
+    subgraph Edit Mode
+        E --> O[locate_ui_dist]
+        E --> P[ServeArgs Configuration]
+        E --> Q[run_serve]
+    end
+
+    subgraph New Diagram
+        G --> R[select_graph_type]
+        G --> S[ensure_unique_path]
+        G --> T[ServeArgs Configuration]
+        G --> Q
+    end
+
+    subgraph Render Diagram
+        H --> U[parse_input]
+        H --> V[read input source]
+        V --> W[Diagram::parse]
+        W --> X[Diagram::render_svg or Diagram::render_png]
+        X --> Y[Write to output]
+    end
+
+%% OXDRAW CODE G src/cli.rs line:353-353 def:run_new
+%% OXDRAW CODE K src/codemap.rs line:174-201 def:generate_code_map
+%% OXDRAW CODE T src/cli.rs line:464-470 def:run_new
+%% OXDRAW CODE D src/cli.rs line:350-350 def:run_render_or_edit
+%% OXDRAW CODE P src/cli.rs line:416-422 def:run_edit
+%% OXDRAW CODE N src/codemap.rs line:262-262 def:generate_code_map
+%% OXDRAW CODE U src/cli.rs line:490-490 def:parse_input
+%% OXDRAW CODE X src/diagram.rs line:366-535 def:Diagram::render_svg
+%% OXDRAW CODE I src/codemap.rs line:40-277 def:generate_code_map
+%% OXDRAW CODE M src/codemap.rs line:245-245 def:validate_response
+%% OXDRAW CODE J src/codemap.rs line:118-118 def:scan_codebase
+%% OXDRAW CODE F src/cli.rs line:353-353 def:run_render_or_edit
+%% OXDRAW CODE S src/cli.rs line:257-257 def:ensure_unique_path
+%% OXDRAW CODE C src/cli.rs line:347-347 def:run_code_map
+%% OXDRAW CODE O src/cli.rs line:407-407 def:locate_ui_dist
+%% OXDRAW CODE R src/cli.rs line:207-207 def:select_graph_type
+%% OXDRAW CODE H src/cli.rs line:353-353 def:run_render
+%% OXDRAW CODE Q src/cli.rs line:427-427 def:run_serve
+%% OXDRAW CODE A src/cli.rs line:343-353 def:run_render_or_edit
+%% OXDRAW CODE B src/cli.rs line:344-344 def:run_render_or_edit
+%% OXDRAW CODE E src/cli.rs line:350-350 def:run_edit
+%% OXDRAW CODE V src/cli.rs line:493-493 def:run_render
+%% OXDRAW CODE W src/diagram.rs line:159-364 def:Diagram::parse
+%% OXDRAW CODE Y src/cli.rs line:500-500 def:run_render
+%% OXDRAW CODE L src/codemap.rs line:203-242 def:generate_code_map
+%% OXDRAW META path: commit:04dfca7010e7c7fc9672bb140a9922cac3c85b7f diff_hash:14934311904144850027

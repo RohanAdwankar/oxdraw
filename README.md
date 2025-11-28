@@ -4,9 +4,10 @@ https://github.com/user-attachments/assets/de5222bb-9b65-43cf-a35b-5613d06343e8
 ## Overview
 
 The goal of `oxdraw` is to make it easy to create and maintain high-quality diagrams using a declarative and reproducible syntax.
-Charts are written in [Mermaid](https://mermaid.js.org/) syntax, while a web interface allows users to fine-tune positions connector paths, colors, and other styling components. Whenever a diagram is tweaked visually, the structural changes are persisted back to the source file as declarative code so that everything remains deterministic and versionable.
+Charts are written in [Mermaid](https://mermaid.js.org/) syntax, while a web interface allows users to fine-tune positions, connector paths, colors, and other styling components. Whenever a diagram is tweaked visually, the structural changes are persisted back to the source file as declarative code so that everything remains deterministic and versionable.
+Aside from the normal diagrams, oxdraw can also embed images directly into the diagrams and view codemaps of codebase where nodes are linked to codesegments.
 The changes are saved as comments in the mermaid file so it remains compatible with other Mermaid tools.
-The repo is composed of the Rust CLI to compile `.mmd` files into images and the React based web interface to editing the files.
+The repo is composed of the Rust CLI to compile `.mmd` files into images, a React based web interface to editing the files, and some AI and static analysis algorithm options for automatic generation of code maps.
 
 ## Vision
 
@@ -32,6 +33,17 @@ oxdraw --input flow.mmd
 oxdraw --input flow.mmd --edit
 ```
 
+### Have AI generate a codemap for the repo you're in 
+This will also launch the interactive viewer mapping the nodes to files in the repo. You can refer to [ai.md](docs/ai.md) for free resources on setting up AI access
+
+https://github.com/user-attachments/assets/49891bec-7bcd-4af4-a357-d59708bb1812
+
+```bash
+oxdraw --code-map ./ --gemini YOUR_API_KEY
+# or if you don't have AI access set up, you can use this simple static analysis based code map generator to get an idea of the feature:
+oxdraw --code-map ./src/diagram.rs --no-ai --output test.png
+```
+
 ## Features
 
 ### CLI Flags
@@ -48,6 +60,12 @@ oxdraw --input flow.mmd --edit
 | `-b, --background-color <COLOR>` | Background fill passed to the renderer (currently SVG only). Applies to both one-off renders and the editor preview. |
 | `-q, --quiet` | Suppress informational stdout such as the success message after rendering to disk. |
 | `-n, --new` | Create new mermaid file and serves for editing. |
+| `--code-map <PATH>` | Generate a code map from the given codebase path. |
+| `--api-key <KEY>` | API Key for the LLM (optional, defaults to environment variable if not set). |
+| `--model <MODEL>` | Model to use for code map generation. |
+| `--api-url <URL>` | API URL for the LLM. |
+| `--regen` | Force regeneration of the code map even if a cache exists. |
+| `--prompt <PROMPT>` | Custom prompt to append to the LLM instructions. |
 
 ### Frontend Features
 
@@ -70,7 +88,7 @@ oxdraw --input flow.mmd --edit
 - The source panel mirrors the Mermaid file, auto-saves after short idle periods, and surfaces pending/saving/error states alongside the current selection.
 - Status text in the top toolbar signals loading, saving, and the currently edited file path.
 
-## The Diagram Algorithm
+### The Diagram Algorithm
 
 https://github.com/user-attachments/assets/4430147a-83d8-4d83-aca6-7beec197c0e3
 

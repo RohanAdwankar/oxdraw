@@ -1,0 +1,26 @@
+graph TD
+    A[CLI Arguments Parsing] --> B{Code Map Generation?}
+    B -- Yes --> C[Codebase Scanning]
+    C --> D[LLM API Call]
+    D --> E[JSON Response Parsing]
+    E --> F{Response Validation}
+    F -- Valid --> G[Diagram Rendering]
+    G --> H[Output Generation]
+    F -- Invalid --> D
+    B -- No --> I{Edit Mode?}
+    I -- Yes --> J[Launch Web Server]
+    J --> K[Serve Diagram & UI]
+    I -- No --> G
+
+%% OXDRAW CODE D src/codemap.rs line:106-287
+%% OXDRAW CODE H src/cli.rs line:482-482
+%% OXDRAW CODE B src/cli.rs line:289-291
+%% OXDRAW CODE E src/codemap.rs line:289-360
+%% OXDRAW CODE I src/cli.rs line:291-297
+%% OXDRAW CODE A src/cli.rs line:27-144
+%% OXDRAW CODE F src/codemap.rs line:363-416
+%% OXDRAW CODE G src/cli.rs line:482-482
+%% OXDRAW CODE K src/serve.rs line:380-380
+%% OXDRAW CODE J src/cli.rs line:531-531
+%% OXDRAW CODE C src/codemap.rs line:76-78
+%% OXDRAW META path: commit:7547d4d4a1b3bd5370e073f633ad5a5247099d82 diff_hash:10230273408733238033

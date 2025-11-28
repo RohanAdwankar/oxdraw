@@ -33,8 +33,9 @@ body > div:first-of-type {
 .app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   background: linear-gradient(180deg, #edf2f7 0%, #e2e8f0 100%);
+  overflow: hidden;
 }
 
 .toolbar {
@@ -89,6 +90,7 @@ body > div:first-of-type {
   background: linear-gradient(180deg, #edf2f7 0%, #e2e8f0 100%);
   border-top: 1px solid rgba(15, 23, 42, 0.08);
   gap: 0;
+  overflow: hidden;
 }
 
 .diagram-wrapper {
@@ -553,6 +555,12 @@ body > div:first-of-type {
   outline: none;
 }
 
+.context-menu-separator {
+  height: 1px;
+  background: rgba(248, 250, 252, 0.15);
+  margin: 0.25rem 0;
+}
+
 .alignment-guide {
   stroke: rgba(56, 178, 172, 0.85);
   stroke-width: 1.5;
@@ -562,4 +570,102 @@ body > div:first-of-type {
 
 .alignment-guide-center {
   stroke: rgba(244, 114, 182, 0.85);
+}
+
+.code-panel {
+  width: 500px;
+  max-width: 50%;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(6px);
+  border-left: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+  height: 100%;
+  overflow: hidden;
+}
+
+.code-panel.empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.code-panel .panel-header {
+  padding: 0.9rem 1.1rem 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.code-panel .panel-title {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.code-panel .panel-path {
+  font-size: 0.9rem;
+  color: #1f2937;
+  font-weight: 600;
+  word-break: break-all;
+  flex: 1;
+  margin-left: 1rem;
+}
+
+.code-panel .close-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #64748b;
+  padding: 0;
+}
+
+.code-panel .close-button:hover {
+  color: #1f2937;
+}
+
+.code-content {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+  background: #f8fafc;
+  color: #1f2937;
+}
+
+.code-content pre {
+  margin: 0;
+}
+
+.code-content code {
+  font-family: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  display: block;
+}
+
+.code-line {
+  display: flex;
+  gap: 1rem;
+}
+
+.code-line.highlighted {
+  background-color: rgba(253, 230, 138, 0.5);
+}
+
+.line-number {
+  color: #94a3b8;
+  user-select: none;
+  text-align: right;
+  min-width: 2rem;
+}
+
+.line-text {
+  white-space: pre-wrap;
+  word-break: break-all;
 }

@@ -20,7 +20,9 @@ import {
   LayoutUpdate,
   Size,
   Point,
+  CodeMapMapping,
 } from "../lib/types";
+import { openInEditor } from "../lib/api";
 
 const DEFAULT_NODE_WIDTH = 140;
 const DEFAULT_NODE_HEIGHT = 60;
@@ -87,6 +89,7 @@ interface DiagramCanvasProps {
   onDragStateChange?: (dragging: boolean) => void;
   onDeleteNode: (id: string) => Promise<void> | void;
   onDeleteEdge: (id: string) => Promise<void> | void;
+  codeMapMapping?: CodeMapMapping | null;
 }
 
 interface NodeDragState {
@@ -450,8 +453,8 @@ function computeNodeAlignment(
     if (otherId === nodeId) {
       continue;
     }
-  const otherDimensions = resolveNodeDimensions(otherId, dimensions);
-  const otherBox = createNodeBox(point, otherDimensions.width, otherDimensions.height);
+    const otherDimensions = resolveNodeDimensions(otherId, dimensions);
+    const otherBox = createNodeBox(point, otherDimensions.width, otherDimensions.height);
 
     const verticalCandidates = [
       {
@@ -712,6 +715,7 @@ export default function DiagramCanvas({
   onDragStateChange,
   onDeleteNode,
   onDeleteEdge,
+  codeMapMapping,
 }: DiagramCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -797,6 +801,20 @@ export default function DiagramCanvas({
       return { visible: false, x: 0, y: 0, target: null };
     });
   }, [onDeleteEdge, onDeleteNode]);
+
+  const handleOpenInEditor = useCallback(
+    (editor: "vscode" | "nvim") => {
+      if (!contextMenu.target || contextMenu.target.type !== "node" || !codeMapMapping) {
+        return;
+      }
+      const location = codeMapMapping.nodes[contextMenu.target.id];
+      if (location) {
+        void openInEditor(location.file, location.start_line, editor);
+      }
+      closeContextMenu();
+    },
+    [contextMenu.target, codeMapMapping, closeContextMenu]
+  );
 
   const finalPositions = useMemo(() => {
     const map = new Map<string, Point>();
@@ -1288,9 +1306,25 @@ export default function DiagramCanvas({
   };
 
   const handleNodePointerDown = (id: string, event: ReactPointerEvent<SVGGElement>) => {
+    if (event.shiftKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      openContextMenu(event, { type: "node", id });
+      onSelectNode(id);
+      onSelectEdge(null);
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
     closeContextMenu();
+
+    if (selectedNodeId !== id) {
+      onSelectNode(id);
+      onSelectEdge(null);
+      return;
+    }
+
     const diagramPoint = clientToDiagram(event);
     if (!diagramPoint) {
       return;
@@ -2718,6 +2752,29 @@ export default function DiagramCanvas({
           style={{ top: contextMenu.y, left: contextMenu.x }}
           role="menu"
         >
+          {contextMenu.target.type === "node" && codeMapMapping?.nodes[contextMenu.target.id] && (
+            <>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleOpenInEditor("vscode");
+                }}
+              >
+                Open in VS Code
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleOpenInEditor("nvim");
+                }}
+              >
+                Open in Vi
+              </button>
+              <div className="context-menu-separator" />
+            </>
+          )}
           <button
             type="button"
             onClick={(event) => {

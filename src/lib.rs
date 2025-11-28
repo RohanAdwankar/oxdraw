@@ -7,6 +7,8 @@ pub mod diagram;
 #[cfg(feature = "server")]
 pub mod serve;
 pub mod utils;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod codemap;
 
 pub use diagram::*;
 #[cfg(feature = "server")]
