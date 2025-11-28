@@ -34,8 +34,9 @@ oxdraw --input flow.mmd --edit
 ```
 
 ### Have AI generate a codemap for the repo you're in 
-#### This will also launch the interactive viewer mapping the nodes to files in the repo 
-#### You can refer to docs/ai.md for free resources on setting up AI access
+This will also launch the interactive viewer mapping the nodes to files in the repo. You can refer to [ai.md](docs/ai.md) for free resources on setting up AI access
+
+https://github.com/user-attachments/assets/49891bec-7bcd-4af4-a357-d59708bb1812
 
 ```bash
 oxdraw --code-map ./ --gemini YOUR_API_KEY
