@@ -263,6 +263,7 @@ body > div:first-of-type {
   position: relative;
 }
 
+
 .style-panel {
   width: 280px;
   max-width: 30%;
@@ -277,49 +278,63 @@ body > div:first-of-type {
 .style-panel .panel-header {
   padding: 0.9rem 1.1rem 0.4rem;
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.65rem;
   border-bottom: 1px solid var(--border-color);
 }
 
 .style-panel .panel-title {
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-secondary);
-  font-weight: 700;
-}
-
-.style-panel .panel-caption {
-  font-size: 0.85rem;
+  font-size: 1rem;
+  text-transform: none;
+  letter-spacing: normal;
   color: var(--text-primary);
   font-weight: 600;
 }
 
+.style-panel .panel-caption {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .style-panel .panel-caption span {
-  display: block;
+  display: inline;
 }
 
 .style-panel .panel-body {
   padding: 1rem 1.1rem 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0;
   overflow-y: auto;
 }
 
 .style-section {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  padding: 0.9rem;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border-color);
+  padding: 1rem 0;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
 }
 
+.style-section:first-of-type {
+  border-top: none;
+}
+
+.style-section + .style-section {
+  margin-top: 0.5rem;
+}
+
 .section-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
 }
@@ -327,8 +342,8 @@ body > div:first-of-type {
 .section-heading h3 {
   margin: 0;
   font-size: 0.95rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
   color: var(--text-primary);
 }
 
@@ -345,15 +360,31 @@ body > div:first-of-type {
 }
 
 .style-controls {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-  gap: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.style-color-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.style-color-row .style-control {
+  flex: 0 0 auto;
+  min-width: 72px;
+  max-width: 90px;
+}
+
+.style-color-row .style-control span {
+  text-align: left;
 }
 
 .style-control {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.25rem;
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
@@ -365,12 +396,22 @@ body > div:first-of-type {
 }
 
 .style-control input[type="color"] {
-  width: 100%;
-  height: 1.8rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.35rem;
   border: 1px solid var(--border-color);
   background: var(--bg-primary);
   cursor: pointer;
   padding: 0;
+  align-self: flex-start;
+}
+
+.style-control input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.style-control input[type="color"]::-webkit-color-swatch {
+  border: none;
 }
 
 .style-control select {
@@ -384,7 +425,7 @@ body > div:first-of-type {
 }
 
 .style-control.image-control {
-  grid-column: 1 / -1;
+  width: 100%;
 }
 
 .image-control-actions {
@@ -462,6 +503,32 @@ body > div:first-of-type {
 
 .style-reset:not(:disabled):active {
   transform: translateY(0);
+}
+
+.editor-link-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.editor-link-button {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.editor-link-button:hover {
+  background: var(--bg-tertiary);
+  color: var(--accent-primary);
+}
+
+.editor-link-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .source-panel .panel-header {

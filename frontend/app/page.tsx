@@ -1295,35 +1295,59 @@ return (
                     </span>
                   </header>
                   <div className="style-controls" aria-disabled={nodeControlsDisabled}>
-                    {!selectedNode?.image ? (
+                    <div className="style-color-row">
+                      {!selectedNode?.image ? (
+                        <label className="style-control">
+                          <span>Fill</span>
+                          <input
+                            type="color"
+                            value={nodeFillValue}
+                            onChange={(event) => handleNodeFillChange(event.target.value)}
+                            disabled={nodeControlsDisabled}
+                          />
+                        </label>
+                      ) : null}
                       <label className="style-control">
-                        <span>Fill</span>
+                        <span>Stroke</span>
                         <input
                           type="color"
-                          value={nodeFillValue}
-                          onChange={(event) => handleNodeFillChange(event.target.value)}
+                          value={nodeStrokeValue}
+                          onChange={(event) => handleNodeStrokeChange(event.target.value)}
                           disabled={nodeControlsDisabled}
                         />
                       </label>
-                    ) : null}
-                    <label className="style-control">
-                      <span>Stroke</span>
-                      <input
-                        type="color"
-                        value={nodeStrokeValue}
-                        onChange={(event) => handleNodeStrokeChange(event.target.value)}
-                        disabled={nodeControlsDisabled}
-                      />
-                    </label>
-                    <label className="style-control">
-                      <span>Text</span>
-                      <input
-                        type="color"
-                        value={nodeTextValue}
-                        onChange={(event) => handleNodeTextColorChange(event.target.value)}
-                        disabled={nodeControlsDisabled}
-                      />
-                    </label>
+                      <label className="style-control">
+                        <span>Text</span>
+                        <input
+                          type="color"
+                          value={nodeTextValue}
+                          onChange={(event) => handleNodeTextColorChange(event.target.value)}
+                          disabled={nodeControlsDisabled}
+                        />
+                      </label>
+                      {selectedNode?.image ? (
+                        <>
+                          <label className="style-control">
+                            <span>Title background</span>
+                            <input
+                              type="color"
+                              value={nodeLabelFillValue}
+                              onChange={(event) => handleNodeLabelFillChange(event.target.value)}
+                              disabled={nodeControlsDisabled}
+                            />
+                          </label>
+                          <label className="style-control">
+                            <span>Image background</span>
+                            <input
+                              type="color"
+                              value={nodeImageFillValue}
+                              onChange={(event) => handleNodeImageFillChange(event.target.value)}
+                              disabled={nodeControlsDisabled}
+                            />
+                          </label>
+                        </>
+                      ) : null}
+                    </div>
                     <div className="style-control image-control">
                       <span>Image</span>
                       <div className="image-control-actions">
@@ -1361,28 +1385,6 @@ return (
                           : "No image attached"}
                       </span>
                     </div>
-                    {selectedNode?.image ? (
-                      <>
-                        <label className="style-control">
-                          <span>Title background</span>
-                          <input
-                            type="color"
-                            value={nodeLabelFillValue}
-                            onChange={(event) => handleNodeLabelFillChange(event.target.value)}
-                            disabled={nodeControlsDisabled}
-                          />
-                        </label>
-                        <label className="style-control">
-                          <span>Image background</span>
-                          <input
-                            type="color"
-                            value={nodeImageFillValue}
-                            onChange={(event) => handleNodeImageFillChange(event.target.value)}
-                            disabled={nodeControlsDisabled}
-                          />
-                        </label>
-                      </>
-                    ) : null}
                     <label className="style-control">
                       <span>Image padding (px)</span>
                       <input
@@ -1407,10 +1409,10 @@ return (
                     Reset node style
                   </button>
                   {codeMapMode && selectedNode && codeMapMapping?.nodes[selectedNode.id] && (
-                    <div className="style-controls" style={{ marginTop: "0.5rem" }}>
+                    <div className="editor-link-actions" style={{ marginTop: "0.5rem" }}>
                       <button
                         type="button"
-                        className="style-reset"
+                        className="editor-link-button"
                         onClick={() => {
                           const loc = codeMapMapping.nodes[selectedNode.id];
                           void openInEditor(loc.file, loc.start_line, "vscode");
@@ -1420,7 +1422,7 @@ return (
                       </button>
                       <button
                         type="button"
-                        className="style-reset"
+                        className="editor-link-button"
                         onClick={() => {
                           const loc = codeMapMapping.nodes[selectedNode.id];
                           void openInEditor(loc.file, loc.start_line, "nvim");
