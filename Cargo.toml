@@ -61,3 +61,7 @@ wasm-bindgen-test = "0.3"
 [features]
 default = ["server"]
 server = ["axum", "tokio", "tower-http", "tower"]
+
+[profile.release]
+codegen-units = 1
+lto = true
