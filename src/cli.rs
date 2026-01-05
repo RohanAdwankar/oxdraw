@@ -329,7 +329,7 @@ async fn run_edit(cli: RenderArgs) -> Result<()> {
     let port = cli.serve_port.unwrap_or(5151);
 
     let serve_args = ServeArgs {
-        input: canonical_input.clone(),
+        input: Some(canonical_input.clone()),
         host: host.clone(),
         port,
         background_color: cli.background_color.clone(),
@@ -517,7 +517,7 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
         let port = cli.serve_port.unwrap_or(5151);
 
         let serve_args = ServeArgs {
-            input: path.canonicalize()?,
+            input: Some(path.canonicalize()?),
             host: host.clone(),
             port,
             background_color: cli.background_color,
@@ -602,7 +602,7 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
                 if cli.scale <= 0.0 {
                     bail!("--scale must be greater than zero for PNG output");
                 }
-                diagram.render_png(&cli.background_color, None, cli.scale)?
+                diagram.render_png(Some(&cli.background_color), None, cli.scale)?
             } else {
                 diagram.render_svg(&cli.background_color, None)?.into_bytes()
             };
@@ -628,7 +628,7 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
     let port = cli.serve_port.unwrap_or(5151);
 
     let serve_args = ServeArgs {
-        input: diagram_path,
+        input: Some(diagram_path),
         host: host.clone(),
         port,
         background_color: cli.background_color,
@@ -683,7 +683,7 @@ fn run_render(cli: RenderArgs) -> Result<()> {
         OutputFormat::Svg => diagram
             .render_svg(&cli.background_color, override_ref)?
             .into_bytes(),
-        OutputFormat::Png => diagram.render_png(&cli.background_color, override_ref, cli.scale)?,
+        OutputFormat::Png => diagram.render_png(Some(&cli.background_color), override_ref, cli.scale)?,
     };
 
     write_output(output_dest, &output_bytes, cli.quiet)?;

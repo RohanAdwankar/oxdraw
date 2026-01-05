@@ -904,3 +904,32 @@ body > div:first-of-type {
   background: var(--bg-tertiary);
   font-weight: 600;
 }
+
+.diagram-selector {
+  position: relative;
+}
+
+.diagram-selector button {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diagram-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px var(--shadow-color);
+  z-index: 1000;
+  min-width: 200px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.diagram-dropdown > div:hover {
+  background: var(--bg-tertiary);
+}

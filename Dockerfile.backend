@@ -1,0 +1,98 @@
+# Frontend build stage
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app/frontend
+
+# Copy frontend package files
+COPY frontend/package.json frontend/package-lock.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy frontend source
+COPY frontend/ ./
+
+# Build frontend (static export to out/)
+RUN npm run build
+
+# Rust build stage - using nightly for Edition 2024 support
+FROM rustlang/rust:nightly-bookworm AS builder
+
+# Install sqlite3 for SQLx query validation
+RUN apt-get update && apt-get install -y sqlite3 libsqlite3-dev && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy dependency files first for better caching
+COPY Cargo.toml Cargo.lock ./
+
+# Create a dummy main.rs to build dependencies
+RUN mkdir -p src && echo "fn main() {}" > src/main.rs && echo "pub fn dummy() {}" > src/lib.rs
+
+# Create dummy frontend/out to satisfy build.rs during dependency build
+RUN mkdir -p frontend/out && touch frontend/out/index.html
+
+# Create the database directory and initialize the database
+RUN mkdir -p /data && touch /data/oxdraw.db && \
+    sqlite3 /data/oxdraw.db "CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), last_activity_at TEXT NOT NULL DEFAULT (datetime('now')));" && \
+    sqlite3 /data/oxdraw.db "CREATE TABLE IF NOT EXISTS diagrams (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, name TEXT NOT NULL, filename TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), is_deleted INTEGER NOT NULL DEFAULT 0);" && \
+    sqlite3 /data/oxdraw.db "CREATE INDEX IF NOT EXISTS idx_diagrams_session ON diagrams(session_id, updated_at DESC);" && \
+    sqlite3 /data/oxdraw.db "CREATE INDEX IF NOT EXISTS idx_diagrams_expire ON diagrams(updated_at);"
+
+# Set DATABASE_URL for SQLx compile-time validation
+ENV DATABASE_URL="sqlite:data/oxdraw.db"
+
+# Build dependencies only (this layer will be cached)
+RUN cargo build --release && rm -rf src
+
+# Copy actual source code
+COPY src ./src
+COPY build.rs ./build.rs
+
+# Copy the built frontend from frontend-builder stage
+COPY --from=frontend-builder /app/frontend/out ./frontend/out
+
+# Touch main.rs to invalidate the cache for the actual build
+RUN touch src/main.rs
+
+# Build the actual application
+RUN cargo build --release
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    libfontconfig1 \
+    fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create data directory for SQLite database
+RUN mkdir -p /data
+
+# Create data directory for SQLite database
+RUN mkdir -p /app/data
+
+# Copy the built binary
+COPY --from=builder /app/target/release/oxdraw /usr/local/bin/oxdraw
+
+# Copy the pre-built database template
+COPY --from=builder /data/oxdraw.db /app/data/oxdraw.db.template
+
+# Set the database path
+ENV OXDRAW_DB_PATH=/data/oxdraw.db
+
+# Create a startup script that initializes the database if needed
+RUN echo '#!/bin/bash\n\
+# If database does not exist, copy the template\n\
+if [ ! -f /data/oxdraw.db ]; then\n\
+    cp /app/data/oxdraw.db.template /data/oxdraw.db\n\
+fi\n\
+exec /usr/local/bin/oxdraw "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default command (can be overridden)
+CMD ["--help"]
