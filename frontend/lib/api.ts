@@ -1,5 +1,6 @@
 import {
   DiagramData,
+  DiagramSummary,
   EdgeStyleUpdate,
   LayoutUpdate,
   NodeStyleUpdate,
@@ -7,23 +8,164 @@ import {
   CodeMapMapping,
 } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_OXDRAW_API ?? "http://127.0.0.1:5151";
+const API_BASE = process.env.NEXT_PUBLIC_OXDRAW_API ?? "";
 
-export async function fetchDiagram(): Promise<DiagramData> {
-  const response = await fetch(`${API_BASE}/api/diagram`, {
+interface SessionResponse {
+  sessionId: string;
+  diagrams: DiagramSummary[];
+  currentDiagramId?: number;
+}
+
+export async function getCurrentSession(): Promise<SessionResponse> {
+  const response = await fetch(`${API_BASE}/api/sessions/current`, {
     method: "GET",
     cache: "no-store",
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to load diagram: ${response.status}`);
+    throw new Error(`Failed to get session: ${response.status}`);
   }
 
-  return (await response.json()) as DiagramData;
+  return response.json();
 }
 
-export async function updateLayout(update: LayoutUpdate): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/diagram/layout`, {
+export async function listDiagrams(): Promise<DiagramSummary[]> {
+  const response = await fetch(`${API_BASE}/api/diagrams`, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to list diagrams: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function createDiagram(name: string, template?: string): Promise<DiagramData> {
+  const response = await fetch(`${API_BASE}/api/diagrams`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name, template }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to create diagram: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchDiagram(diagramId: number | string | null): Promise<DiagramData> {
+  if (diagramId === null) {
+    throw new Error("No diagram selected");
+  }
+  const response = await fetch(`${API_BASE}/api/diagrams/${diagramId}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch diagram: ${response.status}`);
+  }
+
+  return response.json() as Promise<DiagramData>;
+}
+
+export async function fetchDiagramSvg(diagramId: number | string | null): Promise<string> {
+  if (diagramId === null) {
+    throw new Error("No diagram selected");
+  }
+  const response = await fetch(`${API_BASE}/api/diagrams/${diagramId}/svg`, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch diagram SVG: ${response.status}`);
+  }
+
+  return response.text();
+}
+
+export async function updateDiagramContent(diagramId: number | string | null, content: string): Promise<void> {
+  if (diagramId === null) {
+    throw new Error("No diagram selected");
+  }
+  const response = await fetch(`${API_BASE}/api/diagrams/${diagramId}/content`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ content }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to update diagram: ${response.status}`);
+  }
+}
+
+export async function updateDiagramName(diagramId: number | string | null, name: string): Promise<void> {
+  if (diagramId === null) {
+    throw new Error("No diagram selected");
+  }
+  const response = await fetch(`${API_BASE}/api/diagrams/${diagramId}/name`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to rename diagram: ${response.status}`);
+  }
+}
+
+export async function duplicateDiagram(diagramId: number | string | null, newName?: string): Promise<DiagramData> {
+  if (diagramId === null) {
+    throw new Error("No diagram selected");
+  }
+  const response = await fetch(`${API_BASE}/api/diagrams/${diagramId}/duplicate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name: newName }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to duplicate diagram: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function deleteDiagram(diagramId: number | string | null): Promise<void> {
+  if (diagramId === null) {
+    throw new Error("No diagram selected");
+  }
+  const response = await fetch(`${API_BASE}/api/diagrams/${diagramId}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to delete diagram: ${response.status}`);
+  }
+}
+
+export async function updateLayout(diagramId: number | string | null, update: LayoutUpdate): Promise<void> {
+  if (diagramId === null) {
+    throw new Error("No diagram selected");
+  }
+  const response = await fetch(`${API_BASE}/api/diagrams/${diagramId}/layout`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -37,22 +179,10 @@ export async function updateLayout(update: LayoutUpdate): Promise<void> {
   }
 }
 
-export async function updateSource(source: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/diagram/source`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ source }),
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Failed to update source: ${response.status}`);
+export async function updateStyle(diagramId: number | string | null, update: StyleUpdate): Promise<void> {
+  if (diagramId === null) {
+    throw new Error("No diagram selected");
   }
-}
-
-export async function updateStyle(update: StyleUpdate): Promise<void> {
   const payload: Record<string, unknown> = {};
 
   const nodeEntries: Array<[string, Record<string, string | null> | null]> = [];
@@ -81,7 +211,7 @@ export async function updateStyle(update: StyleUpdate): Promise<void> {
     return;
   }
 
-  const response = await fetch(`${API_BASE}/api/diagram/style`, {
+  const response = await fetch(`${API_BASE}/api/diagrams/${diagramId}/style`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -92,6 +222,24 @@ export async function updateStyle(update: StyleUpdate): Promise<void> {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || `Failed to update style: ${response.status}`);
+  }
+}
+
+export async function updateSource(diagramId: number | string | null, source: string): Promise<void> {
+  if (diagramId === null) {
+    throw new Error("No diagram selected");
+  }
+  const response = await fetch(`${API_BASE}/api/diagrams/${diagramId}/source`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ source }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to update source: ${response.status}`);
   }
 }
 
@@ -149,9 +297,12 @@ function normalizeEdgeStyle(
   return Object.keys(patch).length > 0 ? patch : undefined;
 }
 
-export async function deleteNode(nodeId: string): Promise<void> {
+export async function deleteNode(diagramId: number | string | null, nodeId: string): Promise<void> {
+  if (diagramId === null) {
+    throw new Error("No diagram selected");
+  }
   const response = await fetch(
-    `${API_BASE}/api/diagram/nodes/${encodeURIComponent(nodeId)}`,
+    `${API_BASE}/api/diagrams/${diagramId}/nodes/${encodeURIComponent(nodeId)}`,
     {
       method: "DELETE",
     }
@@ -163,9 +314,12 @@ export async function deleteNode(nodeId: string): Promise<void> {
   }
 }
 
-export async function deleteEdge(edgeId: string): Promise<void> {
+export async function deleteEdge(diagramId: number | string | null, edgeId: string): Promise<void> {
+  if (diagramId === null) {
+    throw new Error("No diagram selected");
+  }
   const response = await fetch(
-    `${API_BASE}/api/diagram/edges/${encodeURIComponent(edgeId)}`,
+    `${API_BASE}/api/diagrams/${diagramId}/edges/${encodeURIComponent(edgeId)}`,
     {
       method: "DELETE",
     }
@@ -178,9 +332,13 @@ export async function deleteEdge(edgeId: string): Promise<void> {
 }
 
 export async function updateNodeImage(
+  diagramId: number | string | null,
   nodeId: string,
   payload: ({ mimeType?: string; data?: string | null; padding?: number } | null)
 ): Promise<void> {
+  if (diagramId === null) {
+    throw new Error("No diagram selected");
+  }
   let body: Record<string, unknown>;
 
   if (payload === null) {
@@ -202,7 +360,7 @@ export async function updateNodeImage(
   }
 
   const response = await fetch(
-    `${API_BASE}/api/diagram/nodes/${encodeURIComponent(nodeId)}/image`,
+    `${API_BASE}/api/diagrams/${diagramId}/nodes/${encodeURIComponent(nodeId)}/image`,
     {
       method: "PUT",
       headers: {

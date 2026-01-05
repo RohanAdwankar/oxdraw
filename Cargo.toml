@@ -3,12 +3,12 @@ name = "oxdraw"
 version = "0.2.0"
 edition = "2024"
 include = [
-	"Cargo.toml",
-	"build.rs",
-	"README.md",
-	"src/**",
-	"tests/**",
-	"frontend/out/**",
+    "Cargo.toml",
+    "build.rs",
+    "README.md",
+    "src/**",
+    "tests/**",
+    "frontend/out/**",
 ]
 authors = ["Rohan Adwankar <rohan.adwankar@gmail.com>"]
 description = "Library, CLI and Web View for Declarative Diagramming"
@@ -36,21 +36,26 @@ serde_json = "1.0"
 thiserror = "1.0"
 walkdir = "2.4"
 directories = "5.0"
-
-tokio = { version = "1", features = [
-	"macros",
-	"rt-multi-thread",
-	"signal",
-	"sync",
-	"fs",
-], optional = true }
-tower-http = { version = "0.5", features = ["cors", "fs"], optional = true }
-tower = { version = "0.5", optional = true }
-resvg = { version = "0.43", features = ["text"] }
-tiny-skia = { version = "0.11", features = ["png"], default-features = false }
+uuid = { version = "1", features = ["v4"] }
+sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio"] }
+chrono = { version = "0.4", features = ["serde"] }
+zip = { version = "2", default-features = false }
 base64 = "0.22"
 reqwest = { version = "0.11", features = ["json"] }
 regex = "1.12.2"
+time = { version = "0.3", features = ["macros"] }
+cookie = "0.18"
+tiny-skia = { version = "0.11", optional = true }
+tokio = { version = "1", features = [
+    "macros",
+    "rt-multi-thread",
+    "signal",
+    "sync",
+    "fs",
+], optional = true }
+tower-http = { version = "0.5", features = ["cors", "fs"], optional = true }
+tower = { version = "0.5", optional = true }
+http-body-util = "0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 assert_cmd = "2.1.1"
@@ -60,7 +65,7 @@ wasm-bindgen-test = "0.3"
 
 [features]
 default = ["server"]
-server = ["axum", "tokio", "tower-http", "tower"]
+server = ["axum", "tokio", "tower-http", "tower", "tiny-skia"]
 
 [profile.release]
 codegen-units = 1

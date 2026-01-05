@@ -23,25 +23,64 @@ The reason I started this project was I used Mermaid a lot in the past when maki
 
 ## Usage
 
-### Install fom Cargo
+### Web Editor (Recommended)
+
+The easiest way to use oxdraw is via the web editor, which offers a privacy-first, multi-user experience:
+
+```bash
+# Build and start all services with Docker Compose
+docker compose up --build
+
+# Run in detached mode
+docker compose up -d --build
+
+# Stop services
+docker compose down
+```
+
+Once running:
+- **Web UI**: http://localhost:3000
+- **Backend API**: http://localhost:5151
+
+#### Web Editor Features
+
+| Feature | Description |
+|---------|-------------|
+| **Zero-Knowledge** | No personal data stored. Files expire after 7 days. |
+| **Multiple Files** | Create and manage up to 10 diagrams per session |
+| **Templates** | Start with Flowchart, Sequence, Class, State, or ER diagrams |
+| **Export** | Download individual .mmd files or export all as ZIP |
+| **Auto-Save** | Changes are saved automatically |
+| **Privacy Notice** | First-visit consent for privacy transparency |
+
+#### Environment Variables (Docker)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OXDRAW_MAX_FILES` | 10 | Maximum files per session |
+| `OXDRAW_EXPIRATION_DAYS` | 7 | Days before files are deleted |
+
+### CLI Usage
+
+#### Install from Cargo
 
 ```bash
 cargo install oxdraw
 ```
 
-### Render a Diagram from a File
+#### Render a Diagram from a File
 
 ```bash
 oxdraw --input flow.mmd  
 ```
 
-### Launch the Interactive Editor
+#### Launch the Interactive Editor
 
 ```bash
 oxdraw --input flow.mmd --edit
 ```
 
-### Have AI Generate a Codemap
+#### Have AI Generate a Codemap
 This will also launch the interactive viewer mapping the nodes to files in the repo. You can refer to [ai.md](docs/ai.md) for free resources on setting up AI access
 
 ```bash
@@ -73,6 +112,33 @@ oxdraw --code-map ./src/diagram.rs --no-ai --output test.png
 | `--regen` | Force regeneration of the code map even if a cache exists. |
 | `--prompt <PROMPT>` | Custom prompt to append to the LLM instructions. |
 
+### Web Editor Features
+
+The web editor provides a privacy-first experience for creating and managing diagrams:
+
+| Feature | Description |
+|---------|-------------|
+| **Zero-Knowledge Storage** | No personal data, IP addresses, or user agents are stored. Only session IDs in cookies. |
+| **Auto-Expiration** | Files are automatically deleted 7 days after last edit. |
+| **Multiple Diagrams** | Create and manage up to 10 diagrams per browser session |
+| **Templates** | Start quickly with Flowchart, Sequence, Class, State, or ER diagram templates |
+| **Export Options** | Download individual `.mmd` files or export all diagrams as a ZIP archive |
+| **Privacy Consent** | First-visit modal explaining privacy policy and data handling |
+| **Cookie-Based Sessions** | 30-day session persistence with no registration required |
+
+#### Web Editor API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/session` | GET | Get or create session (auto-creates cookie) |
+| `/api/files` | GET | List all files for current session |
+| `/api/files` | POST | Create new file with optional template |
+| `/api/files/:id` | GET/PUT/DELETE | Read, update, or delete a file |
+| `/api/files/:id/duplicate` | POST | Duplicate a file |
+| `/api/files/:id/download` | GET | Download single `.mmd` file |
+| `/api/files/export` | GET | Download all files as ZIP |
+| `/api/files/:id/diagram` | GET | Get parsed diagram data |
+
 ### Frontend Features
 
 | Control | What it does |
@@ -103,6 +169,32 @@ Some prefer smooth lines because there is less total line but I prefer strong ed
 Some prefer no overlapping lines but I sometimes prefer an overlap rather than letting the lines get super long and string out of the diagram very far.
 This is an example of using the delete key to remove one relationship and then using the arrow keys to move around one the nodes and seeing how the algorithm recomputes the positioning.
 There's definitely some improvements to be made to this algorithm so I imagine this will keep getting better :)
+
+## Privacy & Data Retention
+
+The oxdraw web editor is designed with privacy as a core principle:
+
+### What We Store
+- **Session ID**: A random UUID stored in an HttpOnly cookie (30-day expiration)
+- **Diagram Content**: Your Mermaid source code and visual overrides (7-day TTL)
+- **Timestamps**: Created/updated times for expiration logic
+
+### What We Don't Store
+- IP addresses
+- User agents or browser fingerprints
+- Email addresses or personal information
+- Access logs or analytics
+
+### Data Lifecycle
+1. **Creation**: New sessions and files are created with timestamps
+2. **Activity**: Session last-active timestamp updates on each request
+3. **Expiration**: Files are deleted 7 days after last edit
+4. **Cleanup**: Orphaned sessions (no files) are deleted after 7 days of inactivity
+
+### User Responsibilities
+- **Export Your Data**: Use the ZIP export feature to backup your diagrams
+- **Clear Cookies**: Clearing browser cookies will delete all associated data
+- **No Recovery**: There are no backups. Once deleted, data cannot be recovered.
 
 ## Community
 If you do end up using oxdraw, please let me know! You can open issues or discussion posts on GitHub or reach out to me on one of the socials from my Github profile. I would love to hear how you are using it, any feedback you have, and/or add your project to this section!

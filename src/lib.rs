@@ -9,6 +9,14 @@ pub mod serve;
 pub mod utils;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod codemap;
+#[cfg(feature = "server")]
+pub mod database;
+#[cfg(feature = "server")]
+pub mod session;
+#[cfg(feature = "server")]
+pub mod files;
+#[cfg(feature = "server")]
+pub mod export;
 
 pub use diagram::*;
 #[cfg(feature = "server")]

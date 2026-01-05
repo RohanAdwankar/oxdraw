@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::convert::TryInto;
 use std::fmt::Write;
-use tiny_skia::{Pixmap, Transform};
 
 use crate::*;
 
@@ -631,57 +630,15 @@ impl Diagram {
 
     pub fn render_png(
         &self,
-        background: &str,
-        overrides: Option<&LayoutOverrides>,
+        _background: Option<&str>,
+        _overrides: Option<&LayoutOverrides>,
         scale: f32,
     ) -> Result<Vec<u8>> {
         if scale <= 0.0 {
             bail!("scale must be greater than zero when rendering PNG output");
         }
 
-        let svg = self.render_svg(background, overrides)?;
-
-        let mut options = resvg::usvg::Options::default();
-        options.font_family = "Inter".to_string();
-        options.fontdb_mut().load_system_fonts();
-
-        let tree = resvg::usvg::Tree::from_str(&svg, &options)
-            .map_err(|err| anyhow!("failed to parse generated SVG for PNG export: {err}"))?;
-
-        let size = tree.size().to_int_size();
-        let width = size.width();
-        let height = size.height();
-
-        let scaled_width = ((width as f32) * scale).ceil();
-        let scaled_height = ((height as f32) * scale).ceil();
-
-        if !scaled_width.is_finite() || !scaled_height.is_finite() {
-            bail!("scaled dimensions are not finite; try a smaller scale factor");
-        }
-
-        if scaled_width < 1.0 || scaled_height < 1.0 {
-            bail!("scaled dimensions collapsed below 1px; try a larger scale factor");
-        }
-
-        if scaled_width > u32::MAX as f32 || scaled_height > u32::MAX as f32 {
-            bail!("scaled dimensions exceed supported limits; try a smaller scale factor");
-        }
-
-        let scaled_width = scaled_width as u32;
-        let scaled_height = scaled_height as u32;
-
-        let mut pixmap = Pixmap::new(scaled_width, scaled_height).ok_or_else(|| {
-            anyhow!("failed to allocate {scaled_width}x{scaled_height} surface for PNG export")
-        })?;
-
-        let transform = Transform::from_scale(scale, scale);
-        resvg::render(&tree, transform, &mut pixmap.as_mut());
-
-        let png_data = pixmap
-            .encode_png()
-            .map_err(|err| anyhow!("failed to encode PNG output: {err}"))?;
-
-        Ok(png_data)
+        bail!("PNG export is not available. Compile with --features resvg to enable PNG export.");
     }
 
     pub fn layout(&self, overrides: Option<&LayoutOverrides>) -> Result<LayoutComputation> {
@@ -4031,7 +3988,7 @@ fn parse_image_comment(line: &str) -> Result<Option<(String, NodeImage)>> {
     )))
 }
 
-pub(crate) fn decode_image_dimensions(mime_type: &str, data: &[u8]) -> Result<(u32, u32)> {
+pub fn decode_image_dimensions(mime_type: &str, data: &[u8]) -> Result<(u32, u32)> {
     match mime_type {
         "image/png" => parse_png_dimensions(data),
         other => bail!("unsupported node image mime type '{other}'"),

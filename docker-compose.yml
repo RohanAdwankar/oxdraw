@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+## PORTS
+##    expose backend outside docker stack
+#    ports:
+#      - "5151:5151"
+##   DEFAULT
+#   expose port only WITHIN docker stack 
+    expose:
+      - "5151"
+    environment:
+      - RUST_LOG=info
+      - OXDRAW_MAX_FILES=10
+      - OXDRAW_EXPIRATION_DAYS=7
+      - OXDRAW_DB_PATH=/data/oxdraw.db
+    volumes:
+      - oxdraw_data:/data
+    command: ["serve", "--host", "0.0.0.0"]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  oxdraw_data:

@@ -22,9 +22,16 @@ import {
   fetchCodeMapMapping,
   fetchCodeMapFile,
   openInEditor,
+  getCurrentSession,
+  listDiagrams,
+  createDiagram,
+  deleteDiagram,
+  duplicateDiagram,
+  updateDiagramName,
 } from "../lib/api";
 import {
   DiagramData,
+  DiagramSummary,
   EdgeArrowDirection,
   EdgeKind,
   LayoutUpdate,
@@ -300,6 +307,13 @@ export default function Home() {
   const [isRightPanelResizing, setIsRightPanelResizing] = useState(false);
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
 
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [diagrams, setDiagrams] = useState<DiagramSummary[]>([]);
+  const [currentDiagramId, setCurrentDiagramId] = useState<number | null>(null);
+  const [showDiagramList, setShowDiagramList] = useState(false);
+  const [newDiagramName, setNewDiagramName] = useState("");
+  const [isCreatingDiagram, setIsCreatingDiagram] = useState(false);
+
   const saveTimer = useRef<number | null>(null);
   const lastSubmittedSource = useRef<string | null>(null);
   const nodeImageInputRef = useRef<HTMLInputElement | null>(null);
@@ -375,54 +389,143 @@ useEffect(() => {
   imagePaddingValueRef.current = imagePaddingValue;
 }, [imagePaddingValue]);
 
-const loadDiagram = useCallback(
-  async (options?: { silent?: boolean }) => {
-    const silent = options?.silent ?? false;
-    try {
-      if (!silent) {
-        setLoading(true);
+  const loadDiagram = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!currentDiagramId) return;
+      const silent = options?.silent ?? false;
+      try {
+        if (!silent) {
+          setLoading(true);
+        }
+        setError(null);
+        const data = await fetchDiagram(currentDiagramId);
+        setDiagram(data);
+        setSource(data.source);
+        setSourceDraft(data.source);
+        lastSubmittedSource.current = data.source;
+        setSourceError(null);
+        setSourceSaving(false);
+        setSelectedNodeId((current) =>
+          current && data.nodes.some((node) => node.id === current) ? current : null
+        );
+        setSelectedEdgeId((current) =>
+          current && data.edges.some((edge) => edge.id === current) ? current : null
+        );
+        return data;
+      } catch (err) {
+        setError((err as Error).message);
+        if (!silent) {
+          setDiagram(null);
+        }
+        throw err;
+      } finally {
+        if (!silent) {
+          setLoading(false);
+        }
       }
+    },
+    [currentDiagramId]
+  );
+
+  const initializeSession = useCallback(async () => {
+    try {
+      setLoading(true);
       setError(null);
-      const data = await fetchDiagram();
-      setDiagram(data);
-      setSource(data.source);
-      setSourceDraft(data.source);
-      lastSubmittedSource.current = data.source;
-      setSourceError(null);
-      setSourceSaving(false);
-      setSelectedNodeId((current) =>
-        current && data.nodes.some((node) => node.id === current) ? current : null
-      );
-      setSelectedEdgeId((current) =>
-        current && data.edges.some((edge) => edge.id === current) ? current : null
-      );
-      return data;
+      const session = await getCurrentSession();
+      setSessionId(session.sessionId);
+      setDiagrams(session.diagrams);
+      if (session.currentDiagramId) {
+        setCurrentDiagramId(session.currentDiagramId);
+      }
     } catch (err) {
       setError((err as Error).message);
-      if (!silent) {
-        setDiagram(null);
-      }
-      throw err;
     } finally {
-      if (!silent) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
-  },
-  []
-);
+  }, []);
 
-useEffect(() => {
-  void loadDiagram().catch(() => undefined);
-  fetchCodeMapMapping().then((mapping) => {
-    if (mapping) {
-      setCodeMapMapping(mapping);
-      setCodeMapMode(true);
+  const handleSelectDiagram = useCallback(async (diagramId: number) => {
+    setCurrentDiagramId(diagramId);
+    setShowDiagramList(false);
+  }, []);
+
+  const handleCreateDiagram = useCallback(async () => {
+    if (!newDiagramName.trim() || isCreatingDiagram) return;
+    setIsCreatingDiagram(true);
+    try {
+      const newDiagram = await createDiagram(newDiagramName.trim());
+      setNewDiagramName("");
+      setDiagrams([...diagrams, {
+        id: newDiagram.id,
+        name: newDiagram.name || newDiagram.filename,
+        filename: newDiagram.filename,
+        updatedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      }]);
+      setCurrentDiagramId(newDiagram.id);
+      setShowDiagramList(false);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setIsCreatingDiagram(false);
     }
-  }).catch(() => {
-    // Ignore error, likely not in code map mode
-  });
-}, [loadDiagram]);
+  }, [newDiagramName, diagrams, isCreatingDiagram]);
+
+  const handleDeleteDiagram = useCallback(async (diagramId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this diagram?")) return;
+    try {
+      await deleteDiagram(diagramId);
+      setDiagrams(diagrams.filter(d => d.id !== diagramId));
+      if (currentDiagramId === diagramId) {
+        if (diagrams.length > 1) {
+          const remaining = diagrams.filter(d => d.id !== diagramId);
+          setCurrentDiagramId(remaining[0].id);
+        } else {
+          setCurrentDiagramId(null);
+          setDiagram(null);
+        }
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }, [diagrams, currentDiagramId]);
+
+  const handleDuplicateDiagram = useCallback(async (diagramId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const newDiagram = await duplicateDiagram(diagramId, `${diagrams.find(d => d.id === diagramId)?.name || 'Diagram'} (copy)`);
+      setDiagrams([...diagrams, {
+        id: newDiagram.id,
+        name: newDiagram.name || newDiagram.filename,
+        filename: newDiagram.filename,
+        updatedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      }]);
+      setCurrentDiagramId(newDiagram.id);
+      setShowDiagramList(false);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }, [diagrams]);
+
+  useEffect(() => {
+    void initializeSession();
+  }, [initializeSession]);
+
+  useEffect(() => {
+    if (currentDiagramId) {
+      void loadDiagram().catch(() => undefined);
+      fetchCodeMapMapping().then((mapping) => {
+        if (mapping) {
+          setCodeMapMapping(mapping);
+          setCodeMapMode(true);
+        }
+      }).catch(() => {
+        // Ignore error, likely not in code map mode
+      });
+    }
+  }, [currentDiagramId, loadDiagram]);
 
 useEffect(() => {
   if (codeMapMode && selectedNodeId && codeMapMapping) {
@@ -446,48 +549,50 @@ useEffect(() => {
   }
 }, [codeMapMode, selectedNodeId, codeMapMapping]);
 
-const applyUpdate = useCallback(
-  async (update: LayoutUpdate) => {
-    try {
-      setSaving(true);
-      await updateLayout(update);
-      await loadDiagram({ silent: true });
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  },
-  [loadDiagram]
-);
+  const applyUpdate = useCallback(
+    async (update: LayoutUpdate) => {
+      if (!currentDiagramId) return;
+      try {
+        setSaving(true);
+        await updateLayout(currentDiagramId, update);
+        await loadDiagram({ silent: true });
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [loadDiagram, currentDiagramId]
+  );
 
-const submitStyleUpdate = useCallback(
-  async (update: {
-    nodeStyles?: Record<string, NodeStyleUpdate | null>;
-    edgeStyles?: Record<string, EdgeStyleUpdate | null>;
-  }) => {
-    const hasNodeStyles = update.nodeStyles && Object.keys(update.nodeStyles).length > 0;
-    const hasEdgeStyles = update.edgeStyles && Object.keys(update.edgeStyles).length > 0;
-    if (!hasNodeStyles && !hasEdgeStyles) {
-      return;
-    }
+  const submitStyleUpdate = useCallback(
+    async (update: {
+      nodeStyles?: Record<string, NodeStyleUpdate | null>;
+      edgeStyles?: Record<string, EdgeStyleUpdate | null>;
+    }) => {
+      if (!currentDiagramId) return;
+      const hasNodeStyles = update.nodeStyles && Object.keys(update.nodeStyles).length > 0;
+      const hasEdgeStyles = update.edgeStyles && Object.keys(update.edgeStyles).length > 0;
+      if (!hasNodeStyles && !hasEdgeStyles) {
+        return;
+      }
 
-    try {
-      setSaving(true);
-      setError(null);
-      await updateStyle({
-        nodeStyles: update.nodeStyles,
-        edgeStyles: update.edgeStyles,
-      });
-      await loadDiagram({ silent: true });
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  },
-  [loadDiagram]
-);
+      try {
+        setSaving(true);
+        setError(null);
+        await updateStyle(currentDiagramId, {
+          nodeStyles: update.nodeStyles,
+          edgeStyles: update.edgeStyles,
+        });
+        await loadDiagram({ silent: true });
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [loadDiagram, currentDiagramId]
+  );
 
 const handleNodeFillChange = useCallback(
   (value: string) => {
@@ -597,12 +702,12 @@ const handleNodeImageFillChange = useCallback(
   [selectedNode, submitStyleUpdate]
 );
 
-const handleNodeImageFileChange = useCallback(
-  async (event: ChangeEvent<HTMLInputElement>) => {
-    if (!selectedNode || saving) {
-      event.target.value = "";
-      return;
-    }
+  const handleNodeImageFileChange = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      if (!selectedNode || saving || !currentDiagramId) {
+        event.target.value = "";
+        return;
+      }
 
     const file = event.target.files && event.target.files[0] ? event.target.files[0] : null;
     event.target.value = "";
@@ -654,7 +759,7 @@ const handleNodeImageFileChange = useCallback(
       const nextPadding = Number.isFinite(parsedPadding)
         ? normalizePadding(Math.max(0, parsedPadding))
         : normalizePadding(fallbackPadding);
-      await updateNodeImage(selectedNode.id, {
+      await updateNodeImage(currentDiagramId, selectedNode.id, {
         mimeType: effectiveType,
         data: preparedImage.base64,
         padding: nextPadding,
@@ -670,21 +775,21 @@ const handleNodeImageFileChange = useCallback(
   [selectedNode, saving, loadDiagram]
 );
 
-const handleNodeImageRemove = useCallback(async () => {
-  if (!selectedNode || saving || !selectedNode.image) {
-    return;
-  }
-  try {
-    setSaving(true);
-    setError(null);
-    await updateNodeImage(selectedNode.id, null);
-    await loadDiagram({ silent: true });
-  } catch (err) {
-    setError((err as Error).message);
-  } finally {
-    setSaving(false);
-  }
-}, [selectedNode, saving, loadDiagram]);
+  const handleNodeImageRemove = useCallback(async () => {
+    if (!selectedNode || saving || !selectedNode.image || !currentDiagramId) {
+      return;
+    }
+    try {
+      setSaving(true);
+      setError(null);
+      await updateNodeImage(currentDiagramId, selectedNode.id, null);
+      await loadDiagram({ silent: true });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }, [selectedNode, saving, loadDiagram, currentDiagramId]);
 
 const handleNodeImagePaddingChange = useCallback((value: string) => {
   setImagePaddingValue(value);
@@ -711,7 +816,7 @@ const commitNodeImagePadding = useCallback(async () => {
   try {
     setSaving(true);
     setError(null);
-    await updateNodeImage(selectedNode.id, { padding: normalized });
+      await updateNodeImage(currentDiagramId, selectedNode.id, { padding: normalized });
     setImagePaddingValue(formatPaddingValue(normalized));
     await loadDiagram({ silent: true });
   } catch (err) {
@@ -942,31 +1047,31 @@ const handleSelectEdge = useCallback((id: string | null) => {
   }
 }, []);
 
-const deleteTarget = useCallback(
-  async (target: { type: "node" | "edge"; id: string }) => {
-    if (saving || sourceSaving) {
-      return;
-    }
-    try {
-      setSaving(true);
-      setError(null);
-      if (target.type === "node") {
-        await deleteNode(target.id);
-        setSelectedNodeId((current) => (current === target.id ? null : current));
-        setSelectedEdgeId(null);
-      } else {
-        await deleteEdge(target.id);
-        setSelectedEdgeId((current) => (current === target.id ? null : current));
+  const deleteTarget = useCallback(
+    async (target: { type: "node" | "edge"; id: string }) => {
+      if (saving || sourceSaving || !currentDiagramId) {
+        return;
       }
-      await loadDiagram({ silent: true });
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  },
-  [deleteEdge, deleteNode, loadDiagram, saving, sourceSaving]
-);
+      try {
+        setSaving(true);
+        setError(null);
+        if (target.type === "node") {
+          await deleteNode(currentDiagramId, target.id);
+          setSelectedNodeId((current) => (current === target.id ? null : current));
+          setSelectedEdgeId(null);
+        } else {
+          await deleteEdge(currentDiagramId, target.id);
+          setSelectedEdgeId((current) => (current === target.id ? null : current));
+        }
+        await loadDiagram({ silent: true });
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [deleteEdge, deleteNode, loadDiagram, saving, sourceSaving, currentDiagramId]
+  );
 
 const handleDeleteSelection = useCallback(async () => {
   if (selectedNodeId) {
@@ -1030,8 +1135,9 @@ const statusMessage = useMemo(() => {
   if (error) {
     return `Error: ${error}`;
   }
-  return diagram ? `Editing ${diagram.sourcePath}` : "No diagram selected";
-}, [diagram, error, loading, saving, sourceSaving]);
+  const currentDiagram = diagrams.find(d => d.id === currentDiagramId);
+  return diagram ? `Editing ${currentDiagram?.name || diagram.sourcePath}` : "No diagram selected";
+}, [diagram, diagrams, currentDiagramId, error, loading, saving, sourceSaving]);
 
 useEffect(() => {
   if (!diagram || dragging) {
@@ -1066,7 +1172,8 @@ useEffect(() => {
     lastSubmittedSource.current = payload;
     void (async () => {
       try {
-        await updateSource(payload);
+        if (!currentDiagramId) return;
+        await updateSource(currentDiagramId, payload);
         setSourceSaving(false);
         setSourceError(null);
         await loadDiagram({ silent: true });
@@ -1085,7 +1192,7 @@ useEffect(() => {
       saveTimer.current = null;
     }
   };
-}, [diagram, dragging, sourceDraft, source, sourceError, loadDiagram]);
+}, [diagram, dragging, sourceDraft, source, sourceError, loadDiagram, currentDiagramId]);
 
 const sourceStatus = useMemo(() => {
   if (sourceError) {
@@ -1223,6 +1330,113 @@ return (
         {statusMessage}
       </div>
       <div className="actions">
+        <div className="diagram-selector" style={{ position: "relative" }}>
+          <button
+            onClick={() => setShowDiagramList(!showDiagramList)}
+            title="Select diagram"
+          >
+            {diagrams.find(d => d.id === currentDiagramId)?.name || "Select Diagram"} ▾
+          </button>
+          {showDiagramList && (
+            <div className="diagram-dropdown" style={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              background: "var(--bg-secondary, #fff)",
+              border: "1px solid var(--border-color, #ddd)",
+              borderRadius: "4px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+              zIndex: 1000,
+              minWidth: "200px",
+              maxHeight: "300px",
+              overflowY: "auto",
+            }}>
+              <div style={{ padding: "8px", borderBottom: "1px solid var(--border-color, #ddd)" }}>
+                <input
+                  type="text"
+                  placeholder="New diagram name..."
+                  value={newDiagramName}
+                  onChange={(e) => setNewDiagramName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      void handleCreateDiagram();
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "6px 8px",
+                    border: "1px solid var(--border-color, #ddd)",
+                    borderRadius: "4px",
+                  }}
+                />
+                <button
+                  onClick={() => void handleCreateDiagram()}
+                  disabled={!newDiagramName.trim() || isCreatingDiagram}
+                  style={{
+                    width: "100%",
+                    marginTop: "4px",
+                    padding: "6px 8px",
+                    background: "var(--primary-color, #007bff)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: newDiagramName.trim() && !isCreatingDiagram ? "pointer" : "not-allowed",
+                  }}
+                >
+                  {isCreatingDiagram ? "Creating..." : "Create New Diagram"}
+                </button>
+              </div>
+              {diagrams.map((d) => (
+                <div
+                  key={d.id}
+                  onClick={() => handleSelectDiagram(d.id)}
+                  style={{
+                    padding: "8px 12px",
+                    cursor: "pointer",
+                    background: d.id === currentDiagramId ? "var(--primary-light, #e3f2fd)" : "transparent",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {d.name}
+                  </span>
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); void handleDuplicateDiagram(d.id, e); }}
+                      title="Duplicate"
+                      style={{
+                        padding: "2px 6px",
+                        fontSize: "12px",
+                        background: "transparent",
+                        border: "1px solid var(--border-color, #ddd)",
+                        borderRadius: "3px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      📋
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); void handleDeleteDiagram(d.id, e); }}
+                      title="Delete"
+                      style={{
+                        padding: "2px 6px",
+                        fontSize: "12px",
+                        background: "transparent",
+                        border: "1px solid var(--border-color, #ddd)",
+                        borderRadius: "3px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <button onClick={toggleTheme} title="Toggle Theme">
           {theme === "light" ? "Dark Mode" : "Light Mode"}
         </button>

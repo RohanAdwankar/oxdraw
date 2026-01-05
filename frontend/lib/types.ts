@@ -79,6 +79,9 @@ export interface SubgraphData {
 }
 
 export interface DiagramData {
+  id: number;
+  name: string;
+  filename: string;
   sourcePath: string;
   background: string;
   autoSize: Size;
@@ -87,6 +90,14 @@ export interface DiagramData {
   edges: EdgeData[];
   subgraphs?: SubgraphData[];
   source: string;
+}
+
+export interface DiagramSummary {
+  id: number;
+  name: string;
+  filename: string;
+  updatedAt: string;
+  expiresAt: string;
 }
 
 export interface LayoutUpdate {
