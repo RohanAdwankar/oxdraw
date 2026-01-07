@@ -196,7 +196,34 @@ impl ServeState {
             .await
             .with_context(|| format!("failed to read '{}'", self.source_path.display()))?;
         let (definition, _) = split_source_and_overrides(&contents)?;
-        let diagram = Diagram::parse(&definition)?;
+        let diagram = match Diagram::parse(&definition) {
+            Ok(d) => d,
+            Err(e) => {
+                // If this is a markdown file and we failed to parse as a diagram, 
+                // return a dummy diagram so the UI can load and switch to codedown mode.
+                let is_md = self.source_path.extension().map_or(false, |ext| ext == "md");
+                if is_md {
+                    let mut nodes = HashMap::new();
+                    nodes.insert("dummy".to_string(), Node {
+                        label: "Loading...".to_string(),
+                        shape: NodeShape::Rectangle,
+                        image: None,
+                        width: NODE_WIDTH,
+                        height: NODE_HEIGHT,
+                    });
+                    Diagram {
+                        direction: Direction::TopDown,
+                        nodes,
+                        order: vec!["dummy".to_string()],
+                        edges: Vec::new(),
+                        subgraphs: Vec::new(),
+                        node_membership: HashMap::new(),
+                    }
+                } else {
+                    return Err(e);
+                }
+            }
+        };
         Ok((contents, diagram))
     }
 

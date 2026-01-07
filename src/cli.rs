@@ -242,6 +242,27 @@ fn ensure_unique_path(path: PathBuf) -> PathBuf {
 }
 
 pub async fn run_render_or_edit(cli: RenderArgs) -> Result<()> {
+    // Check for implicit codedown input via -i/--input
+    if let Some(input_path) = cli.input.clone() {
+        let path = PathBuf::from(&input_path);
+        if path.extension().and_then(|s| s.to_str()) == Some("md") && path.exists() {
+             // If the user didn't explicitly specify what to do, assume they want to view the codedown
+             if cli.codedown.is_none() && cli.augment_markdown.is_none() {
+                 #[cfg(feature = "server")]
+                 {
+                     #[cfg(not(target_arch = "wasm32"))]
+                     return run_codedown(cli, input_path).await;
+                     #[cfg(target_arch = "wasm32")]
+                     bail!("codedown viewing is not supported in WASM");
+                 }
+                 #[cfg(not(feature = "server"))]
+                 {
+                     bail!("viewing codedown requires the 'server' feature to be enabled");
+                 }
+             }
+        }
+    }
+
     if let Some(code_map_path) = cli.code_map.clone() {
         #[cfg(feature = "server")]
         {

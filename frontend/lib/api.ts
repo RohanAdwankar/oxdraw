@@ -16,6 +16,8 @@ export async function fetchDiagram(): Promise<DiagramData> {
   });
 
   if (!response.ok) {
+    const text = await response.text();
+    console.error("Fetch diagram failed:", text);
     throw new Error(`Failed to load diagram: ${response.status}`);
   }
 
@@ -221,6 +223,8 @@ export async function updateNodeImage(
 export async function fetchCodeMapMapping(): Promise<CodeMapMapping | null> {
   const response = await fetch(`${API_BASE}/api/codemap/mapping`);
   if (!response.ok) {
+    const text = await response.text();
+    console.error("Fetch mapping failed:", text);
     throw new Error(`Failed to fetch code map mapping: ${response.statusText}`);
   }
   return response.json();

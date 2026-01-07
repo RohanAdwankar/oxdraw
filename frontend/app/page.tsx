@@ -393,6 +393,14 @@ const loadDiagram = useCallback(
       lastSubmittedSource.current = data.source;
       setSourceError(null);
       setSourceSaving(false);
+
+      if (data.sourcePath.endsWith('.md')) {
+        setCodedownMode(true);
+        setMarkdownContent(data.source);
+      } else {
+        setCodedownMode(false);
+      }
+
       setSelectedNodeId((current) =>
         current && data.nodes.some((node) => node.id === current) ? current : null
       );
@@ -960,6 +968,17 @@ const deleteTarget = useCallback(
       } else {
         await deleteEdge(target.id);
         setSelectedEdgeId((current) => (current === target.id ? null : current));
+      }
+      await loadDiagram({ silent: true });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  },
+  [deleteEdge, deleteNode, loadDiagram, saving, sourceSaving]
+);
+
 const handleSelectLine = useCallback((lineNumber: number) => {
   if (!codeMapMapping || !codedownMode) return;
 
@@ -979,17 +998,6 @@ const handleSelectLine = useCallback((lineNumber: number) => {
     });
   }
 }, [codeMapMapping, codedownMode]);
-
-      }
-      await loadDiagram({ silent: true });
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  },
-  [deleteEdge, deleteNode, loadDiagram, saving, sourceSaving]
-);
 
 const handleDeleteSelection = useCallback(async () => {
   if (selectedNodeId) {
