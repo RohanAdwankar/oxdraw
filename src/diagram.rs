@@ -2127,7 +2127,7 @@ fn generate_axis_detours(
 fn generate_orthogonal_routes(from: Point, to: Point, direction: Direction) -> Vec<Vec<Point>> {
     let dx = to.x - from.x;
     let dy = to.y - from.y;
-    
+
     if dx.abs() < 1e-3_f32 || dy.abs() < 1e-3_f32 {
         return Vec::new();
     }
@@ -2137,8 +2137,10 @@ fn generate_orthogonal_routes(from: Point, to: Point, direction: Direction) -> V
 
     let mut routes = Vec::new();
 
-    let vertical_first = build_orthogonal_route(from, to, dx, dy, vertical_stub, horizontal_stub, true);
-    let horizontal_first = build_orthogonal_route(from, to, dx, dy, vertical_stub, horizontal_stub, false);
+    let vertical_first =
+        build_orthogonal_route(from, to, dx, dy, vertical_stub, horizontal_stub, true);
+    let horizontal_first =
+        build_orthogonal_route(from, to, dx, dy, vertical_stub, horizontal_stub, false);
 
     match direction {
         Direction::TopDown | Direction::BottomTop => {
@@ -2177,19 +2179,16 @@ fn build_orthogonal_route(
     if vertical_first {
         let v_sign = if dy >= 0.0 { 1.0 } else { -1.0 };
         let h_sign = if dx >= 0.0 { 1.0 } else { -1.0 };
-        
+
         if vertical_stub > 1e-2_f32 {
             points.push(Point {
                 x: from.x,
                 y: from.y + v_sign * vertical_stub,
             });
         }
-        
-        points.push(Point {
-            x: from.x,
-            y: to.y,
-        });
-        
+
+        points.push(Point { x: from.x, y: to.y });
+
         if horizontal_stub > 1e-2_f32 {
             points.push(Point {
                 x: to.x - h_sign * horizontal_stub,
@@ -2199,19 +2198,16 @@ fn build_orthogonal_route(
     } else {
         let h_sign = if dx >= 0.0 { 1.0 } else { -1.0 };
         let v_sign = if dy >= 0.0 { 1.0 } else { -1.0 };
-        
+
         if horizontal_stub > 1e-2_f32 {
             points.push(Point {
                 x: from.x + h_sign * horizontal_stub,
                 y: from.y,
             });
         }
-        
-        points.push(Point {
-            x: to.x,
-            y: from.y,
-        });
-        
+
+        points.push(Point { x: to.x, y: from.y });
+
         if vertical_stub > 1e-2_f32 {
             points.push(Point {
                 x: to.x,

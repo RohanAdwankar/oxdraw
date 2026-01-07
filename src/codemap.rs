@@ -1,13 +1,13 @@
 use anyhow::{Context, Result, anyhow, bail};
+use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
-use directories::ProjectDirs;
 
 use crate::Diagram;
 
@@ -57,7 +57,7 @@ pub async fn generate_code_map(
     gemini_key: Option<String>,
 ) -> Result<(String, CodeMapMapping)> {
     let git_info = get_git_info(path);
-    
+
     let project_dirs = ProjectDirs::from("", "", "oxdraw")
         .ok_or_else(|| anyhow!("Could not determine config directory"))?;
     let config_dir = project_dirs.config_dir();
@@ -74,7 +74,10 @@ pub async fn generate_code_map(
             if let Ok(cache_content) = fs::read_to_string(&cache_path) {
                 if let Ok(cache) = serde_json::from_str::<CacheEntry>(&cache_content) {
                     if cache.commit == *commit && cache.diff_hash == *diff_hash {
-                        println!("Using cached code map for commit {} (diff hash: {:x})", commit, diff_hash);
+                        println!(
+                            "Using cached code map for commit {} (diff hash: {:x})",
+                            commit, diff_hash
+                        );
                         return Ok((cache.mermaid, cache.mapping));
                     }
                 }
@@ -85,14 +88,16 @@ pub async fn generate_code_map(
     if no_ai {
         println!("Generating deterministic code map (no AI)...");
         let (mermaid, mapping) = generate_deterministic_map(path, max_nodes)?;
-        
+
         // Cache the result
         if let Some((commit, diff_hash, _)) = git_info {
             let cache_entry = CacheEntry {
                 commit,
                 diff_hash,
                 mermaid: mermaid.clone(),
-                mapping: CodeMapMapping { nodes: mapping.nodes.clone() },
+                mapping: CodeMapMapping {
+                    nodes: mapping.nodes.clone(),
+                },
             };
             if let Ok(json) = serde_json::to_string_pretty(&cache_entry) {
                 let _ = fs::write(cache_path, json);
@@ -103,24 +108,27 @@ pub async fn generate_code_map(
 
     println!("Scanning codebase at {}...", path.display());
     let (file_summaries, granularity) = scan_codebase(path)?;
-    
-    println!("Found {} files. Generating code map...", file_summaries.len());
-    
+
+    println!(
+        "Found {} files. Generating code map...",
+        file_summaries.len()
+    );
+
     let base_prompt = match granularity {
         Granularity::File => "You are an expert software engineer. Analyze the following source file and generate a Mermaid flowchart that explains its internal logic, control flow, and structure.
-        
+
         For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
         Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
         IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
-        
+
         Granularity::Directory => "You are an expert software architect. Analyze the files in the following directory and generate a Mermaid flowchart that explains the relationships and data flow between them.
-        
+
         For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
         Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
         IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
-        
+
         Granularity::Repo => "You are an expert software architect. Analyze the following codebase and generate a Mermaid flowchart that explains the high-level architecture and data flow.
-        
+
         For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
         Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
         IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
@@ -128,7 +136,7 @@ pub async fn generate_code_map(
 
     let mut prompt = format!(
         "{}
-        
+
         Return ONLY a JSON object with the following structure. Do not include other components of mermaid syntax such as as style This is the JSON schema to follow:
         {{
             \"mermaid\": \"graph TD\\n    A[Node Label] --> B[Another Node]\",
@@ -152,27 +160,33 @@ pub async fn generate_code_map(
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
         .build()?;
-    
+
     let (url, model) = if let Some(key) = &gemini_key {
         let model = model.unwrap_or_else(|| "gemini-2.0-flash".to_string());
         (
-            format!("https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}", model, key),
-            model
+            format!(
+                "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
+                model, key
+            ),
+            model,
         )
     } else {
         (
             api_url.unwrap_or_else(|| "http://localhost:8080/v1/responses".to_string()),
-            model.unwrap_or_else(|| "gemini-2.0-flash".to_string())
+            model.unwrap_or_else(|| "gemini-2.0-flash".to_string()),
         )
     };
-    
+
     let mut attempts = 0;
     const MAX_ATTEMPTS: usize = 4;
 
     loop {
         attempts += 1;
         if attempts > MAX_ATTEMPTS {
-             bail!("Failed to generate valid code map after {} attempts", MAX_ATTEMPTS);
+            bail!(
+                "Failed to generate valid code map after {} attempts",
+                MAX_ATTEMPTS
+            );
         }
 
         if attempts > 1 {
@@ -201,21 +215,31 @@ pub async fn generate_code_map(
             }
         }
 
-        let response = request.send().await.context("Failed to send request to LLM")?;
-        
+        let response = request
+            .send()
+            .await
+            .context("Failed to send request to LLM")?;
+
         if !response.status().is_success() {
             let text = response.text().await?;
             return Err(anyhow!("LLM API returned error: {}", text));
         }
 
-        let response_json: serde_json::Value = response.json().await.context("Failed to parse LLM response JSON")?;
-        
+        let response_json: serde_json::Value = response
+            .json()
+            .await
+            .context("Failed to parse LLM response JSON")?;
+
         // Try to extract text from different possible formats
-        let output_text = if let Some(text) = response_json.get("output_text").and_then(|v| v.as_str()) {
+        let output_text = if let Some(text) =
+            response_json.get("output_text").and_then(|v| v.as_str())
+        {
             text.to_string()
-        } else if let Some(candidates) = response_json.get("candidates").and_then(|v| v.as_array()) {
+        } else if let Some(candidates) = response_json.get("candidates").and_then(|v| v.as_array())
+        {
             // Gemini format
-            candidates.first()
+            candidates
+                .first()
                 .and_then(|c| c.get("content"))
                 .and_then(|c| c.get("parts"))
                 .and_then(|p| p.as_array())
@@ -226,7 +250,8 @@ pub async fn generate_code_map(
                 .to_string()
         } else if let Some(choices) = response_json.get("choices").and_then(|v| v.as_array()) {
             // Standard OpenAI format
-            choices.first()
+            choices
+                .first()
                 .and_then(|c| c.get("message"))
                 .and_then(|m| m.get("content"))
                 .and_then(|c| c.as_str())
@@ -235,30 +260,31 @@ pub async fn generate_code_map(
         } else {
             // Fallback for the custom format
             if let Some(output) = response_json.get("output").and_then(|v| v.as_array()) {
-                 if let Some(first) = output.first() {
-                     if let Some(content) = first.get("content").and_then(|v| v.as_array()) {
-                         if let Some(first_content) = content.first() {
-                             if let Some(text) = first_content.get("text").and_then(|v| v.as_str()) {
-                                 text.to_string()
-                             } else {
-                                 return Err(anyhow!("Unknown response format (deep nested)"));
-                             }
-                         } else {
-                             return Err(anyhow!("Unknown response format (empty content)"));
-                         }
-                     } else {
-                         return Err(anyhow!("Unknown response format (no content array)"));
-                     }
-                 } else {
-                     return Err(anyhow!("Unknown response format (empty output)"));
-                 }
+                if let Some(first) = output.first() {
+                    if let Some(content) = first.get("content").and_then(|v| v.as_array()) {
+                        if let Some(first_content) = content.first() {
+                            if let Some(text) = first_content.get("text").and_then(|v| v.as_str()) {
+                                text.to_string()
+                            } else {
+                                return Err(anyhow!("Unknown response format (deep nested)"));
+                            }
+                        } else {
+                            return Err(anyhow!("Unknown response format (empty content)"));
+                        }
+                    } else {
+                        return Err(anyhow!("Unknown response format (no content array)"));
+                    }
+                } else {
+                    return Err(anyhow!("Unknown response format (empty output)"));
+                }
             } else {
-                 return Err(anyhow!("Unknown response format: {:?}", response_json));
+                return Err(anyhow!("Unknown response format: {:?}", response_json));
             }
         };
 
         // Clean up the output text (remove markdown code blocks if present)
-        let clean_json = output_text.trim()
+        let clean_json = output_text
+            .trim()
             .trim_start_matches("```json")
             .trim_start_matches("```")
             .trim_end_matches("```")
@@ -282,14 +308,21 @@ pub async fn generate_code_map(
                         commit,
                         diff_hash,
                         mermaid: result.mermaid.clone(),
-                        mapping: CodeMapMapping { nodes: result.mapping.clone() },
+                        mapping: CodeMapMapping {
+                            nodes: result.mapping.clone(),
+                        },
                     };
                     if let Ok(json) = serde_json::to_string_pretty(&cache_entry) {
                         let _ = fs::write(cache_path, json);
                     }
                 }
-                return Ok((result.mermaid, CodeMapMapping { nodes: result.mapping }));
-            },
+                return Ok((
+                    result.mermaid,
+                    CodeMapMapping {
+                        nodes: result.mapping,
+                    },
+                ));
+            }
             Err(e) => {
                 println!("Validation failed: {}", e);
                 prompt.push_str(&format!("\n\nYour previous response failed validation: {}. Please fix the diagram and mapping.", e));
@@ -301,12 +334,16 @@ pub async fn generate_code_map(
 
 fn validate_response(response: &LlmResponse) -> Result<()> {
     // 1. Parse Mermaid
-    let diagram = Diagram::parse(&response.mermaid).context("Failed to parse generated Mermaid diagram")?;
+    let diagram =
+        Diagram::parse(&response.mermaid).context("Failed to parse generated Mermaid diagram")?;
 
     // 2. Check Mapping Completeness
     for node_id in diagram.nodes.keys() {
         if !response.mapping.contains_key(node_id) {
-            bail!("Node '{}' is present in the diagram but missing from the mapping object.", node_id);
+            bail!(
+                "Node '{}' is present in the diagram but missing from the mapping object.",
+                node_id
+            );
         }
     }
 
@@ -320,7 +357,10 @@ fn validate_response(response: &LlmResponse) -> Result<()> {
 
         for node_id in diagram.nodes.keys() {
             if !connected_nodes.contains(node_id) {
-                bail!("Node '{}' is isolated (not connected to any other node). All nodes must be connected.", node_id);
+                bail!(
+                    "Node '{}' is isolated (not connected to any other node). All nodes must be connected.",
+                    node_id
+                );
             }
         }
     }
@@ -339,7 +379,9 @@ pub fn get_git_info(path: &Path) -> Option<(String, u64, PathBuf)> {
     if !root_output.status.success() {
         return None;
     }
-    let root_str = String::from_utf8_lossy(&root_output.stdout).trim().to_string();
+    let root_str = String::from_utf8_lossy(&root_output.stdout)
+        .trim()
+        .to_string();
     let root_path = PathBuf::from(root_str);
 
     // Get commit hash
@@ -348,13 +390,13 @@ pub fn get_git_info(path: &Path) -> Option<(String, u64, PathBuf)> {
         .current_dir(path)
         .output()
         .ok()?;
-    
+
     if !output.status.success() {
         return None;
     }
-    
+
     let commit = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    
+
     // Get diff hash
     let diff_output = Command::new("git")
         .args(&["diff", "HEAD"])
@@ -365,7 +407,7 @@ pub fn get_git_info(path: &Path) -> Option<(String, u64, PathBuf)> {
     let mut hasher = DefaultHasher::new();
     diff_output.stdout.hash(&mut hasher);
     let diff_hash = hasher.finish();
-    
+
     Some((commit, diff_hash, root_path))
 }
 
@@ -380,7 +422,7 @@ fn scan_codebase(root_path: &Path) -> Result<(Vec<String>, Granularity)> {
     let mut summaries = Vec::new();
     let mut total_chars = 0;
     const MAX_TOTAL_CHARS: usize = 100_000; // Limit total context size
-    
+
     if root_path.is_file() {
         if let Ok(content) = fs::read_to_string(root_path) {
             let file_name = root_path.file_name().unwrap_or_default().to_string_lossy();
@@ -390,18 +432,28 @@ fn scan_codebase(root_path: &Path) -> Result<(Vec<String>, Granularity)> {
     }
 
     // Basic ignore list
-    let include_exts = vec!["rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "c", "cpp", "h"];
-    let ignore_dirs = vec!["target", "node_modules", ".git", "dist", "build", ".next", "out"];
+    let include_exts = vec![
+        "rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "c", "cpp", "h",
+    ];
+    let ignore_dirs = vec![
+        "target",
+        "node_modules",
+        ".git",
+        "dist",
+        "build",
+        ".next",
+        "out",
+    ];
 
     let walker = WalkDir::new(root_path).into_iter();
-    
+
     for entry in walker.filter_entry(|e| {
         let file_name = e.file_name().to_string_lossy();
         !ignore_dirs.iter().any(|d| file_name == *d)
     }) {
         let entry = entry?;
         let path = entry.path();
-        
+
         if path.is_dir() {
             continue;
         }
@@ -415,34 +467,41 @@ fn scan_codebase(root_path: &Path) -> Result<(Vec<String>, Granularity)> {
                     } else {
                         content
                     };
-                    
+
                     if total_chars + truncated.len() > MAX_TOTAL_CHARS {
                         break; // Stop if we exceed the budget
                     }
-                    
+
                     total_chars += truncated.len();
-                    
+
                     // Get relative path
-                    let rel_path = path.strip_prefix(root_path).unwrap_or(path).to_string_lossy();
+                    let rel_path = path
+                        .strip_prefix(root_path)
+                        .unwrap_or(path)
+                        .to_string_lossy();
                     summaries.push(format!("File: {}\n```\n{}\n```", rel_path, truncated));
                 }
             }
         }
     }
-    
+
     // Determine if it's a repo or just a directory
     let granularity = if root_path.join(".git").exists() {
         Granularity::Repo
     } else {
         Granularity::Directory
     };
-    
+
     Ok((summaries, granularity))
 }
 
 pub fn extract_code_mappings(source: &str) -> (CodeMapMapping, CodeMapMetadata) {
     let mut nodes = HashMap::new();
-    let mut metadata = CodeMapMetadata { path: None, commit: None, diff_hash: None };
+    let mut metadata = CodeMapMetadata {
+        path: None,
+        commit: None,
+        diff_hash: None,
+    };
 
     for line in source.lines() {
         let trimmed = line.trim();
@@ -455,7 +514,7 @@ pub fn extract_code_mappings(source: &str) -> (CodeMapMapping, CodeMapMetadata) 
                 let mut start_line = None;
                 let mut end_line = None;
                 let mut symbol = None;
-                
+
                 for part in parts.iter().skip(5) {
                     if let Some(range) = part.strip_prefix("line:") {
                         if let Some((start, end)) = range.split_once('-') {
@@ -466,38 +525,46 @@ pub fn extract_code_mappings(source: &str) -> (CodeMapMapping, CodeMapMetadata) 
                         symbol = Some(sym.to_string());
                     }
                 }
-                
-                nodes.insert(node_id, CodeLocation {
-                    file: file_path,
-                    start_line,
-                    end_line,
-                    symbol,
-                });
+
+                nodes.insert(
+                    node_id,
+                    CodeLocation {
+                        file: file_path,
+                        start_line,
+                        end_line,
+                        symbol,
+                    },
+                );
             }
         } else if trimmed.starts_with("%% OXDRAW META") {
-             // Parse: %% OXDRAW META path:<Path> commit:<Commit> diff_hash:<Hash>
-             let parts: Vec<&str> = trimmed.split_whitespace().collect();
-             for part in parts.iter().skip(3) { // Skip "%%", "OXDRAW", "META"
-                 if let Some(val) = part.strip_prefix("path:") {
-                     metadata.path = Some(val.to_string());
-                 } else if let Some(val) = part.strip_prefix("commit:") {
-                     metadata.commit = Some(val.to_string());
-                 } else if let Some(val) = part.strip_prefix("diff_hash:") {
-                     metadata.diff_hash = val.parse().ok();
-                 }
-             }
+            // Parse: %% OXDRAW META path:<Path> commit:<Commit> diff_hash:<Hash>
+            let parts: Vec<&str> = trimmed.split_whitespace().collect();
+            for part in parts.iter().skip(3) {
+                // Skip "%%", "OXDRAW", "META"
+                if let Some(val) = part.strip_prefix("path:") {
+                    metadata.path = Some(val.to_string());
+                } else if let Some(val) = part.strip_prefix("commit:") {
+                    metadata.commit = Some(val.to_string());
+                } else if let Some(val) = part.strip_prefix("diff_hash:") {
+                    metadata.diff_hash = val.parse().ok();
+                }
+            }
         }
     }
     (CodeMapMapping { nodes }, metadata)
 }
 
-pub fn serialize_codemap(mermaid: &str, mapping: &CodeMapMapping, metadata: &CodeMapMetadata) -> String {
+pub fn serialize_codemap(
+    mermaid: &str,
+    mapping: &CodeMapMapping,
+    metadata: &CodeMapMetadata,
+) -> String {
     let mut output = mermaid.to_string();
     if !output.ends_with('\n') {
         output.push('\n');
     }
     output.push_str("\n");
-    
+
     for (node_id, location) in &mapping.nodes {
         let mut parts = Vec::new();
         if let (Some(start), Some(end)) = (location.start_line, location.end_line) {
@@ -506,14 +573,17 @@ pub fn serialize_codemap(mermaid: &str, mapping: &CodeMapMapping, metadata: &Cod
         if let Some(symbol) = &location.symbol {
             parts.push(format!("def:{}", symbol));
         }
-        
+
         let extra = if parts.is_empty() {
             String::new()
         } else {
             format!(" {}", parts.join(" "))
         };
-        
-        output.push_str(&format!("%% OXDRAW CODE {} {}{}\n", node_id, location.file, extra));
+
+        output.push_str(&format!(
+            "%% OXDRAW CODE {} {}{}\n",
+            node_id, location.file, extra
+        ));
     }
 
     let mut meta_line = String::from("%% OXDRAW META");
@@ -528,7 +598,7 @@ pub fn serialize_codemap(mermaid: &str, mapping: &CodeMapMapping, metadata: &Cod
     }
     output.push_str(&meta_line);
     output.push('\n');
-    
+
     output
 }
 
@@ -551,7 +621,9 @@ impl CodeMapMapping {
                 }
 
                 if let Some(content) = file_cache.get(&location.file) {
-                    if let Some((start, end)) = find_symbol_definition(content, symbol, &location.file) {
+                    if let Some((start, end)) =
+                        find_symbol_definition(content, symbol, &location.file)
+                    {
                         location.start_line = Some(start);
                         location.end_line = Some(end);
                     }
@@ -562,11 +634,14 @@ impl CodeMapMapping {
 }
 
 fn find_symbol_definition(content: &str, symbol: &str, file_path: &str) -> Option<(usize, usize)> {
-    let ext = Path::new(file_path).extension().and_then(|s| s.to_str()).unwrap_or("");
-    
+    let ext = Path::new(file_path)
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+
     // Simple regex-based finder for now.
     // This is not perfect but covers many cases without heavy dependencies.
-    
+
     let patterns = match ext {
         "rs" => vec![
             format!(r"fn\s+{}\b", regex::escape(symbol)),
@@ -606,14 +681,16 @@ fn find_symbol_definition(content: &str, symbol: &str, file_path: &str) -> Optio
                 // This is hard without a parser.
                 // For now, let's just return the line where it starts, and maybe 10 lines after?
                 // Or just the single line if we can't determine scope.
-                
+
                 let start_byte = mat.start();
                 let start_line = content[..start_byte].lines().count() + 1;
-                
+
                 // Heuristic for end line: count braces?
                 // This is very rough.
-                let end_line = estimate_block_end(content, start_byte).map(|l| l + 1).unwrap_or(start_line);
-                
+                let end_line = estimate_block_end(content, start_byte)
+                    .map(|l| l + 1)
+                    .unwrap_or(start_line);
+
                 return Some((start_line, end_line));
             }
         }
@@ -635,7 +712,7 @@ fn estimate_block_end(content: &str, start_byte: usize) -> Option<usize> {
         } else if char == '}' {
             open_braces -= 1;
         }
-        
+
         if char == '\n' {
             lines += 1;
         }
@@ -643,31 +720,42 @@ fn estimate_block_end(content: &str, start_byte: usize) -> Option<usize> {
         if found_brace && open_braces == 0 {
             return Some(start_line_num + lines);
         }
-        
+
         // Safety break for very long blocks or missing braces
         if lines > 500 {
             break;
         }
     }
-    
+
     // If no braces found (e.g. Python), maybe look for indentation?
     // For now, fallback to just a few lines.
     if !found_brace {
-        return Some(start_line_num + 5); 
+        return Some(start_line_num + 5);
     }
 
     None
 }
 
-fn generate_deterministic_map(root_path: &Path, max_nodes: usize) -> Result<(String, CodeMapMapping)> {
+fn generate_deterministic_map(
+    root_path: &Path,
+    max_nodes: usize,
+) -> Result<(String, CodeMapMapping)> {
     let mut nodes = HashMap::new();
     let mut edges = Vec::new();
     let mut symbol_to_node_id = HashMap::new();
-    
+
     // 1. Scan files and find definitions
     let walker = WalkDir::new(root_path).into_iter();
     let include_exts = vec!["rs", "ts", "tsx", "js", "jsx", "py", "go"];
-    let ignore_dirs = vec!["target", "node_modules", ".git", "dist", "build", ".next", "out"];
+    let ignore_dirs = vec![
+        "target",
+        "node_modules",
+        ".git",
+        "dist",
+        "build",
+        ".next",
+        "out",
+    ];
 
     let mut files_content = HashMap::new();
 
@@ -677,32 +765,46 @@ fn generate_deterministic_map(root_path: &Path, max_nodes: usize) -> Result<(Str
     }) {
         let entry = entry?;
         let path = entry.path();
-        if path.is_dir() { continue; }
+        if path.is_dir() {
+            continue;
+        }
 
         if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
             if include_exts.contains(&ext) {
                 if let Ok(content) = fs::read_to_string(path) {
                     let rel_path = if root_path.is_file() {
-                        path.file_name().unwrap_or_default().to_string_lossy().to_string()
+                        path.file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string()
                     } else {
-                        path.strip_prefix(root_path).unwrap_or(path).to_string_lossy().to_string()
+                        path.strip_prefix(root_path)
+                            .unwrap_or(path)
+                            .to_string_lossy()
+                            .to_string()
                     };
                     files_content.insert(rel_path.clone(), (content.clone(), ext.to_string()));
-                    
+
                     let defs = find_all_definitions(&content, ext);
                     for (symbol, start, end) in defs {
                         if nodes.len() >= max_nodes {
-                            println!("Warning: Hit node limit ({}). Stopping scan to prevent huge diagrams.", max_nodes);
+                            println!(
+                                "Warning: Hit node limit ({}). Stopping scan to prevent huge diagrams.",
+                                max_nodes
+                            );
                             break 'outer;
                         }
 
                         let node_id = format!("node_{}", nodes.len());
-                        nodes.insert(node_id.clone(), CodeLocation {
-                            file: rel_path.clone(),
-                            start_line: Some(start),
-                            end_line: Some(end),
-                            symbol: Some(symbol.clone()),
-                        });
+                        nodes.insert(
+                            node_id.clone(),
+                            CodeLocation {
+                                file: rel_path.clone(),
+                                start_line: Some(start),
+                                end_line: Some(end),
+                                symbol: Some(symbol.clone()),
+                            },
+                        );
                         symbol_to_node_id.insert(symbol, node_id);
                     }
                 }
@@ -716,7 +818,7 @@ fn generate_deterministic_map(root_path: &Path, max_nodes: usize) -> Result<(Str
             if let Some((content, _)) = files_content.get(&location.file) {
                 let start_line = location.start_line.unwrap_or(0);
                 let end_line = location.end_line.unwrap_or(content.lines().count());
-                
+
                 // Extract body content (approximate)
                 let take_count = if end_line >= start_line {
                     end_line - start_line + 1
@@ -724,23 +826,28 @@ fn generate_deterministic_map(root_path: &Path, max_nodes: usize) -> Result<(Str
                     0
                 };
 
-                let body: String = content.lines()
-                    .skip(start_line.saturating_sub(1)) 
+                let body: String = content
+                    .lines()
+                    .skip(start_line.saturating_sub(1))
                     .take(take_count)
                     .collect::<Vec<&str>>()
                     .join("\n");
 
                 for (target_symbol, target_id) in &symbol_to_node_id {
-                    if target_id == node_id { continue; } // Don't link to self
-                    
+                    if target_id == node_id {
+                        continue;
+                    } // Don't link to self
+
                     // Check if body contains target_symbol
                     if body.contains(target_symbol) {
-                         // Verify with regex for word boundary
-                         if let Ok(re) = regex::Regex::new(&format!(r"\b{}\b", regex::escape(target_symbol))) {
-                             if re.is_match(&body) {
-                                 edges.push((node_id.clone(), target_id.clone()));
-                             }
-                         }
+                        // Verify with regex for word boundary
+                        if let Ok(re) =
+                            regex::Regex::new(&format!(r"\b{}\b", regex::escape(target_symbol)))
+                        {
+                            if re.is_match(&body) {
+                                edges.push((node_id.clone(), target_id.clone()));
+                            }
+                        }
                     }
                 }
             }
@@ -755,11 +862,11 @@ fn generate_deterministic_map(root_path: &Path, max_nodes: usize) -> Result<(Str
         let safe_label = label.replace("\"", "'").replace("[", "(").replace("]", ")");
         mermaid.push_str(&format!("    {}[{}]\n", id, safe_label));
     }
-    
+
     // Deduplicate edges
     edges.sort();
     edges.dedup();
-    
+
     for (from, to) in edges {
         mermaid.push_str(&format!("    {} --> {}\n", from, to));
     }
@@ -769,7 +876,7 @@ fn generate_deterministic_map(root_path: &Path, max_nodes: usize) -> Result<(Str
 
 fn find_all_definitions(content: &str, ext: &str) -> Vec<(String, usize, usize)> {
     let mut defs = Vec::new();
-    
+
     let patterns = match ext {
         "rs" => vec![
             r"fn\s+(\w+)",
@@ -785,14 +892,8 @@ fn find_all_definitions(content: &str, ext: &str) -> Vec<(String, usize, usize)>
             r"const\s+(\w+)\s*=",
             r"let\s+(\w+)\s*=",
         ],
-        "py" => vec![
-            r"def\s+(\w+)",
-            r"class\s+(\w+)",
-        ],
-        "go" => vec![
-            r"func\s+(\w+)",
-            r"type\s+(\w+)",
-        ],
+        "py" => vec![r"def\s+(\w+)", r"class\s+(\w+)"],
+        "go" => vec![r"func\s+(\w+)", r"type\s+(\w+)"],
         _ => vec![],
     };
 
@@ -803,12 +904,14 @@ fn find_all_definitions(content: &str, ext: &str) -> Vec<(String, usize, usize)>
                     let symbol = m.as_str().to_string();
                     let start_byte = m.start();
                     let start_line = content[..start_byte].lines().count() + 1; // 1-based
-                    let end_line = estimate_block_end(content, start_byte).map(|l| l + 1).unwrap_or(start_line);
+                    let end_line = estimate_block_end(content, start_byte)
+                        .map(|l| l + 1)
+                        .unwrap_or(start_line);
                     defs.push((symbol, start_line, end_line));
                 }
             }
         }
     }
-    
+
     defs
 }

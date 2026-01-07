@@ -303,13 +303,13 @@ async fn run_edit(cli: RenderArgs) -> Result<()> {
                         }
                     }
                 } else {
-                     // Fallback: try relative to input file directory
-                     let resolved_direct = input_dir.join(path_str);
-                     if resolved_direct.exists() {
-                         Some(resolved_direct)
-                     } else {
-                         Some(path)
-                     }
+                    // Fallback: try relative to input file directory
+                    let resolved_direct = input_dir.join(path_str);
+                    if resolved_direct.exists() {
+                        Some(resolved_direct)
+                    } else {
+                        Some(path)
+                    }
                 }
             }
         } else {
@@ -467,49 +467,56 @@ async fn run_new(cli: RenderArgs) -> Result<()> {
 #[cfg(all(feature = "server", not(target_arch = "wasm32")))]
 async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
     let path = PathBuf::from(&code_map_path);
-    
+
     // Check if it's an existing .mmd file
     if path.extension().and_then(|s| s.to_str()) == Some("mmd") && path.exists() {
         let content = fs::read_to_string(&path)?;
         let (mapping, metadata) = oxdraw::codemap::extract_code_mappings(&content);
-        
+
         let mut warning = None;
         // Check sync status
         if let Some(path_str) = &metadata.path {
-             // Try to resolve the path
-             let mut source_path = PathBuf::from(path_str);
-             
-             // If the path is relative and doesn't exist, try to resolve it relative to the git root of the input file
-             if !source_path.exists() && source_path.is_relative() {
-                 let input_dir = path.parent().unwrap_or(&path);
-                 if let Some((_, _, git_root)) = oxdraw::codemap::get_git_info(input_dir) {
-                     let resolved = git_root.join(path_str);
-                     if resolved.exists() {
-                         source_path = resolved;
-                     }
-                 }
-             }
+            // Try to resolve the path
+            let mut source_path = PathBuf::from(path_str);
 
-             if source_path.exists() {
-                 if let Some((current_commit, current_diff, _)) = oxdraw::codemap::get_git_info(&source_path) {
-                     let mut warnings = Vec::new();
-                     if let Some(meta_commit) = &metadata.commit {
-                         if meta_commit != &current_commit {
-                             warnings.push(format!("Commit mismatch: map({}) vs HEAD({})", meta_commit, current_commit));
-                         }
-                     }
-                     if let Some(meta_diff) = &metadata.diff_hash {
-                         if meta_diff != &current_diff {
-                             warnings.push("Working directory has changed since map generation".to_string());
-                         }
-                     }
-                     if !warnings.is_empty() {
-                         let msg = warnings.join("; ");
-                         println!("Warning: {}", msg);
-                         warning = Some(msg);
-                     }
-                 }
-             }
+            // If the path is relative and doesn't exist, try to resolve it relative to the git root of the input file
+            if !source_path.exists() && source_path.is_relative() {
+                let input_dir = path.parent().unwrap_or(&path);
+                if let Some((_, _, git_root)) = oxdraw::codemap::get_git_info(input_dir) {
+                    let resolved = git_root.join(path_str);
+                    if resolved.exists() {
+                        source_path = resolved;
+                    }
+                }
+            }
+
+            if source_path.exists() {
+                if let Some((current_commit, current_diff, _)) =
+                    oxdraw::codemap::get_git_info(&source_path)
+                {
+                    let mut warnings = Vec::new();
+                    if let Some(meta_commit) = &metadata.commit {
+                        if meta_commit != &current_commit {
+                            warnings.push(format!(
+                                "Commit mismatch: map({}) vs HEAD({})",
+                                meta_commit, current_commit
+                            ));
+                        }
+                    }
+                    if let Some(meta_diff) = &metadata.diff_hash {
+                        if meta_diff != &current_diff {
+                            warnings.push(
+                                "Working directory has changed since map generation".to_string(),
+                            );
+                        }
+                    }
+                    if !warnings.is_empty() {
+                        let msg = warnings.join("; ");
+                        println!("Warning: {}", msg);
+                        warning = Some(msg);
+                    }
+                }
+            }
         }
 
         let ui_root = locate_ui_dist()?;
@@ -548,7 +555,7 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
     }
 
     let root_path = path.canonicalize()?;
-    
+
     let (mermaid, mapping) = oxdraw::codemap::generate_code_map(
         &root_path,
         cli.api_key,
@@ -559,7 +566,8 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
         cli.no_ai,
         cli.max_nodes,
         cli.gemini,
-    ).await?;
+    )
+    .await?;
 
     let git_info = oxdraw::codemap::get_git_info(&root_path);
     let metadata = oxdraw::codemap::CodeMapMetadata {
@@ -580,19 +588,23 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
 
     if let Some(output_path_str) = cli.output {
         if output_path_str == "-" {
-             // stdout
-             println!("{}", full_content);
-             return Ok(());
+            // stdout
+            println!("{}", full_content);
+            return Ok(());
         }
 
         let output_path = PathBuf::from(&output_path_str);
-        let extension = output_path.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+        let extension = output_path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
 
         if extension == "svg" || extension == "png" {
             // Save .mmd as well
             let mut mmd_path = output_path.clone();
             mmd_path.set_extension("mmd");
-            
+
             fs::write(&mmd_path, &full_content)?;
             println!("Code map saved to {}", mmd_path.display());
 
@@ -604,9 +616,11 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
                 }
                 diagram.render_png(&cli.background_color, None, cli.scale)?
             } else {
-                diagram.render_svg(&cli.background_color, None)?.into_bytes()
+                diagram
+                    .render_svg(&cli.background_color, None)?
+                    .into_bytes()
             };
-            
+
             fs::write(&output_path, output_bytes)?;
             println!("Rendered diagram saved to {}", output_path.display());
         } else {

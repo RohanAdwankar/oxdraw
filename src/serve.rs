@@ -501,7 +501,7 @@ async fn open_in_editor(
             {
                 let cmd = format!("cd {:?} && vi +{} {:?}", root, line, payload.path);
                 let escaped_cmd = cmd.replace("\\", "\\\\").replace("\"", "\\\"");
-                
+
                 std::process::Command::new("osascript")
                     .arg("-e")
                     .arg(format!(

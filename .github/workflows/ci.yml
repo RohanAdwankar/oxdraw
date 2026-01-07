@@ -53,6 +53,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-target-
 
+      - name: Check formatting of Rust code
+        run: cargo fmt --check
+
       - name: Install frontend dependencies
         run: cd frontend && npm ci
 
