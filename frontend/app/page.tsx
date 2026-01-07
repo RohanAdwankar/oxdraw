@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import DiagramCanvas from "../components/DiagramCanvas";
+import MarkdownViewer from "../components/MarkdownViewer";
 import CodePanel from "../components/CodePanel";
 import {
   deleteEdge,
@@ -289,6 +290,8 @@ export default function Home() {
   const [dragging, setDragging] = useState(false);
   const [codeMapMapping, setCodeMapMapping] = useState<CodeMapMapping | null>(null);
   const [codeMapMode, setCodeMapMode] = useState(false);
+  const [codedownMode, setCodedownMode] = useState(false);
+  const [markdownContent, setMarkdownContent] = useState<string>("");
   const [selectedFile, setSelectedFile] = useState<{ path: string; content: string } | null>(null);
   const [highlightedLines, setHighlightedLines] = useState<{ start: number; end: number } | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -957,6 +960,26 @@ const deleteTarget = useCallback(
       } else {
         await deleteEdge(target.id);
         setSelectedEdgeId((current) => (current === target.id ? null : current));
+const handleSelectLine = useCallback((lineNumber: number) => {
+  if (!codeMapMapping || !codedownMode) return;
+
+  const lineId = `line_${lineNumber}`;
+  const location = codeMapMapping.nodes[lineId];
+
+  if (location) {
+    fetchCodeMapFile(location.file).then((content) => {
+      setSelectedFile({ path: location.file, content });
+      if (location.start_line && location.end_line) {
+        setHighlightedLines({ start: location.start_line, end: location.end_line });
+      } else {
+        setHighlightedLines(null);
+      }
+    }).catch((err) => {
+      console.error('Failed to fetch file:', err);
+    });
+  }
+}, [codeMapMapping, codedownMode]);
+
       }
       await loadDiagram({ silent: true });
     } catch (err) {
@@ -1502,21 +1525,29 @@ return (
               </div>
             </aside>
           )}
-            <DiagramCanvas
-              diagram={diagram}
-              onNodeMove={handleNodeMove}
-              onLayoutUpdate={handleLayoutUpdate}
-              onEdgeMove={handleEdgeMove}
-              selectedNodeId={selectedNodeId}
-              selectedEdgeId={selectedEdgeId}
-              onSelectNode={handleSelectNode}
-              onSelectEdge={handleSelectEdge}
-              onDragStateChange={setDragging}
-              onDeleteNode={handleDeleteNodeDirect}
-              onDeleteEdge={handleDeleteEdgeDirect}
-              codeMapMapping={codeMapMapping}
-            />
-            {codeMapMode ? (
+            {codedownMode ? (
+              <MarkdownViewer
+                content={markdownContent}
+                onSelectLine={handleSelectLine}
+                codeMapMapping={codeMapMapping}
+              />
+            ) : (
+              <DiagramCanvas
+                diagram={diagram}
+                onNodeMove={handleNodeMove}
+                onLayoutUpdate={handleLayoutUpdate}
+                onEdgeMove={handleEdgeMove}
+                selectedNodeId={selectedNodeId}
+                selectedEdgeId={selectedEdgeId}
+                onSelectNode={handleSelectNode}
+                onSelectEdge={handleSelectEdge}
+                onDragStateChange={setDragging}
+                onDeleteNode={handleDeleteNodeDirect}
+                onDeleteEdge={handleDeleteEdgeDirect}
+                codeMapMapping={codeMapMapping}
+              />
+            )}
+            {(codeMapMode || codedownMode) ? (
             <CodePanel
               filePath={selectedFile?.path ?? null}
               content={selectedFile?.content ?? null}

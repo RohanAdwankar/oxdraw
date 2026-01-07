@@ -88,6 +88,22 @@ pub struct RenderArgs {
     #[arg(long = "code-map", conflicts_with = "input")]
     pub code_map: Option<String>,
 
+    /// Generate a codedown (markdown with code mappings) from the given codebase path.
+    #[arg(long = "codedown", conflicts_with = "input", conflicts_with = "code_map")]
+    pub codedown: Option<String>,
+
+    /// Augment existing markdown file with code mappings.
+    #[arg(long = "augment-markdown", conflicts_with = "input", conflicts_with = "code_map", conflicts_with = "codedown")]
+    pub augment_markdown: Option<String>,
+
+    /// Repository path for augment-markdown (defaults to current directory).
+    #[arg(long = "repo-path", requires = "augment_markdown")]
+    pub repo_path: Option<String>,
+
+    /// Documentation style for codedown generation.
+    #[arg(long = "codedown-style", value_enum, requires = "codedown")]
+    pub codedown_style: Option<CodedownStyleArg>,
+
     /// API Key for the LLM (optional, defaults to environment variable if not set).
     #[arg(long = "api-key")]
     pub api_key: Option<String>,
@@ -125,6 +141,13 @@ pub struct RenderArgs {
 enum OutputFormat {
     Svg,
     Png,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+pub enum CodedownStyleArg {
+    Architecture,
+    Tutorial,
+    Api,
 }
 
 impl OutputFormat {
@@ -231,6 +254,23 @@ pub async fn run_render_or_edit(cli: RenderArgs) -> Result<()> {
         {
             bail!("--code-map requires the 'server' feature to be enabled");
         }
+    } else if let Some(codedown_path) = cli.codedown.clone() {
+        #[cfg(feature = "server")]
+        {
+            #[cfg(not(target_arch = "wasm32"))]
+            return run_codedown(cli, codedown_path).await;
+            #[cfg(target_arch = "wasm32")]
+            bail!("--codedown is not supported in WASM");
+        }
+        #[cfg(not(feature = "server"))]
+        {
+            bail!("--codedown requires the 'server' feature to be enabled");
+        }
+    } else if let Some(markdown_path) = cli.augment_markdown.clone() {
+        #[cfg(not(target_arch = "wasm32"))]
+        return run_augment_markdown(cli, markdown_path).await;
+        #[cfg(target_arch = "wasm32")]
+        bail!("--augment-markdown is not supported in WASM");
     } else if cli.edit {
         #[cfg(feature = "server")]
         {
@@ -281,7 +321,17 @@ async fn run_edit(cli: RenderArgs) -> Result<()> {
     let content = fs::read_to_string(&canonical_input)?;
     #[cfg(not(target_arch = "wasm32"))]
     let (mapping, code_map_root) = {
+        // Try codemap first
         let (m, meta) = oxdraw::codemap::extract_code_mappings(&content);
+
+        // If no codemap mappings found, try codedown
+        let (m, meta) = if m.nodes.is_empty() {
+            use oxdraw::codedown::extract_codedown_mappings;
+            extract_codedown_mappings(&content)
+        } else {
+            (m, meta)
+        };
+
         let root = if let Some(path_str) = &meta.path {
             let path = PathBuf::from(path_str);
             if path.is_absolute() && path.exists() {
@@ -459,6 +509,10 @@ async fn run_new(cli: RenderArgs) -> Result<()> {
         no_ai: false,
         max_nodes: 20,
         gemini: None,
+        codedown: None,
+        augment_markdown: None,
+        repo_path: None,
+        codedown_style: None,
     };
 
     run_edit(edit_args).await
@@ -645,6 +699,197 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
     println!("Visit http://{}:{} in your browser", host, port);
 
     run_serve(serve_args, Some(ui_root)).await
+}
+
+#[cfg(all(feature = "server", not(target_arch = "wasm32")))]
+async fn run_codedown(cli: RenderArgs, codedown_path: String) -> Result<()> {
+    use oxdraw::codedown::{CodedownStyle, generate_codedown, extract_codedown_mappings, serialize_codedown};
+
+    let path = PathBuf::from(&codedown_path);
+
+    // Check if it's an existing .md file
+    if path.extension().and_then(|s| s.to_str()) == Some("md") && path.exists() {
+        let content = fs::read_to_string(&path)?;
+        let (mapping, metadata) = extract_codedown_mappings(&content);
+
+        // Only launch viewer if mappings exist
+        if !mapping.nodes.is_empty() {
+            let ui_root = locate_ui_dist()?;
+            let host = cli.serve_host.unwrap_or_else(|| "127.0.0.1".to_string());
+            let port = cli.serve_port.unwrap_or(5151);
+
+            let serve_args = ServeArgs {
+                input: path.canonicalize()?,
+                host: host.clone(),
+                port,
+                background_color: cli.background_color,
+                code_map_root: if let Some(path_str) = &metadata.path {
+                    let source_path = PathBuf::from(path_str);
+                    if source_path.exists() {
+                        Some(source_path)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                },
+                code_map_mapping: Some(mapping),
+                code_map_warning: None,
+            };
+
+            println!("Launching codedown viewer for existing file...");
+            println!("Visit http://{}:{} in your browser", host, port);
+
+            return run_serve(serve_args, Some(ui_root)).await;
+        }
+    }
+
+    let root_path = path.canonicalize()?;
+
+    // Determine style
+    let style = match cli.codedown_style {
+        Some(CodedownStyleArg::Architecture) => CodedownStyle::Architecture,
+        Some(CodedownStyleArg::Tutorial) => CodedownStyle::Tutorial,
+        Some(CodedownStyleArg::Api) => CodedownStyle::Api,
+        None => CodedownStyle::Architecture, // default
+    };
+
+    let (markdown, mapping) = generate_codedown(
+        &root_path,
+        cli.api_key,
+        cli.model,
+        cli.api_url,
+        cli.regen,
+        cli.prompt,
+        style,
+        cli.gemini,
+    ).await?;
+
+    let git_info = oxdraw::codemap::get_git_info(&root_path);
+    let metadata = oxdraw::codemap::CodeMapMetadata {
+        path: if let Some((_, _, git_root)) = &git_info {
+            match root_path.strip_prefix(git_root) {
+                Ok(p) => Some(p.to_string_lossy().to_string()),
+                Err(_) => Some(root_path.to_string_lossy().to_string()),
+            }
+        } else {
+            Some(root_path.to_string_lossy().to_string())
+        },
+        commit: git_info.as_ref().map(|(c, _, _)| c.clone()),
+        diff_hash: git_info.as_ref().map(|(_, d, _)| *d),
+    };
+
+    let full_content = serialize_codedown(&markdown, &mapping, &metadata);
+
+    if let Some(output_path_str) = cli.output {
+        if output_path_str == "-" {
+            println!("{}", full_content);
+            return Ok(());
+        }
+
+        let output_path = PathBuf::from(&output_path_str);
+        fs::write(&output_path, full_content)?;
+        println!("Codedown saved to {}", output_path.display());
+        return Ok(());
+    }
+
+    // Create a temporary file for the codedown
+    let temp_dir = std::env::temp_dir().join("oxdraw-codedown");
+    fs::create_dir_all(&temp_dir)?;
+    let codedown_file_path = temp_dir.join("codedown.md");
+    fs::write(&codedown_file_path, full_content)?;
+
+    let ui_root = locate_ui_dist()?;
+    let host = cli.serve_host.unwrap_or_else(|| "127.0.0.1".to_string());
+    let port = cli.serve_port.unwrap_or(5151);
+
+    let serve_args = ServeArgs {
+        input: codedown_file_path,
+        host: host.clone(),
+        port,
+        background_color: cli.background_color,
+        code_map_root: if root_path.is_file() {
+            root_path.parent().map(|p| p.to_path_buf())
+        } else {
+            Some(root_path)
+        },
+        code_map_mapping: Some(mapping),
+        code_map_warning: None,
+    };
+
+    println!("Launching codedown viewer...");
+    println!("Visit http://{}:{} in your browser", host, port);
+
+    run_serve(serve_args, Some(ui_root)).await
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn run_augment_markdown(cli: RenderArgs, markdown_path: String) -> Result<()> {
+    use oxdraw::codedown::{augment_markdown_with_mappings, serialize_codedown};
+
+    let markdown_file = PathBuf::from(&markdown_path);
+    if !markdown_file.exists() {
+        bail!("Markdown file does not exist: {}", markdown_path);
+    }
+
+    // Determine repo path
+    let repo_path = if let Some(repo) = cli.repo_path {
+        PathBuf::from(repo)
+    } else {
+        std::env::current_dir()?
+    };
+
+    if !repo_path.exists() {
+        bail!("Repository path does not exist: {}", repo_path.display());
+    }
+
+    let (markdown, mapping) = augment_markdown_with_mappings(
+        &markdown_file,
+        &repo_path,
+        cli.api_key,
+        cli.model,
+        cli.api_url,
+        cli.gemini,
+    ).await?;
+
+    let git_info = oxdraw::codemap::get_git_info(&repo_path);
+    let metadata = oxdraw::codemap::CodeMapMetadata {
+        path: if let Some((_, _, git_root)) = &git_info {
+            match repo_path.strip_prefix(git_root) {
+                Ok(p) => Some(p.to_string_lossy().to_string()),
+                Err(_) => Some(repo_path.to_string_lossy().to_string()),
+            }
+        } else {
+            Some(repo_path.to_string_lossy().to_string())
+        },
+        commit: git_info.as_ref().map(|(c, _, _)| c.clone()),
+        diff_hash: git_info.as_ref().map(|(_, d, _)| *d),
+    };
+
+    let full_content = serialize_codedown(&markdown, &mapping, &metadata);
+
+    if let Some(output_path_str) = cli.output {
+        if output_path_str == "-" {
+            println!("{}", full_content);
+            return Ok(());
+        }
+
+        let output_path = PathBuf::from(&output_path_str);
+        fs::write(&output_path, full_content)?;
+        println!("Augmented markdown saved to {}", output_path.display());
+    } else {
+        // Default: save as <original>-mapped.md
+        let mut output_path = markdown_file.clone();
+        let stem = output_path.file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("document");
+        output_path.set_file_name(format!("{}-mapped.md", stem));
+
+        fs::write(&output_path, full_content)?;
+        println!("Augmented markdown saved to {}", output_path.display());
+    }
+
+    Ok(())
 }
 
 fn run_render(cli: RenderArgs) -> Result<()> {
