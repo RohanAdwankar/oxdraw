@@ -7,6 +7,8 @@ use std::path::PathBuf;
 use assert_cmd::cargo::cargo_bin_cmd;
 #[cfg(not(target_arch = "wasm32"))]
 use libtest_mimic::Failed;
+#[cfg(not(target_arch = "wasm32"))]
+use tempfile::TempDir;
 
 #[cfg(target_arch = "wasm32")]
 fn main() {}
@@ -48,10 +50,7 @@ fn main() {
                 }),
                 libtest_mimic::Trial::test(format!("png_{stem}"), {
                     let in_path = in_path.clone();
-                    let out_path = manifest_dir
-                        .join("tests/output/png")
-                        .join(format!("{stem}.png"));
-                    move || smoke_test_png(in_path, out_path)
+                    move || smoke_test_png(in_path)
                 }),
             ]
         })
@@ -87,14 +86,15 @@ fn smoke_test_svg(in_path: PathBuf, out_path: PathBuf) -> Result<(), Failed> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn smoke_test_png(in_path: PathBuf, out_path: PathBuf) -> Result<(), Failed> {
-    if out_path.exists() {
-        fs::remove_file(&out_path)?;
-    }
+fn smoke_test_png(in_path: PathBuf) -> Result<(), Failed> {
+    let temp_dir = TempDir::new().expect("create temp dir");
+
+    let stem = in_path.file_stem().unwrap().to_str().unwrap();
+    let out_path = temp_dir.path().join(format!("{stem}.png"));
 
     let mut cmd = cargo_bin_cmd!("oxdraw");
     cmd.arg("--input")
-        .arg(in_path)
+        .arg(&in_path)
         .arg("--output")
         .arg(&out_path)
         .arg("--output-format")
@@ -103,10 +103,13 @@ fn smoke_test_png(in_path: PathBuf, out_path: PathBuf) -> Result<(), Failed> {
     cmd.assert().success();
 
     let png_bytes = fs::read(&out_path)?;
-    assert!(
-        png_bytes.starts_with(b"\x89PNG\r\n\x1a\n"),
-        "{} output should begin with the PNG magic header",
-        out_path.display()
-    );
+    let starts_with_header = png_bytes.starts_with(b"\x89PNG\r\n\x1a\n");
+    if !starts_with_header {
+        let _ = temp_dir.keep();
+        panic!(
+            "{} output should begin with the PNG magic header",
+            out_path.display()
+        );
+    }
     Ok(())
 }
