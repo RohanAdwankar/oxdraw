@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::path::Path;
 
 use anyhow::{Context, Result, anyhow, bail};
 use axum::extract::{DefaultBodyLimit, Path as AxumPath, State};
@@ -21,6 +22,7 @@ use tower::ServiceExt;
 use tower::service_fn;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
+use walkdir::WalkDir;
 
 use crate::codemap::CodeMapMapping;
 use crate::diagram::decode_image_dimensions;
@@ -1058,9 +1060,50 @@ async fn get_codemap_file(
         ));
     }
 
-    let content = tokio::fs::read_to_string(&full_path)
-        .await
-        .map_err(|e| (StatusCode::NOT_FOUND, format!("Failed to read file: {}", e)))?;
+    if full_path.exists() {
+        let content = tokio::fs::read_to_string(&full_path)
+            .await
+            .map_err(|e| (StatusCode::NOT_FOUND, format!("Failed to read file: {}", e)))?;
+        return Ok(content);
+    }
 
-    Ok(content)
+    // Smart lookup: if the file wasn't found at the exact path, search for it by filename
+    let target_name = Path::new(&params.path).file_name().and_then(|n| n.to_str());
+    
+    if let Some(name) = target_name {
+        let root_clone = root.clone();
+        let name_string = name.to_string();
+        
+        // Run blocking search in a separate task
+        let found_path = tokio::task::spawn_blocking(move || {
+            let matches: Vec<PathBuf> = WalkDir::new(&root_clone)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().is_file())
+                .filter(|e| e.file_name().to_string_lossy() == name_string)
+                .map(|e| e.into_path())
+                .collect();
+            
+            if matches.len() == 1 {
+                Some(matches[0].clone())
+            } else {
+                None
+            }
+        })
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+        if let Some(path) = found_path {
+            // Re-verify it is inside root (it should be, since we walked root)
+            if !path.starts_with(root) {
+                 return Err((StatusCode::FORBIDDEN, "Resolved path outside root".to_string()));
+            }
+            let content = tokio::fs::read_to_string(&path)
+                .await
+                .map_err(|e| (StatusCode::NOT_FOUND, format!("Failed to read resolved file: {}", e)))?;
+            return Ok(content);
+        }
+    }
+
+    Err((StatusCode::NOT_FOUND, format!("File not found: {}", params.path)))
 }

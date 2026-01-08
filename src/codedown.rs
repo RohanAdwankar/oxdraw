@@ -583,8 +583,8 @@ fn scan_codebase(path: &Path) -> Result<(Vec<String>, String)> {
             continue;
         }
 
-        let path = entry.path();
-        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+        let entry_path = entry.path();
+        let ext = entry_path.extension().and_then(|s| s.to_str()).unwrap_or("");
 
         // Only include source code files
         if !matches!(
@@ -594,10 +594,10 @@ fn scan_codebase(path: &Path) -> Result<(Vec<String>, String)> {
             continue;
         }
 
-        if let Ok(content) = fs::read_to_string(path) {
-            let relative_path = path
-                .strip_prefix(path.parent().unwrap_or(path))
-                .unwrap_or(path)
+        if let Ok(content) = fs::read_to_string(entry_path) {
+            let relative_path = entry_path
+                .strip_prefix(path)
+                .unwrap_or(entry_path)
                 .display()
                 .to_string();
 

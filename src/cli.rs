@@ -745,11 +745,26 @@ async fn run_codedown(cli: RenderArgs, codedown_path: String) -> Result<()> {
                 port,
                 background_color: cli.background_color,
                 code_map_root: if let Some(path_str) = &metadata.path {
-                    let source_path = PathBuf::from(path_str);
-                    if source_path.exists() {
-                        Some(source_path)
+                    let meta_path = PathBuf::from(path_str);
+                    if meta_path.is_absolute() && meta_path.exists() {
+                        Some(meta_path)
                     } else {
-                        None
+                        // Resolve relative to the markdown file location
+                        let input_dir = path.parent().unwrap_or(Path::new("."));
+                        let resolved_relative = input_dir.join(&meta_path);
+                        if resolved_relative.exists() {
+                            Some(resolved_relative)
+                        } else {
+                            // Fallback: try relative to current working directory
+                            if meta_path.exists() {
+                                Some(meta_path)
+                            } else if path_str.is_empty() {
+                                // If path is empty, assume current directory
+                                Some(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+                            } else {
+                                None
+                            }
+                        }
                     }
                 } else {
                     None
