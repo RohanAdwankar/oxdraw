@@ -83,54 +83,54 @@
   <line x1="4589.2" y1="930.0" x2="4231.8" y2="1039.7" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <line x1="4165.6" y1="1090.0" x2="4236.3" y2="1199.2" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <line x1="4241.4" y1="1250.0" x2="4191.0" y2="1359.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <rect x="2724.6" y="720.0" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="2806.4" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">locate_ui_dist</text>
-  <rect x="353.1" y="560.0" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="431.2" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_edit</text>
-  <polygon points="750.3,400.0 820.3,425.0 750.3,450.0 680.3,425.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="750.3" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli.edit?</text>
-  <rect x="1722.9" y="560.0" width="252.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1849.1" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">codemap::generate_code_map</text>
-  <rect x="2908.2" y="720.0" width="230.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="3023.3" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">ServeArgs Configuration</text>
-  <rect x="80.0" y="720.0" width="148.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="154.4" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_new</text>
-  <polygon points="647.4,240.0 725.5,265.0 647.4,290.0 569.3,265.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="647.4" y="265.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli.code_map?</text>
-  <rect x="1492.6" y="1040.0" width="193.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1589.2" y="1065.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse LLM Response</text>
-  <rect x="4577.7" y="880.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="4670.6" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">read input source</text>
-  <rect x="4067.6" y="1040.0" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="4149.4" y="1065.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Diagram::parse</text>
-  <rect x="3697.4" y="880.0" width="230.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="3812.5" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">ServeArgs Configuration</text>
-  <rect x="4067.6" y="1200.0" width="370.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="4253.0" y="1225.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Diagram::render_svg or Diagram::render_png</text>
-  <rect x="1473.4" y="720.0" width="341.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1644.0" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Scan codebase (codemap::scan_codebase)</text>
-  <rect x="248.8" y="720.0" width="171.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="334.3" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_render</text>
-  <rect x="474.5" y="400.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="567.4" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_code_map</text>
-  <rect x="4416.3" y="880.0" width="141.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="4487.0" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">parse_input</text>
-  <rect x="960.3" y="880.0" width="245.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1082.8" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">LLM API Request (reqwest)</text>
-  <polygon points="599.3,560.0 669.3,585.0 599.3,610.0 529.3,585.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="599.3" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli.new?</text>
-  <rect x="4093.5" y="1360.0" width="171.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="4179.0" y="1385.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Write to output</text>
   <rect x="532.3" y="80.0" width="230.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="647.4" y="105.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_render_or_edit</text>
+  <polygon points="647.4,240.0 725.5,265.0 647.4,290.0 569.3,265.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="647.4" y="265.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli.code_map?</text>
+  <rect x="474.5" y="400.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="567.4" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_code_map</text>
+  <polygon points="750.3,400.0 820.3,425.0 750.3,450.0 680.3,425.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="750.3" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli.edit?</text>
+  <rect x="353.1" y="560.0" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="431.2" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_edit</text>
+  <polygon points="599.3,560.0 669.3,585.0 599.3,610.0 529.3,585.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="599.3" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli.new?</text>
+  <rect x="80.0" y="720.0" width="148.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="154.4" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_new</text>
+  <rect x="248.8" y="720.0" width="171.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="334.3" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_render</text>
+  <rect x="1722.9" y="560.0" width="252.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1849.1" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">codemap::generate_code_map</text>
+  <rect x="1473.4" y="720.0" width="341.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1644.0" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Scan codebase (codemap::scan_codebase)</text>
+  <rect x="960.3" y="880.0" width="245.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1082.8" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">LLM API Request (reqwest)</text>
+  <rect x="1492.6" y="1040.0" width="193.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1589.2" y="1065.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse LLM Response</text>
   <rect x="1285.4" y="1200.0" width="400.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="1485.6" y="1225.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Validate Response (codemap::validate_response)</text>
+  <rect x="1459.3" y="1360.0" width="252.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1585.5" y="1385.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Return Mermaid and Mapping</text>
+  <rect x="2724.6" y="720.0" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="2806.4" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">locate_ui_dist</text>
+  <rect x="2908.2" y="720.0" width="230.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="3023.3" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">ServeArgs Configuration</text>
+  <rect x="2115.3" y="880.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="2185.3" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">run_serve</text>
   <rect x="3278.4" y="880.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="3371.3" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">select_graph_type</text>
   <rect x="3484.2" y="880.0" width="193.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="3580.8" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">ensure_unique_path</text>
-  <rect x="2115.3" y="880.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="2185.3" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">run_serve</text>
-  <rect x="1459.3" y="1360.0" width="252.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1585.5" y="1385.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Return Mermaid and Mapping</text>
+  <rect x="3697.4" y="880.0" width="230.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="3812.5" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">ServeArgs Configuration</text>
+  <rect x="4416.3" y="880.0" width="141.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="4487.0" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">parse_input</text>
+  <rect x="4577.7" y="880.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="4670.6" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">read input source</text>
+  <rect x="4067.6" y="1040.0" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="4149.4" y="1065.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Diagram::parse</text>
+  <rect x="4067.6" y="1200.0" width="370.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="4253.0" y="1225.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Diagram::render_svg or Diagram::render_png</text>
+  <rect x="4093.5" y="1360.0" width="171.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="4179.0" y="1385.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Write to output</text>
 </svg>

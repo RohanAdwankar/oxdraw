@@ -36,24 +36,24 @@
   <line x1="1048.6" y1="381.1" x2="1115.2" y2="351.6" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <line x1="1250.4" y1="326.1" x2="1269.4" y2="326.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <polyline points="1323.5,301.1 1102.3,80.0 856.2,80.0 610.1,80.0 384.6,305.4" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <polygon points="363.9,301.1 464.2,326.1 363.9,351.1 263.6,326.1" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="363.9" y="326.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Health Checks Pass?</text>
-  <rect x="484.2" y="381.1" width="193.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="580.8" y="406.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Continuous Monitor</text>
-  <rect x="910.6" y="381.1" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="992.4" y="406.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Follow Runbook</text>
-  <polygon points="794.0,381.1 890.6,406.1 794.0,431.1 697.4,406.1" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="794.0" y="406.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Incident Detected?</text>
-  <rect x="491.6" y="221.1" width="178.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="580.8" y="246.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Trigger Rollback</text>
-  <rect x="1270.4" y="301.1" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1348.5" y="326.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Deploy Hotfix</text>
-  <rect x="723.3" y="221.1" width="141.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="794.0" y="246.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Notify Team</text>
-  <rect x="922.4" y="221.1" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
-  <text x="992.4" y="246.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Stable</text>
-  <rect x="1094.2" y="301.1" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1172.3" y="326.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Create Hotfix</text>
   <rect x="80.0" y="301.1" width="163.6" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
   <text x="161.8" y="326.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Deploy Release</text>
+  <polygon points="363.9,301.1 464.2,326.1 363.9,351.1 263.6,326.1" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="363.9" y="326.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Health Checks Pass?</text>
+  <rect x="491.6" y="221.1" width="178.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="580.8" y="246.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Trigger Rollback</text>
+  <rect x="723.3" y="221.1" width="141.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="794.0" y="246.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Notify Team</text>
+  <rect x="484.2" y="381.1" width="193.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="580.8" y="406.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Continuous Monitor</text>
+  <polygon points="794.0,381.1 890.6,406.1 794.0,431.1 697.4,406.1" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="794.0" y="406.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Incident Detected?</text>
+  <rect x="922.4" y="221.1" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="992.4" y="246.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Stable</text>
+  <rect x="910.6" y="381.1" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="992.4" y="406.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Follow Runbook</text>
+  <rect x="1094.2" y="301.1" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1172.3" y="326.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Create Hotfix</text>
+  <rect x="1270.4" y="301.1" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1348.5" y="326.1" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Deploy Hotfix</text>
 </svg>

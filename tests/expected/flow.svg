@@ -32,14 +32,14 @@
   </g>
   <rect x="240.0" y="80.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="310.0" y="105.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Start</text>
-  <rect x="240.0" y="560.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="310.0" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Python</text>
-  <rect x="80.0" y="560.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Go</text>
-  <rect x="400.0" y="560.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="470.0" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Rust</text>
-  <polygon points="310.0,400.0 380.0,425.0 310.0,450.0 240.0,425.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="310.0" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Lang?</text>
   <rect x="240.0" y="240.0" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
   <text x="310.0" y="265.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Idea</text>
+  <polygon points="310.0,400.0 380.0,425.0 310.0,450.0 240.0,425.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="310.0" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Lang?</text>
+  <rect x="80.0" y="560.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="150.0" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Go</text>
+  <rect x="240.0" y="560.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="310.0" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Python</text>
+  <rect x="400.0" y="560.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="470.0" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Rust</text>
 </svg>

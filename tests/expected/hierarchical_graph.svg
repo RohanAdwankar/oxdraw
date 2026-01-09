@@ -51,21 +51,18 @@
   <text x="198.0" y="189.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Kafka</text>
   <rect x="128.0" y="324.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="198.0" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse Avro</text>
-  <rect x="568.0" y="804.0" width="222.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="679.4" y="829.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Run Analytics Pipeline</text>
   <rect x="288.0" y="164.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fed7aa" stroke="#2d3748" stroke-width="2" />
   <line x1="300.0" y1="164.0" x2="300.0" y2="214.0" stroke="#2d3748" stroke-width="2" />
   <line x1="416.0" y1="164.0" x2="416.0" y2="214.0" stroke="#2d3748" stroke-width="2" />
   <text x="358.0" y="189.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">SQS</text>
+  <rect x="288.0" y="324.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="358.0" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse JSON</text>
   <rect x="188.8" y="484.0" width="178.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="278.0" y="509.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Normalize Events</text>
   <polygon points="859.3,644.0 937.4,669.0 859.3,694.0 781.2,669.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
   <text x="859.3" y="669.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Route By Type</text>
-  <path d="M1610.6,972.3 A85.5,8.3 0 0 1 1781.6,972.3 L1781.6,1005.7 A85.5,8.3 0 0 1 1610.6,1005.7 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
-  <path d="M1610.6,972.3 A85.5,8.3 0 0 1 1781.6,972.3" fill="none" stroke="#2d3748" stroke-width="2" />
-  <text x="1696.1" y="989.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Glacier Storage</text>
-  <rect x="288.0" y="324.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="358.0" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse JSON</text>
+  <rect x="568.0" y="804.0" width="222.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="679.4" y="829.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Run Analytics Pipeline</text>
   <rect x="810.8" y="804.0" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="892.6" y="829.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Trigger Alerts</text>
   <rect x="994.4" y="804.0" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
@@ -74,6 +71,9 @@
   <text x="1360.6" y="989.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Dashboard</text>
   <rect x="1450.6" y="964.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="1520.6" y="989.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Pager</text>
+  <path d="M1610.6,972.3 A85.5,8.3 0 0 1 1781.6,972.3 L1781.6,1005.7 A85.5,8.3 0 0 1 1610.6,1005.7 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
+  <path d="M1610.6,972.3 A85.5,8.3 0 0 1 1781.6,972.3" fill="none" stroke="#2d3748" stroke-width="2" />
+  <text x="1696.1" y="989.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Glacier Storage</text>
   <rect x="1466.1" y="1124.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="1536.1" y="1149.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Users</text>
 </svg>

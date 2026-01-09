@@ -18,28 +18,28 @@
   <line x1="150.0" y1="1114.0" x2="150.0" y2="1227.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <line x1="150.0" y1="1278.0" x2="150.0" y2="1391.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <line x1="150.0" y1="1442.0" x2="150.0" y2="1555.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
-  <polygon points="115.0,408.0 185.0,408.0 220.0,433.0 185.0,458.0 115.0,458.0 80.0,433.0" fill="#fca5a5" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="433.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Prepare</text>
-  <polygon points="80.0,900.0 202.5,900.0 220.0,950.0 97.5,950.0" fill="#a5f3fc" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="925.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Lean</text>
   <rect x="80.0" y="80.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fed7aa" stroke="#2d3748" stroke-width="2" />
   <line x1="92.0" y1="80.0" x2="92.0" y2="130.0" stroke="#2d3748" stroke-width="2" />
   <line x1="208.0" y1="80.0" x2="208.0" y2="130.0" stroke="#2d3748" stroke-width="2" />
   <text x="150.0" y="105.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Subroutine</text>
-  <rect x="80.0" y="1556.0" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="1581.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Terminal</text>
-  <polygon points="97.5,736.0 220.0,736.0 202.5,786.0 80.0,786.0" fill="#c7d2fe" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="761.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Lean</text>
   <path d="M80.0,252.3 A70.0,8.3 0 0 1 220.0,252.3 L220.0,285.7 A70.0,8.3 0 0 1 80.0,285.7 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
   <path d="M80.0,252.3 A70.0,8.3 0 0 1 220.0,252.3" fill="none" stroke="#2d3748" stroke-width="2" />
   <text x="150.0" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Database</text>
-  <polygon points="110.8,1064.0 189.2,1064.0 208.8,1114.0 91.2,1114.0" fill="#fce7f3" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="1089.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Priority</text>
-  <polygon points="80.0,1392.0 197.5,1392.0 220.0,1417.0 197.5,1442.0 80.0,1442.0" fill="#f5d0fe" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="1417.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Skewed</text>
+  <polygon points="115.0,408.0 185.0,408.0 220.0,433.0 185.0,458.0 115.0,458.0 80.0,433.0" fill="#fca5a5" stroke="#2d3748" stroke-width="2" />
+  <text x="150.0" y="433.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Prepare</text>
   <ellipse cx="150.0" cy="597.0" rx="70.0" ry="70.0" fill="#bfdbfe" stroke="#2d3748" stroke-width="2" />
   <ellipse cx="150.0" cy="597.0" rx="64.0" ry="64.0" fill="none" stroke="#2d3748" stroke-width="2" />
   <text x="150.0" y="597.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Stop</text>
+  <polygon points="97.5,736.0 220.0,736.0 202.5,786.0 80.0,786.0" fill="#c7d2fe" stroke="#2d3748" stroke-width="2" />
+  <text x="150.0" y="761.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Lean</text>
+  <polygon points="80.0,900.0 202.5,900.0 220.0,950.0 97.5,950.0" fill="#a5f3fc" stroke="#2d3748" stroke-width="2" />
+  <text x="150.0" y="925.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Lean</text>
+  <polygon points="110.8,1064.0 189.2,1064.0 208.8,1114.0 91.2,1114.0" fill="#fce7f3" stroke="#2d3748" stroke-width="2" />
+  <text x="150.0" y="1089.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Priority</text>
   <polygon points="91.2,1228.0 208.8,1228.0 189.2,1278.0 110.8,1278.0" fill="#fcd5ce" stroke="#2d3748" stroke-width="2" />
   <text x="150.0" y="1253.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Manual</text>
+  <polygon points="80.0,1392.0 197.5,1392.0 220.0,1417.0 197.5,1442.0 80.0,1442.0" fill="#f5d0fe" stroke="#2d3748" stroke-width="2" />
+  <text x="150.0" y="1417.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Skewed</text>
+  <rect x="80.0" y="1556.0" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="150.0" y="1581.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Terminal</text>
 </svg>

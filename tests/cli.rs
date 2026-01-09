@@ -8,6 +8,8 @@ use assert_cmd::cargo::cargo_bin_cmd;
 #[cfg(not(target_arch = "wasm32"))]
 use libtest_mimic::Failed;
 #[cfg(not(target_arch = "wasm32"))]
+use similar_asserts::SimpleDiff;
+#[cfg(not(target_arch = "wasm32"))]
 use tempfile::TempDir;
 
 #[cfg(target_arch = "wasm32")]
@@ -43,10 +45,10 @@ fn main() {
             [
                 libtest_mimic::Trial::test(format!("svg_{stem}"), {
                     let in_path = in_path.clone();
-                    let out_path = manifest_dir
-                        .join("tests/output/svg")
+                    let expected_path = manifest_dir
+                        .join("tests/expected")
                         .join(format!("{stem}.svg"));
-                    move || smoke_test_svg(in_path, out_path)
+                    move || test_svg(in_path, expected_path)
                 }),
                 libtest_mimic::Trial::test(format!("png_{stem}"), {
                     let in_path = in_path.clone();
@@ -61,10 +63,11 @@ fn main() {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn smoke_test_svg(in_path: PathBuf, out_path: PathBuf) -> Result<(), Failed> {
-    if out_path.exists() {
-        fs::remove_file(&out_path)?;
-    }
+fn test_svg(in_path: PathBuf, expected_path: PathBuf) -> Result<(), Failed> {
+    let temp_dir = TempDir::new().expect("create temp dir");
+
+    let stem = in_path.file_stem().unwrap().to_str().unwrap();
+    let out_path = temp_dir.path().join(format!("{stem}.svg"));
 
     let mut cmd = cargo_bin_cmd!("oxdraw");
     cmd.arg("--input")
@@ -76,12 +79,23 @@ fn smoke_test_svg(in_path: PathBuf, out_path: PathBuf) -> Result<(), Failed> {
 
     cmd.assert().success();
 
-    let svg_contents = fs::read_to_string(&out_path)?;
-    assert!(
-        svg_contents.contains("<svg"),
-        "{} output should contain an <svg> element",
-        out_path.display()
-    );
+    let actual = fs::read_to_string(&out_path)?;
+
+    if std::env::var("UPDATE_EXPECTED").is_ok() {
+        fs::write(expected_path, actual)?;
+        return Ok(());
+    }
+
+    let expected = fs::read_to_string(&expected_path)?;
+
+    if expected != actual {
+        let diff = format!(
+            "{}",
+            SimpleDiff::from_str(&actual, &expected, "actual", "expected")
+        );
+        return Err(diff.into());
+    }
+
     Ok(())
 }
 

@@ -42,17 +42,17 @@
   <text x="605.5" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">HTTP API</text>
   <ellipse cx="765.5" cy="269.0" rx="70.0" ry="70.0" fill="#e9d8fd" stroke="#2d3748" stroke-width="2" />
   <text x="765.5" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Task Queue</text>
-  <rect x="255.5" y="244.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="325.5" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">User</text>
+  <polygon points="855.5,244.0 1011.4,244.0 1033.9,269.0 1011.4,294.0 855.5,294.0" fill="#f5d0fe" stroke="#2d3748" stroke-width="2" />
+  <text x="944.7" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Renderer Service</text>
+  <path d="M1062.0,172.3 A70.0,8.3 0 0 1 1202.0,172.3 L1202.0,205.7 A70.0,8.3 0 0 1 1062.0,205.7 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
+  <path d="M1062.0,172.3 A70.0,8.3 0 0 1 1202.0,172.3" fill="none" stroke="#2d3748" stroke-width="2" />
+  <text x="1132.0" y="189.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">S3 Bucket</text>
+  <polygon points="1420.1,324.0 1498.2,349.0 1420.1,374.0 1342.0,349.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="1420.1" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Retry Budget?</text>
   <rect x="1518.2" y="164.0" width="171.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="1603.7" y="189.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">PagerDuty Alert</text>
   <rect x="80.0" y="324.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="150.0" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">CDN</text>
-  <path d="M1062.0,172.3 A70.0,8.3 0 0 1 1202.0,172.3 L1202.0,205.7 A70.0,8.3 0 0 1 1062.0,205.7 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
-  <path d="M1062.0,172.3 A70.0,8.3 0 0 1 1202.0,172.3" fill="none" stroke="#2d3748" stroke-width="2" />
-  <text x="1132.0" y="189.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">S3 Bucket</text>
-  <polygon points="855.5,244.0 1011.4,244.0 1033.9,269.0 1011.4,294.0 855.5,294.0" fill="#f5d0fe" stroke="#2d3748" stroke-width="2" />
-  <text x="944.7" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Renderer Service</text>
-  <polygon points="1420.1,324.0 1498.2,349.0 1420.1,374.0 1342.0,349.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="1420.1" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Retry Budget?</text>
+  <rect x="255.5" y="244.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="325.5" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">User</text>
 </svg>
