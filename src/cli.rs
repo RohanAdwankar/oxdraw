@@ -715,11 +715,20 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
         return Ok(());
     }
 
-    // Create a temporary file for the diagram
-    let temp_dir = std::env::temp_dir().join("oxdraw-codemap");
-    fs::create_dir_all(&temp_dir)?;
-    let diagram_path = temp_dir.join("codemap.mmd");
-    fs::write(&diagram_path, full_content)?;
+    // Persist AI-generated results by default so the user can reopen later without regenerating.
+    // If deterministic mode is used (--no-ai), we keep the previous behavior (temp file).
+    let diagram_path = if cli.no_ai {
+        let temp_dir = std::env::temp_dir().join("oxdraw-codemap");
+        fs::create_dir_all(&temp_dir)?;
+        let diagram_path = temp_dir.join("codemap.mmd");
+        fs::write(&diagram_path, &full_content)?;
+        diagram_path
+    } else {
+        let diagram_path = ensure_unique_path(PathBuf::from("codemap.mmd"));
+        fs::write(&diagram_path, &full_content)?;
+        println!("Saved codemap to {}", diagram_path.display());
+        diagram_path
+    };
 
     let ui_root = locate_ui_dist()?;
     let host = cli.serve_host.unwrap_or_else(|| "127.0.0.1".to_string());
@@ -855,11 +864,10 @@ async fn run_codedown(cli: RenderArgs, codedown_path: String) -> Result<()> {
         return Ok(());
     }
 
-    // Create a temporary file for the codedown
-    let temp_dir = std::env::temp_dir().join("oxdraw-codedown");
-    fs::create_dir_all(&temp_dir)?;
-    let codedown_file_path = temp_dir.join("codedown.md");
+    // Persist AI-generated codedowns by default so the user can reopen later without regenerating.
+    let codedown_file_path = ensure_unique_path(PathBuf::from("codedown.md"));
     fs::write(&codedown_file_path, full_content)?;
+    println!("Codedown saved to {}", codedown_file_path.display());
 
     let ui_root = locate_ui_dist()?;
     let host = cli.serve_host.unwrap_or_else(|| "127.0.0.1".to_string());
