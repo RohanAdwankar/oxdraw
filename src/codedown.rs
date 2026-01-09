@@ -340,7 +340,8 @@ pub async fn augment_markdown_with_mappings(
     // Call AI
     let response_text = call_ai(&prompt, api_key, model, api_url, gemini_key).await?;
 
-    let clean_text = response_text.trim()
+    let clean_text = response_text
+        .trim()
         .trim_start_matches("```json")
         .trim_start_matches("```")
         .trim_end_matches("```")
@@ -406,7 +407,8 @@ async fn call_ai_for_codedown(
             }
         };
 
-        let clean_text = response_text.trim()
+        let clean_text = response_text
+            .trim()
             .trim_start_matches("```json")
             .trim_start_matches("```")
             .trim_end_matches("```")
@@ -584,7 +586,10 @@ fn scan_codebase(path: &Path) -> Result<(Vec<String>, String)> {
         }
 
         let entry_path = entry.path();
-        let ext = entry_path.extension().and_then(|s| s.to_str()).unwrap_or("");
+        let ext = entry_path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
 
         // Only include source code files
         if !matches!(

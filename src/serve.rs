@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::path::Path;
 
 use anyhow::{Context, Result, anyhow, bail};
 use axum::extract::{DefaultBodyLimit, Path as AxumPath, State};
@@ -201,18 +201,24 @@ impl ServeState {
         let diagram = match Diagram::parse(&definition) {
             Ok(d) => d,
             Err(e) => {
-                // If this is a markdown file and we failed to parse as a diagram, 
+                // If this is a markdown file and we failed to parse as a diagram,
                 // return a dummy diagram so the UI can load and switch to codedown mode.
-                let is_md = self.source_path.extension().map_or(false, |ext| ext == "md");
+                let is_md = self
+                    .source_path
+                    .extension()
+                    .map_or(false, |ext| ext == "md");
                 if is_md {
                     let mut nodes = HashMap::new();
-                    nodes.insert("dummy".to_string(), Node {
-                        label: "Loading...".to_string(),
-                        shape: NodeShape::Rectangle,
-                        image: None,
-                        width: NODE_WIDTH,
-                        height: NODE_HEIGHT,
-                    });
+                    nodes.insert(
+                        "dummy".to_string(),
+                        Node {
+                            label: "Loading...".to_string(),
+                            shape: NodeShape::Rectangle,
+                            image: None,
+                            width: NODE_WIDTH,
+                            height: NODE_HEIGHT,
+                        },
+                    );
                     Diagram {
                         direction: Direction::TopDown,
                         nodes,
@@ -530,7 +536,7 @@ async fn open_in_editor(
             {
                 let cmd = format!("cd {:?} && vi +{} {:?}", root, line, payload.path);
                 let escaped_cmd = cmd.replace("\\", "\\\\").replace("\"", "\\\"");
-                
+
                 std::process::Command::new("osascript")
                     .arg("-e")
                     .arg(format!(
@@ -1070,11 +1076,11 @@ async fn get_codemap_file(
 
     // Smart lookup: if the file wasn't found at the exact path, search for it by filename
     let target_name = Path::new(&params.path).file_name().and_then(|n| n.to_str());
-    
+
     if let Some(name) = target_name {
         let root_clone = root.clone();
         let name_string = name.to_string();
-        
+
         // Run blocking search in a separate task
         let found_path = tokio::task::spawn_blocking(move || {
             let mut matches: Vec<PathBuf> = WalkDir::new(&root_clone)
@@ -1091,7 +1097,7 @@ async fn get_codemap_file(
                 .filter(|e| e.file_name().to_string_lossy() == name_string)
                 .map(|e| e.into_path())
                 .collect();
-            
+
             if matches.is_empty() {
                 None
             } else if matches.len() == 1 {
@@ -1107,7 +1113,12 @@ async fn get_codemap_file(
                         a.cmp(b)
                     }
                 });
-                println!("Ambiguous file request '{}'. Found {} matches. Selecting '{}'.", name_string, matches.len(), matches[0].display());
+                println!(
+                    "Ambiguous file request '{}'. Found {} matches. Selecting '{}'.",
+                    name_string,
+                    matches.len(),
+                    matches[0].display()
+                );
                 Some(matches[0].clone())
             }
         })
@@ -1117,16 +1128,25 @@ async fn get_codemap_file(
         if let Some(path) = found_path {
             // Re-verify it is inside root (it should be, since we walked root)
             if !path.starts_with(root) {
-                 return Err((StatusCode::FORBIDDEN, "Resolved path outside root".to_string()));
+                return Err((
+                    StatusCode::FORBIDDEN,
+                    "Resolved path outside root".to_string(),
+                ));
             }
-            let content = tokio::fs::read_to_string(&path)
-                .await
-                .map_err(|e| (StatusCode::NOT_FOUND, format!("Failed to read resolved file: {}", e)))?;
+            let content = tokio::fs::read_to_string(&path).await.map_err(|e| {
+                (
+                    StatusCode::NOT_FOUND,
+                    format!("Failed to read resolved file: {}", e),
+                )
+            })?;
             return Ok(content);
         }
     }
 
-    Err((StatusCode::NOT_FOUND, format!("File not found: {}", params.path)))
+    Err((
+        StatusCode::NOT_FOUND,
+        format!("File not found: {}", params.path),
+    ))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1149,18 +1169,18 @@ async fn get_codemap_search(
         StatusCode::BAD_REQUEST,
         "Code map mode not active".to_string(),
     ))?;
-    
+
     let root_clone = root.clone();
     let query = params.query.clone();
 
     if query.len() < 2 {
-         return Ok(Json(Vec::new()));
+        return Ok(Json(Vec::new()));
     }
 
     let results = tokio::task::spawn_blocking(move || {
         let mut matches = Vec::new();
         let walker = WalkDir::new(&root_clone).into_iter();
-        
+
         for entry in walker.filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
             !matches!(
@@ -1172,11 +1192,11 @@ async fn get_codemap_search(
                 Ok(e) => e,
                 Err(_) => continue,
             };
-            
+
             if !entry.file_type().is_file() {
                 continue;
             }
-            
+
             let path = entry.path();
             // Get relative path
             let relative_path = match path.strip_prefix(&root_clone) {
@@ -1186,7 +1206,19 @@ async fn get_codemap_search(
 
             // Skip binary files and SVG/PNG
             if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                if matches!(ext, "png" | "jpg" | "jpeg" | "gif" | "svg" | "ico" | "woff" | "woff2" | "ttf" | "eot") {
+                if matches!(
+                    ext,
+                    "png"
+                        | "jpg"
+                        | "jpeg"
+                        | "gif"
+                        | "svg"
+                        | "ico"
+                        | "woff"
+                        | "woff2"
+                        | "ttf"
+                        | "eot"
+                ) {
                     continue;
                 }
             }
@@ -1199,7 +1231,7 @@ async fn get_codemap_search(
                             line: i + 1,
                             content: line.trim().to_string(),
                         });
-                        
+
                         if matches.len() >= 200 {
                             return matches;
                         }
