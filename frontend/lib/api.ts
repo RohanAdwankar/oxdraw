@@ -5,9 +5,20 @@ import {
   NodeStyleUpdate,
   StyleUpdate,
   CodeMapMapping,
+  SearchResult,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_OXDRAW_API ?? "http://127.0.0.1:5151";
+
+export async function searchCodebase(query: string): Promise<SearchResult[]> {
+  const response = await fetch(`${API_BASE}/api/codemap/search?query=${encodeURIComponent(query)}`);
+  if (!response.ok) {
+    const text = await response.text();
+    console.error("Search failed:", text);
+    throw new Error(`Failed to search codebase: ${response.statusText}`);
+  }
+  return response.json();
+}
 
 export async function fetchDiagram(): Promise<DiagramData> {
   const response = await fetch(`${API_BASE}/api/diagram`, {
@@ -16,6 +27,8 @@ export async function fetchDiagram(): Promise<DiagramData> {
   });
 
   if (!response.ok) {
+    const text = await response.text();
+    console.error("Fetch diagram failed:", text);
     throw new Error(`Failed to load diagram: ${response.status}`);
   }
 
@@ -221,6 +234,8 @@ export async function updateNodeImage(
 export async function fetchCodeMapMapping(): Promise<CodeMapMapping | null> {
   const response = await fetch(`${API_BASE}/api/codemap/mapping`);
   if (!response.ok) {
+    const text = await response.text();
+    console.error("Fetch mapping failed:", text);
     throw new Error(`Failed to fetch code map mapping: ${response.statusText}`);
   }
   return response.json();

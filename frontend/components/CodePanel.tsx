@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import type { SearchResult } from "../lib/types";
 
 const LINE_HEIGHT_PX = 22;
 const OVERSCAN_ROWS = 60;
@@ -12,6 +13,9 @@ interface CodePanelProps {
   endLine?: number;
   onClose: () => void;
   onLineClick?: (line: number) => void;
+  matchInfo?: { index: number; total: number } | null;
+  onPrevMatch?: () => void;
+  onNextMatch?: () => void;
 }
 
 const getLanguage = (filename: string) => {
@@ -108,6 +112,9 @@ export default function CodePanel({
   endLine,
   onClose,
   onLineClick,
+  matchInfo,
+  onPrevMatch,
+  onNextMatch,
 }: CodePanelProps) {
   const [width, setWidth] = useState(500);
   const [isResizing, setIsResizing] = useState(false);
@@ -255,6 +262,35 @@ export default function CodePanel({
       <div className="panel-header">
         <span className="panel-title">Codebase</span>
         <span className="panel-path">{filePath}</span>
+        {matchInfo && matchInfo.total > 0 ? (
+          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span className="panel-caption">
+              {matchInfo.index + 1}/{matchInfo.total}
+            </span>
+            <button
+              type="button"
+              className="editor-link-button"
+              onClick={onPrevMatch}
+              disabled={!onPrevMatch || matchInfo.total <= 1}
+              aria-label="Previous match"
+              title="Previous match"
+              style={{ padding: "0.25rem 0.55rem" }}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="editor-link-button"
+              onClick={onNextMatch}
+              disabled={!onNextMatch || matchInfo.total <= 1}
+              aria-label="Next match"
+              title="Next match"
+              style={{ padding: "0.25rem 0.55rem" }}
+            >
+              ↓
+            </button>
+          </span>
+        ) : null}
       </div>
       <div
         ref={viewportRef}

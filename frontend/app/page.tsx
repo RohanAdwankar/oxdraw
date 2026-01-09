@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import DiagramCanvas from "../components/DiagramCanvas";
+import MarkdownViewer from "../components/MarkdownViewer";
 import CodePanel from "../components/CodePanel";
 import {
   deleteEdge,
@@ -22,6 +23,7 @@ import {
   fetchCodeMapMapping,
   fetchCodeMapFile,
   openInEditor,
+  searchCodebase,
 } from "../lib/api";
 import {
   DiagramData,
@@ -34,6 +36,7 @@ import {
   Point,
   CodeMapMapping,
   CodeLocation,
+  SearchResult,
 } from "../lib/types";
 
 function hasOverrides(diagram: DiagramData | null): boolean {
@@ -289,9 +292,13 @@ export default function Home() {
   const [dragging, setDragging] = useState(false);
   const [codeMapMapping, setCodeMapMapping] = useState<CodeMapMapping | null>(null);
   const [codeMapMode, setCodeMapMode] = useState(false);
+  const [codedownMode, setCodedownMode] = useState(false);
+  const [markdownContent, setMarkdownContent] = useState<string>("");
   const [selectedFile, setSelectedFile] = useState<{ path: string; content: string } | null>(null);
   const [highlightedLines, setHighlightedLines] = useState<{ start: number; end: number } | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
+  const [activeSearchIndex, setActiveSearchIndex] = useState<number>(0);
   const [leftPanelWidth, setLeftPanelWidth] = useState(280);
   const [isLeftPanelResizing, setIsLeftPanelResizing] = useState(false);
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
@@ -390,6 +397,14 @@ const loadDiagram = useCallback(
       lastSubmittedSource.current = data.source;
       setSourceError(null);
       setSourceSaving(false);
+
+      if (data.sourcePath.endsWith('.md')) {
+        setCodedownMode(true);
+        setMarkdownContent(data.source);
+      } else {
+        setCodedownMode(false);
+      }
+
       setSelectedNodeId((current) =>
         current && data.nodes.some((node) => node.id === current) ? current : null
       );
@@ -968,6 +983,171 @@ const deleteTarget = useCallback(
   [deleteEdge, deleteNode, loadDiagram, saving, sourceSaving]
 );
 
+  const resolveCodeMapPathCandidates = useCallback((rawTarget: string) => {
+    const trimmed = rawTarget.trim().replace(/^`|`$/g, "");
+    const withoutQuery = trimmed.split("?")[0] ?? trimmed;
+    const normalized = withoutQuery.replace(/^\.\//, "");
+
+    const candidates: string[] = [];
+    const add = (value: string) => {
+      const cleaned = value.replace(/^\.\//, "").replace(/^\//, "");
+      if (!cleaned || cleaned.includes("..")) {
+        return;
+      }
+      if (!candidates.includes(cleaned)) {
+        candidates.push(cleaned);
+      }
+    };
+
+    // Strip leading ../ segments (server forbids directory traversal).
+    let stripped = normalized;
+    while (stripped.startsWith("../")) {
+      stripped = stripped.slice(3);
+    }
+    add(stripped);
+
+    // If the authored link looks like a frontend import, try rooting it at frontend/ too.
+    if (!stripped.startsWith("frontend/") && !stripped.startsWith("src/") && !stripped.startsWith("tests/")) {
+      add(`frontend/${stripped}`);
+      add(`frontend/app/${stripped}`);
+    }
+
+    const hasExtension = /\.[a-zA-Z0-9]+$/.test(stripped);
+    if (!hasExtension) {
+      const exts = [".ts", ".tsx", ".js", ".jsx", ".rs", ".md"];
+      for (const ext of exts) {
+        add(`${stripped}${ext}`);
+        add(`frontend/${stripped}${ext}`);
+        add(`frontend/app/${stripped}${ext}`);
+      }
+    }
+
+    return candidates;
+  }, []);
+
+  const navigateToCode = useCallback(
+    (target: string, startLine?: number, endLine?: number, options?: { preserveMatches?: boolean }) => {
+      const candidates = resolveCodeMapPathCandidates(target);
+      const tryFetch = async () => {
+        let lastError: unknown = null;
+        for (const candidate of candidates) {
+          try {
+            const content = await fetchCodeMapFile(candidate);
+            setSelectedFile({ path: candidate, content });
+            if (!options?.preserveMatches) {
+              setSearchResults(null);
+              setActiveSearchIndex(0);
+            }
+            if (startLine && endLine) {
+              setHighlightedLines({ start: startLine, end: endLine });
+            } else if (startLine) {
+              setHighlightedLines({ start: startLine, end: startLine });
+            } else {
+              setHighlightedLines(null);
+            }
+            return;
+          } catch (err) {
+            lastError = err;
+          }
+        }
+
+        // Graceful failure: report once via the existing app error banner.
+        setError(`Could not open referenced file: ${target}`);
+        if (lastError) {
+          // Keep details available for debugging without spamming console.
+          void lastError;
+        }
+      };
+
+      void tryFetch();
+    },
+    [resolveCodeMapPathCandidates]
+  );
+
+  const handleNavigate = useCallback(
+    (target: string, startLine?: number, endLine?: number) => {
+      const isFileLike = target.includes('/') || target.includes('.') || startLine !== undefined;
+
+      if (isFileLike) {
+        navigateToCode(target, startLine, endLine);
+        return;
+      }
+
+      // Prefer the codemap-provided symbol location as the "definition" when present.
+      const mapped = codeMapMapping
+        ? Object.values(codeMapMapping.nodes).find((location) => location.symbol === target)
+        : undefined;
+
+      searchCodebase(target)
+        .then((results) => {
+          if (results.length === 0) {
+            setError(`No matches found for: ${target}`);
+            return;
+          }
+
+          const score = (content: string) => {
+            const line = content;
+            if (line.includes('export') && line.includes(target)) return 100;
+            if (line.includes(`export async function ${target}`)) return 95;
+            if (line.includes(`export function ${target}`)) return 90;
+            if (line.includes(`async function ${target}`)) return 80;
+            if (line.includes(`function ${target}`)) return 75;
+            if (line.includes(`const ${target}`) && line.includes('=') && line.includes('=>')) return 70;
+            if (line.includes(`fn ${target}`)) return 70;
+            return 1;
+          };
+
+          let bestIndex = 0;
+          let bestScore = -1;
+          for (let i = 0; i < results.length; i += 1) {
+            const current = results[i];
+            let currentScore = score(current.content);
+            if (mapped && current.file === mapped.file) {
+              currentScore += 25;
+              if (mapped.start_line && current.line === mapped.start_line) {
+                currentScore += 50;
+              }
+            }
+            if (currentScore > bestScore) {
+              bestScore = currentScore;
+              bestIndex = i;
+            }
+          }
+
+          setSearchResults(results);
+          setActiveSearchIndex(bestIndex);
+          const best = results[bestIndex];
+          navigateToCode(best.file, best.line, best.line, { preserveMatches: true });
+        })
+        .catch(() => setError(`Search failed for: ${target}`));
+    },
+    [navigateToCode, codeMapMapping]
+  );
+
+  const handleResultClick = useCallback((result: SearchResult) => {
+    navigateToCode(result.file, result.line, result.line);
+  }, [navigateToCode]);
+
+  const handlePrevMatch = useCallback(() => {
+    if (!searchResults || searchResults.length === 0) {
+      return;
+    }
+    const nextIndex = (activeSearchIndex - 1 + searchResults.length) % searchResults.length;
+    setActiveSearchIndex(nextIndex);
+    const next = searchResults[nextIndex];
+    navigateToCode(next.file, next.line, next.line, { preserveMatches: true });
+  }, [activeSearchIndex, navigateToCode, searchResults]);
+
+  const handleNextMatch = useCallback(() => {
+    if (!searchResults || searchResults.length === 0) {
+      return;
+    }
+    const nextIndex = (activeSearchIndex + 1) % searchResults.length;
+    setActiveSearchIndex(nextIndex);
+    const next = searchResults[nextIndex];
+    navigateToCode(next.file, next.line, next.line, { preserveMatches: true });
+  }, [activeSearchIndex, navigateToCode, searchResults]);
+
 const handleDeleteSelection = useCallback(async () => {
   if (selectedNodeId) {
     await deleteTarget({ type: "node", id: selectedNodeId });
@@ -1502,28 +1682,39 @@ return (
               </div>
             </aside>
           )}
-            <DiagramCanvas
-              diagram={diagram}
-              onNodeMove={handleNodeMove}
-              onLayoutUpdate={handleLayoutUpdate}
-              onEdgeMove={handleEdgeMove}
-              selectedNodeId={selectedNodeId}
-              selectedEdgeId={selectedEdgeId}
-              onSelectNode={handleSelectNode}
-              onSelectEdge={handleSelectEdge}
-              onDragStateChange={setDragging}
-              onDeleteNode={handleDeleteNodeDirect}
-              onDeleteEdge={handleDeleteEdgeDirect}
-              codeMapMapping={codeMapMapping}
-            />
-            {codeMapMode ? (
+            {codedownMode ? (
+              <MarkdownViewer
+                content={markdownContent}
+                onNavigate={handleNavigate}
+                codeMapMapping={codeMapMapping}
+              />
+            ) : (
+              <DiagramCanvas
+                diagram={diagram}
+                onNodeMove={handleNodeMove}
+                onLayoutUpdate={handleLayoutUpdate}
+                onEdgeMove={handleEdgeMove}
+                selectedNodeId={selectedNodeId}
+                selectedEdgeId={selectedEdgeId}
+                onSelectNode={handleSelectNode}
+                onSelectEdge={handleSelectEdge}
+                onDragStateChange={setDragging}
+                onDeleteNode={handleDeleteNodeDirect}
+                onDeleteEdge={handleDeleteEdgeDirect}
+                codeMapMapping={codeMapMapping}
+              />
+            )}
+            {(codeMapMode || codedownMode) ? (
             <CodePanel
               filePath={selectedFile?.path ?? null}
               content={selectedFile?.content ?? null}
               startLine={highlightedLines?.start}
               endLine={highlightedLines?.end}
-              onClose={() => setSelectedFile(null)}
+              onClose={() => { setSelectedFile(null); setSearchResults(null); setActiveSearchIndex(0); }}
               onLineClick={handleLineClick}
+              matchInfo={searchResults ? { index: activeSearchIndex, total: searchResults.length } : null}
+              onPrevMatch={handlePrevMatch}
+              onNextMatch={handleNextMatch}
             />
           ) : (
             isRightPanelCollapsed ? (

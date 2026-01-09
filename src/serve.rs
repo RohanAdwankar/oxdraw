@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -21,6 +22,7 @@ use tower::ServiceExt;
 use tower::service_fn;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
+use walkdir::WalkDir;
 
 use crate::codemap::CodeMapMapping;
 use crate::diagram::decode_image_dimensions;
@@ -196,7 +198,40 @@ impl ServeState {
             .await
             .with_context(|| format!("failed to read '{}'", self.source_path.display()))?;
         let (definition, _) = split_source_and_overrides(&contents)?;
-        let diagram = Diagram::parse(&definition)?;
+        let diagram = match Diagram::parse(&definition) {
+            Ok(d) => d,
+            Err(e) => {
+                // If this is a markdown file and we failed to parse as a diagram,
+                // return a dummy diagram so the UI can load and switch to codedown mode.
+                let is_md = self
+                    .source_path
+                    .extension()
+                    .map_or(false, |ext| ext == "md");
+                if is_md {
+                    let mut nodes = HashMap::new();
+                    nodes.insert(
+                        "dummy".to_string(),
+                        Node {
+                            label: "Loading...".to_string(),
+                            shape: NodeShape::Rectangle,
+                            image: None,
+                            width: NODE_WIDTH,
+                            height: NODE_HEIGHT,
+                        },
+                    );
+                    Diagram {
+                        direction: Direction::TopDown,
+                        nodes,
+                        order: vec!["dummy".to_string()],
+                        edges: Vec::new(),
+                        subgraphs: Vec::new(),
+                        node_membership: HashMap::new(),
+                    }
+                } else {
+                    return Err(e);
+                }
+            }
+        };
         Ok((contents, diagram))
     }
 
@@ -560,6 +595,7 @@ pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> 
         .route("/api/codemap/mapping", get(get_codemap_mapping))
         .route("/api/codemap/status", get(get_codemap_status))
         .route("/api/codemap/file", get(get_codemap_file))
+        .route("/api/codemap/search", get(get_codemap_search))
         .route("/api/codemap/open", axum::routing::post(open_in_editor))
         .layer(DefaultBodyLimit::max(MAX_IMAGE_REQUEST_BYTES))
         .with_state(state);
@@ -1031,9 +1067,182 @@ async fn get_codemap_file(
         ));
     }
 
-    let content = tokio::fs::read_to_string(&full_path)
-        .await
-        .map_err(|e| (StatusCode::NOT_FOUND, format!("Failed to read file: {}", e)))?;
+    if full_path.exists() {
+        let content = tokio::fs::read_to_string(&full_path)
+            .await
+            .map_err(|e| (StatusCode::NOT_FOUND, format!("Failed to read file: {}", e)))?;
+        return Ok(content);
+    }
 
-    Ok(content)
+    // Smart lookup: if the file wasn't found at the exact path, search for it by filename
+    let target_name = Path::new(&params.path).file_name().and_then(|n| n.to_str());
+
+    if let Some(name) = target_name {
+        let root_clone = root.clone();
+        let name_string = name.to_string();
+
+        // Run blocking search in a separate task
+        let found_path = tokio::task::spawn_blocking(move || {
+            let mut matches: Vec<PathBuf> = WalkDir::new(&root_clone)
+                .into_iter()
+                .filter_entry(|e| {
+                    let name = e.file_name().to_string_lossy();
+                    !matches!(
+                        name.as_ref(),
+                        "node_modules" | "target" | ".git" | "dist" | "build" | ".next" | "out"
+                    )
+                })
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().is_file())
+                .filter(|e| e.file_name().to_string_lossy() == name_string)
+                .map(|e| e.into_path())
+                .collect();
+
+            if matches.is_empty() {
+                None
+            } else if matches.len() == 1 {
+                Some(matches[0].clone())
+            } else {
+                // Sort by depth (shallowest first), then alphabetical
+                matches.sort_by(|a, b| {
+                    let depth_a = a.components().count();
+                    let depth_b = b.components().count();
+                    if depth_a != depth_b {
+                        depth_a.cmp(&depth_b)
+                    } else {
+                        a.cmp(b)
+                    }
+                });
+                println!(
+                    "Ambiguous file request '{}'. Found {} matches. Selecting '{}'.",
+                    name_string,
+                    matches.len(),
+                    matches[0].display()
+                );
+                Some(matches[0].clone())
+            }
+        })
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+        if let Some(path) = found_path {
+            // Re-verify it is inside root (it should be, since we walked root)
+            if !path.starts_with(root) {
+                return Err((
+                    StatusCode::FORBIDDEN,
+                    "Resolved path outside root".to_string(),
+                ));
+            }
+            let content = tokio::fs::read_to_string(&path).await.map_err(|e| {
+                (
+                    StatusCode::NOT_FOUND,
+                    format!("Failed to read resolved file: {}", e),
+                )
+            })?;
+            return Ok(content);
+        }
+    }
+
+    Err((
+        StatusCode::NOT_FOUND,
+        format!("File not found: {}", params.path),
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+struct SearchRequest {
+    query: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SearchResult {
+    file: String,
+    line: usize,
+    content: String,
+}
+
+async fn get_codemap_search(
+    State(state): State<Arc<ServeState>>,
+    axum::extract::Query(params): axum::extract::Query<SearchRequest>,
+) -> Result<Json<Vec<SearchResult>>, (StatusCode, String)> {
+    let root = state.code_map_root.as_ref().ok_or((
+        StatusCode::BAD_REQUEST,
+        "Code map mode not active".to_string(),
+    ))?;
+
+    let root_clone = root.clone();
+    let query = params.query.clone();
+
+    if query.len() < 2 {
+        return Ok(Json(Vec::new()));
+    }
+
+    let results = tokio::task::spawn_blocking(move || {
+        let mut matches = Vec::new();
+        let walker = WalkDir::new(&root_clone).into_iter();
+
+        for entry in walker.filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            !matches!(
+                name.as_ref(),
+                "node_modules" | "target" | ".git" | "dist" | "build" | ".next" | "out"
+            )
+        }) {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
+            if !entry.file_type().is_file() {
+                continue;
+            }
+
+            let path = entry.path();
+            // Get relative path
+            let relative_path = match path.strip_prefix(&root_clone) {
+                Ok(p) => p.to_string_lossy().to_string(),
+                Err(_) => continue,
+            };
+
+            // Skip binary files and SVG/PNG
+            if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                if matches!(
+                    ext,
+                    "png"
+                        | "jpg"
+                        | "jpeg"
+                        | "gif"
+                        | "svg"
+                        | "ico"
+                        | "woff"
+                        | "woff2"
+                        | "ttf"
+                        | "eot"
+                ) {
+                    continue;
+                }
+            }
+
+            if let Ok(content) = std::fs::read_to_string(path) {
+                for (i, line) in content.lines().enumerate() {
+                    if line.contains(&query) {
+                        matches.push(SearchResult {
+                            file: relative_path.clone(),
+                            line: i + 1,
+                            content: line.trim().to_string(),
+                        });
+
+                        if matches.len() >= 200 {
+                            return matches;
+                        }
+                    }
+                }
+            }
+        }
+        matches
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(results))
 }
