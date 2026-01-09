@@ -54,6 +54,9 @@ regex = "1.12.2"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 assert_cmd = "2.1.1"
+libtest-mimic = "0.8.1"
+similar-asserts = "1.7.0"
+tempfile = "3"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
@@ -65,3 +68,8 @@ server = ["axum", "tokio", "tower-http", "tower"]
 [profile.release]
 codegen-units = 1
 lto = true
+
+[[test]]
+name = "cli"
+harness = false
+path = "tests/cli.rs"

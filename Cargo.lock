@@ -441,6 +441,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "escape8259"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5692dd7b5a1978a5aeb0ce83b7655c58ca8efdcb79d21036ea249da95afec2c6"
+
+[[package]]
 name = "euclid"
 version = "0.22.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -980,6 +986,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "libtest-mimic"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5297962ef19edda4ce33aaa484386e0a5b3d7f2f4e037cbeee00503ef6b29d33"
+dependencies = [
+ "anstream",
+ "anstyle",
+ "clap",
+ "escape8259",
+]
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1164,11 +1182,14 @@ dependencies = [
  "clap",
  "dialoguer",
  "directories",
+ "libtest-mimic",
  "regex",
  "reqwest",
  "resvg",
  "serde",
  "serde_json",
+ "similar-asserts",
+ "tempfile",
  "thiserror",
  "tiny-skia",
  "tokio",
@@ -1586,6 +1607,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
 
 [[package]]
+name = "similar"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
+dependencies = [
+ "bstr",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "similar-asserts"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5b441962c817e33508847a22bd82f03a30cff43642dc2fae8b050566121eb9a"
+dependencies = [
+ "console",
+ "similar",
+]
+
+[[package]]
 name = "simplecss"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1996,6 +2037,12 @@ name = "unicode-script"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "383ad40bb927465ec0ce7720e033cb4ca06912855fc35db31b5755d0de75b1ee"
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6ccf251212114b54433ec949fd6a7841275f9ada20dddd2f29e9ceea4501493"
 
 [[package]]
 name = "unicode-vo"

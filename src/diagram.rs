@@ -441,8 +441,9 @@ impl Diagram {
                 svg.push_str("  </g>\n");
             }
         }
+        for id in &self.order {
+            let node = self.nodes.get(id).unwrap();
 
-        for (id, node) in &self.nodes {
             let position = geometry
                 .positions
                 .get(id)
