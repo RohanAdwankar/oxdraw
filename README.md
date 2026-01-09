@@ -52,7 +52,10 @@ oxdraw --code-map ./src/diagram.rs --no-ai --output test.png
 
 ### Have AI Generate a Codedown (Markdown + Code Mappings)
 
-"Codedowns" are Markdown documents that include embedded mapping metadata so the editor can make headings/paragraphs/inline code clickable and jump into the codebase.
+https://github.com/user-attachments/assets/da77a7d0-9c22-4e48-ad8b-b7f29213ba45
+
+"Codedowns" are Markdown documents that include embedded mapping metadata so the editor can make headings/paragraphs/inline code clickable and jump into the codebase. 
+Aside from the explicit mappings, oxdraw will automatically map inline codeblocks to their definitions in the codebase or filenames to the relevant file.
 
 `--codedown-style` selects a built-in prompt preset (architecture/tutorial/api). You can further refine the output by appending extra instructions via `--prompt`.
 
