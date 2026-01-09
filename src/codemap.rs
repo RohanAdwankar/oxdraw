@@ -116,19 +116,19 @@ pub async fn generate_code_map(
 
     let base_prompt = match granularity {
         Granularity::File => "You are an expert software engineer. Analyze the following source file and generate a Mermaid flowchart that explains its internal logic, control flow, and structure.
-        
+
         For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
         Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
         IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
 
         Granularity::Directory => "You are an expert software architect. Analyze the files in the following directory and generate a Mermaid flowchart that explains the relationships and data flow between them.
-        
+
         For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
         Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
         IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
 
         Granularity::Repo => "You are an expert software architect. Analyze the following codebase and generate a Mermaid flowchart that explains the high-level architecture and data flow.
-        
+
         For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
         Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
         IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
@@ -136,7 +136,7 @@ pub async fn generate_code_map(
 
     let mut prompt = format!(
         "{}
-        
+
         Return ONLY a JSON object with the following structure. Do not include other components of mermaid syntax such as as style This is the JSON schema to follow:
         {{
             \"mermaid\": \"graph TD\\n    A[Node Label] --> B[Another Node]\",
