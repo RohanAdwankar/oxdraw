@@ -979,25 +979,20 @@ const deleteTarget = useCallback(
   [deleteEdge, deleteNode, loadDiagram, saving, sourceSaving]
 );
 
-const handleSelectLine = useCallback((lineNumber: number) => {
-  if (!codeMapMapping || !codedownMode) return;
-
-  const lineId = `line_${lineNumber}`;
-  const location = codeMapMapping.nodes[lineId];
-
-  if (location) {
-    fetchCodeMapFile(location.file).then((content) => {
-      setSelectedFile({ path: location.file, content });
-      if (location.start_line && location.end_line) {
-        setHighlightedLines({ start: location.start_line, end: location.end_line });
+const handleNavigate = useCallback((file: string, startLine?: number, endLine?: number) => {
+    fetchCodeMapFile(file).then((content) => {
+      setSelectedFile({ path: file, content });
+      if (startLine && endLine) {
+        setHighlightedLines({ start: startLine, end: endLine });
+      } else if (startLine) {
+        setHighlightedLines({ start: startLine, end: startLine });
       } else {
         setHighlightedLines(null);
       }
     }).catch((err) => {
       console.error('Failed to fetch file:', err);
     });
-  }
-}, [codeMapMapping, codedownMode]);
+  }, []);
 
 const handleDeleteSelection = useCallback(async () => {
   if (selectedNodeId) {
@@ -1536,7 +1531,7 @@ return (
             {codedownMode ? (
               <MarkdownViewer
                 content={markdownContent}
-                onSelectLine={handleSelectLine}
+                onNavigate={handleNavigate}
                 codeMapMapping={codeMapMapping}
               />
             ) : (

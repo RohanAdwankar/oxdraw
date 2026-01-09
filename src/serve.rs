@@ -1076,18 +1076,38 @@ async fn get_codemap_file(
         
         // Run blocking search in a separate task
         let found_path = tokio::task::spawn_blocking(move || {
-            let matches: Vec<PathBuf> = WalkDir::new(&root_clone)
+            let mut matches: Vec<PathBuf> = WalkDir::new(&root_clone)
                 .into_iter()
+                .filter_entry(|e| {
+                    let name = e.file_name().to_string_lossy();
+                    !matches!(
+                        name.as_ref(),
+                        "node_modules" | "target" | ".git" | "dist" | "build" | ".next" | "out"
+                    )
+                })
                 .filter_map(|e| e.ok())
                 .filter(|e| e.file_type().is_file())
                 .filter(|e| e.file_name().to_string_lossy() == name_string)
                 .map(|e| e.into_path())
                 .collect();
             
-            if matches.len() == 1 {
+            if matches.is_empty() {
+                None
+            } else if matches.len() == 1 {
                 Some(matches[0].clone())
             } else {
-                None
+                // Sort by depth (shallowest first), then alphabetical
+                matches.sort_by(|a, b| {
+                    let depth_a = a.components().count();
+                    let depth_b = b.components().count();
+                    if depth_a != depth_b {
+                        depth_a.cmp(&depth_b)
+                    } else {
+                        a.cmp(b)
+                    }
+                });
+                println!("Ambiguous file request '{}'. Found {} matches. Selecting '{}'.", name_string, matches.len(), matches[0].display());
+                Some(matches[0].clone())
             }
         })
         .await

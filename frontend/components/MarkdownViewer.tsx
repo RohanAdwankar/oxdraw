@@ -1,25 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { useCallback, useMemo, useState } from 'react';
+import ReactMarkdown, { Components } from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { CodeMapMapping } from '../lib/types';
 
 interface MarkdownViewerProps {
   content: string;
-  onSelectLine?: (lineNumber: number) => void;
+  onNavigate?: (file: string, startLine?: number, endLine?: number) => void;
   codeMapMapping?: CodeMapMapping | null;
 }
 
 export default function MarkdownViewer({
   content,
-  onSelectLine,
+  onNavigate,
   codeMapMapping,
 }: MarkdownViewerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
-
-  // Split content into lines for click detection
-  const lines = useMemo(() => content.split('\n'), [content]);
 
   // Remove HTML mapping comments from display
   const displayContent = useMemo(() => {
@@ -46,87 +44,176 @@ export default function MarkdownViewer({
     return text.trim();
   }, [content]);
 
-  const handleClick = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (!codeMapMapping || !onSelectLine || !containerRef.current) return;
-
-      // Get the click position relative to the container
-      const rect = containerRef.current.getBoundingClientRect();
-      const clickY = event.clientY - rect.top;
-
-      // Estimate line height (approximate)
-      const lineHeight = 24; // pixels
-      const estimatedLine = Math.floor(clickY / lineHeight) + 1;
-
-      // Check if this line has a mapping
-      const lineId = `line_${estimatedLine}`;
-      if (codeMapMapping.nodes[lineId]) {
-        setSelectedLine(estimatedLine);
-        onSelectLine(estimatedLine);
-      }
+  const hasMappingForLine = useCallback(
+    (line: number) => {
+      if (!codeMapMapping) return false;
+      return !!codeMapMapping.nodes[`line_${line}`];
     },
-    [codeMapMapping, onSelectLine]
+    [codeMapMapping]
   );
 
-  // Highlight lines with mappings
-  const renderMarkdown = useCallback(() => {
-    if (!codeMapMapping) {
-      return <ReactMarkdown>{displayContent}</ReactMarkdown>;
-    }
-
-    // Split into lines and wrap each in a div for click detection
-    const markdownLines = displayContent.split('\n');
-    const lineMapping: { [key: number]: boolean } = {};
-
-    Object.keys(codeMapMapping.nodes).forEach((key) => {
-      const match = key.match(/^line_(\d+)$/);
-      if (match) {
-        lineMapping[parseInt(match[1], 10)] = true;
+  const handleLineClick = useCallback(
+    (line: number) => {
+      if (!onNavigate || !codeMapMapping) return;
+      
+      const mapping = codeMapMapping.nodes[`line_${line}`];
+      if (mapping) {
+        setSelectedLine(line);
+        onNavigate(mapping.file, mapping.start_line, mapping.end_line);
       }
-    });
+    },
+    [codeMapMapping, onNavigate]
+  );
 
-    return (
-      <div className="markdown-lines">
-        {markdownLines.map((line, index) => {
-          const lineNumber = index + 1;
-          const hasMapping = lineMapping[lineNumber];
-          const isSelected = selectedLine === lineNumber;
+  const components: Components = useMemo(
+    () => ({
+      code({ node, inline, className, children, ...props }: any) {
+        const match = /language-(\w+)/.exec(className || '');
+        const line = node?.position?.start.line;
+        const hasMapping = line ? hasMappingForLine(line) : false;
+        const isSelected = selectedLine === line;
 
+        if (!inline && match) {
           return (
             <div
-              key={index}
-              className={`markdown-line ${hasMapping ? 'has-mapping' : ''} ${
-                isSelected ? 'selected' : ''
-              }`}
-              onClick={() => {
-                if (hasMapping && onSelectLine) {
-                  setSelectedLine(lineNumber);
-                  onSelectLine(lineNumber);
-                }
+              onClick={(e) => {
+                e.stopPropagation();
+                if (line) handleLineClick(line);
               }}
               style={{
                 cursor: hasMapping ? 'pointer' : 'default',
-                backgroundColor: isSelected
-                  ? 'rgba(255, 255, 0, 0.2)'
+                borderLeft: isSelected
+                  ? '3px solid #ECC94B'
                   : hasMapping
-                  ? 'rgba(66, 153, 225, 0.05)'
-                  : 'transparent',
-                padding: '2px 8px',
-                borderLeft: hasMapping ? '3px solid #4299e1' : '3px solid transparent',
-                transition: 'background-color 0.15s ease',
+                  ? '3px solid #4299e1'
+                  : '3px solid transparent',
+                paddingLeft: hasMapping ? '4px' : '0',
+                margin: '1em 0',
               }}
             >
-              <ReactMarkdown>{line}</ReactMarkdown>
+              <SyntaxHighlighter
+                style={vscDarkPlus}
+                language={match[1]}
+                PreTag="div"
+                {...props}
+              >
+                {String(children).replace(/\n$/, '')}
+              </SyntaxHighlighter>
             </div>
           );
-        })}
-      </div>
-    );
-  }, [displayContent, codeMapMapping, selectedLine, onSelectLine]);
+        } else if (inline) {
+            const text = String(children).trim();
+            // Check for file extension (basic heuristic)
+            if (/\.[a-zA-Z0-9]+$/.test(text)) {
+                 return (
+                    <code 
+                        className={className} 
+                        {...props} 
+                        onClick={(e) => { e.stopPropagation(); onNavigate && onNavigate(text); }}
+                        style={{cursor: 'pointer', color: '#3182ce', textDecoration: 'underline'}}
+                    >
+                        {children}
+                    </code>
+                 );
+            }
+            // Check for symbol match
+            if (codeMapMapping) {
+                const found = Object.values(codeMapMapping.nodes).find(n => n.symbol === text);
+                if (found) {
+                     return (
+                        <code 
+                            className={className} 
+                            {...props} 
+                            onClick={(e) => { e.stopPropagation(); onNavigate && onNavigate(found.file, found.start_line, found.end_line); }}
+                            style={{cursor: 'pointer', color: '#3182ce', textDecoration: 'underline'}}
+                        >
+                            {children}
+                        </code>
+                     );
+                }
+            }
+        }
+        
+        return (
+          <code className={className} {...props}>
+            {children}
+          </code>
+        );
+      },
+      p: ({ node, children }) => {
+        const line = node?.position?.start.line;
+        const hasMapping = line ? hasMappingForLine(line) : false;
+        const isSelected = selectedLine === line;
+        return (
+          <p
+            onClick={(e) => {
+              e.stopPropagation();
+              if (line) handleLineClick(line);
+            }}
+            className={hasMapping ? 'has-mapping' : ''}
+            style={{
+              cursor: hasMapping ? 'pointer' : 'default',
+              backgroundColor: isSelected
+                ? 'rgba(255, 255, 0, 0.1)'
+                : hasMapping
+                ? 'rgba(66, 153, 225, 0.05)'
+                : 'transparent',
+              padding: '2px 8px',
+              borderLeft: isSelected
+                ? '3px solid #ECC94B'
+                : hasMapping
+                ? '3px solid #4299e1'
+                : '3px solid transparent',
+              transition: 'background-color 0.15s ease',
+            }}
+          >
+            {children}
+          </p>
+        );
+      },
+      // Headers
+      h1: ({ node, children }) => {
+        const line = node?.position?.start.line;
+        const hasMapping = line ? hasMappingForLine(line) : false;
+        return (
+          <h1
+            onClick={() => line && handleLineClick(line)}
+            style={{ cursor: hasMapping ? 'pointer' : 'default' }}
+          >
+            {children}
+          </h1>
+        );
+      },
+      h2: ({ node, children }) => {
+        const line = node?.position?.start.line;
+        const hasMapping = line ? hasMappingForLine(line) : false;
+        return (
+          <h2
+            onClick={() => line && handleLineClick(line)}
+            style={{ cursor: hasMapping ? 'pointer' : 'default' }}
+          >
+            {children}
+          </h2>
+        );
+      },
+      h3: ({ node, children }) => {
+        const line = node?.position?.start.line;
+        const hasMapping = line ? hasMappingForLine(line) : false;
+        return (
+          <h3
+            onClick={() => line && handleLineClick(line)}
+            style={{ cursor: hasMapping ? 'pointer' : 'default' }}
+          >
+            {children}
+          </h3>
+        );
+      },
+    }),
+    [hasMappingForLine, handleLineClick, selectedLine, codeMapMapping, onNavigate]
+  );
 
   return (
     <div
-      ref={containerRef}
       className="markdown-viewer"
       style={{
         width: '100%',
@@ -160,25 +247,13 @@ export default function MarkdownViewer({
           line-height: 1.6;
           color: #2d3748;
         }
-        .markdown-viewer :global(code) {
+        .markdown-viewer :global(code):not(pre code) {
           background-color: #f7fafc;
           padding: 2px 6px;
           border-radius: 3px;
           font-family: 'Courier New', monospace;
           font-size: 0.9em;
           color: #e53e3e;
-        }
-        .markdown-viewer :global(pre) {
-          background-color: #f7fafc;
-          padding: 12px;
-          border-radius: 6px;
-          overflow-x: auto;
-          margin: 0.75rem 0;
-        }
-        .markdown-viewer :global(pre code) {
-          background-color: transparent;
-          padding: 0;
-          color: #2d3748;
         }
         .markdown-viewer :global(ul),
         .markdown-viewer :global(ol) {
@@ -226,13 +301,8 @@ export default function MarkdownViewer({
         .markdown-line.has-mapping:hover {
           background-color: rgba(66, 153, 225, 0.1) !important;
         }
-        .markdown-lines {
-          font-size: 15px;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-            'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-        }
       `}</style>
-      {renderMarkdown()}
+      <ReactMarkdown components={components}>{displayContent}</ReactMarkdown>
     </div>
   );
 }

@@ -117,6 +117,7 @@ export interface CodeLocation {
   file: string;
   start_line?: number;
   end_line?: number;
+  symbol?: string;
 }
 
 export interface CodeMapMapping {

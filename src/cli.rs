@@ -749,18 +749,18 @@ async fn run_codedown(cli: RenderArgs, codedown_path: String) -> Result<()> {
                     if meta_path.is_absolute() && meta_path.exists() {
                         Some(meta_path)
                     } else {
-                        // Resolve relative to the markdown file location
-                        let input_dir = path.parent().unwrap_or(Path::new("."));
-                        let resolved_relative = input_dir.join(&meta_path);
-                        if resolved_relative.exists() {
-                            Some(resolved_relative)
+                        // First, try relative to current working directory (where oxdraw was called)
+                        if meta_path.exists() {
+                            Some(meta_path)
+                        } else if path_str.is_empty() {
+                            // If path is empty, assume current directory
+                            Some(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
                         } else {
-                            // Fallback: try relative to current working directory
-                            if meta_path.exists() {
-                                Some(meta_path)
-                            } else if path_str.is_empty() {
-                                // If path is empty, assume current directory
-                                Some(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+                            // Fallback: Resolve relative to the markdown file location
+                            let input_dir = path.parent().unwrap_or(Path::new("."));
+                            let resolved_relative = input_dir.join(&meta_path);
+                            if resolved_relative.exists() {
+                                Some(resolved_relative)
                             } else {
                                 None
                             }
