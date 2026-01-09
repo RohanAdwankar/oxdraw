@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { CodeLocation, CodeMapMapping } from '../lib/types';
 
 interface MarkdownViewerProps {
@@ -18,6 +18,21 @@ export default function MarkdownViewer({
   codeMapMapping,
 }: MarkdownViewerProps) {
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+          setIsDark(document.body.getAttribute('data-theme') === 'dark');
+        }
+      });
+    });
+
+    observer.observe(document.body, { attributes: true });
+    setIsDark(document.body.getAttribute('data-theme') === 'dark');
+    return () => observer.disconnect();
+  }, []);
 
   const symbolIndex = useMemo(() => {
     if (!codeMapMapping) {
@@ -111,11 +126,12 @@ export default function MarkdownViewer({
                 : '3px solid transparent',
               paddingLeft: hasMapping ? '4px' : '0',
               margin: '1em 0',
+              background: 'transparent',
             }}
           >
             {match ? (
               <SyntaxHighlighter
-                style={vscDarkPlus}
+                style={isDark ? oneDark : oneLight}
                 language={match[1]}
                 PreTag="div"
                 {...props}
@@ -251,7 +267,8 @@ export default function MarkdownViewer({
         height: '100%',
         overflow: 'auto',
         padding: '24px',
-        backgroundColor: '#ffffff',
+        background: 'var(--bg-primary)',
+        color: 'var(--text-primary)',
       }}
     >
       <style jsx>{`
@@ -259,32 +276,32 @@ export default function MarkdownViewer({
           font-size: 2rem;
           font-weight: bold;
           margin: 1.5rem 0 1rem 0;
-          color: #1a202c;
+          color: var(--text-primary);
         }
         .markdown-viewer :global(h2) {
           font-size: 1.5rem;
           font-weight: bold;
           margin: 1.25rem 0 0.75rem 0;
-          color: #2d3748;
+          color: var(--text-primary);
         }
         .markdown-viewer :global(h3) {
           font-size: 1.25rem;
           font-weight: bold;
           margin: 1rem 0 0.5rem 0;
-          color: #2d3748;
+          color: var(--text-primary);
         }
         .markdown-viewer :global(p) {
           margin: 0.5rem 0;
           line-height: 1.6;
-          color: #2d3748;
+          color: var(--text-primary);
         }
         .markdown-viewer :global(code):not(pre code) {
-          background-color: #f7fafc;
+          background: var(--bg-tertiary);
           padding: 2px 6px;
           border-radius: 3px;
           font-family: 'Courier New', monospace;
           font-size: 0.9em;
-          color: #e53e3e;
+          color: var(--text-primary);
         }
         .markdown-viewer :global(ul),
         .markdown-viewer :global(ol) {
@@ -296,22 +313,22 @@ export default function MarkdownViewer({
           line-height: 1.6;
         }
         .markdown-viewer :global(blockquote) {
-          border-left: 4px solid #e2e8f0;
+          border-left: 4px solid var(--border-color);
           padding-left: 1rem;
           margin: 0.75rem 0;
-          color: #4a5568;
+          color: var(--text-secondary);
           font-style: italic;
         }
         .markdown-viewer :global(a) {
-          color: #3182ce;
+          color: var(--accent-primary);
           text-decoration: underline;
         }
         .markdown-viewer :global(a:hover) {
-          color: #2c5aa0;
+          color: var(--accent-hover);
         }
         .markdown-viewer :global(hr) {
           border: none;
-          border-top: 1px solid #e2e8f0;
+          border-top: 1px solid var(--border-color);
           margin: 1.5rem 0;
         }
         .markdown-viewer :global(table) {
@@ -321,12 +338,12 @@ export default function MarkdownViewer({
         }
         .markdown-viewer :global(th),
         .markdown-viewer :global(td) {
-          border: 1px solid #e2e8f0;
+          border: 1px solid var(--border-color);
           padding: 8px 12px;
           text-align: left;
         }
         .markdown-viewer :global(th) {
-          background-color: #f7fafc;
+          background: var(--bg-secondary);
           font-weight: bold;
         }
         .markdown-line.has-mapping:hover {

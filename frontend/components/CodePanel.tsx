@@ -13,8 +13,9 @@ interface CodePanelProps {
   endLine?: number;
   onClose: () => void;
   onLineClick?: (line: number) => void;
-  searchResults?: SearchResult[] | null;
-  onResultClick?: (result: SearchResult) => void;
+  matchInfo?: { index: number; total: number } | null;
+  onPrevMatch?: () => void;
+  onNextMatch?: () => void;
 }
 
 const getLanguage = (filename: string) => {
@@ -111,8 +112,9 @@ export default function CodePanel({
   endLine,
   onClose,
   onLineClick,
-  searchResults,
-  onResultClick,
+  matchInfo,
+  onPrevMatch,
+  onNextMatch,
 }: CodePanelProps) {
   const [width, setWidth] = useState(500);
   const [isResizing, setIsResizing] = useState(false);
@@ -210,62 +212,6 @@ export default function CodePanel({
     );
   }
 
-  if (searchResults && searchResults.length > 0) {
-    return (
-      <aside className="code-panel" style={{ width }}>
-        <div
-          className="resize-handle"
-          onMouseDown={startResizing}
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: "8px",
-            cursor: "col-resize",
-            zIndex: 10,
-            background: "transparent",
-          }}
-        />
-        <button className="collapse-button right" onClick={() => setIsCollapsed(true)} title="Collapse Code Panel">
-          ›
-        </button>
-        <div className="panel-header">
-          <span className="panel-title">Search Results</span>
-          <span className="panel-caption">{searchResults.length} matches</span>
-        </div>
-        <div className="search-results" style={{ flex: 1, overflow: "auto", padding: "12px" }}>
-          {searchResults.map((result, idx) => (
-            <div
-              key={idx}
-              className="search-result-item"
-              onClick={() => onResultClick?.(result)}
-              style={{
-                marginBottom: "12px",
-                cursor: "pointer",
-                padding: "8px",
-                borderRadius: "4px",
-                backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
-              }}
-            >
-              <div style={{ fontSize: "0.85rem", fontWeight: "bold", marginBottom: "4px", color: "var(--text-primary)" }}>
-                {result.file}:{result.line}
-              </div>
-              <div style={{
-                fontSize: "0.8rem",
-                fontFamily: '"JetBrains Mono", monospace',
-                whiteSpace: "pre-wrap",
-                color: "var(--text-secondary)"
-              }}>
-                {result.content.trim()}
-              </div>
-            </div>
-          ))}
-        </div>
-      </aside>
-    );
-  }
-
   if (!filePath) {
     return (
       <aside className="code-panel empty" style={{ width }}>
@@ -316,6 +262,35 @@ export default function CodePanel({
       <div className="panel-header">
         <span className="panel-title">Codebase</span>
         <span className="panel-path">{filePath}</span>
+        {matchInfo && matchInfo.total > 0 ? (
+          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span className="panel-caption">
+              {matchInfo.index + 1}/{matchInfo.total}
+            </span>
+            <button
+              type="button"
+              className="editor-link-button"
+              onClick={onPrevMatch}
+              disabled={!onPrevMatch || matchInfo.total <= 1}
+              aria-label="Previous match"
+              title="Previous match"
+              style={{ padding: "0.25rem 0.55rem" }}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="editor-link-button"
+              onClick={onNextMatch}
+              disabled={!onNextMatch || matchInfo.total <= 1}
+              aria-label="Next match"
+              title="Next match"
+              style={{ padding: "0.25rem 0.55rem" }}
+            >
+              ↓
+            </button>
+          </span>
+        ) : null}
       </div>
       <div
         ref={viewportRef}
