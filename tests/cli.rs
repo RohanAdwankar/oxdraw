@@ -112,7 +112,8 @@ fn smoke_test_png(in_path: PathBuf) -> Result<(), Failed> {
         .arg("--output")
         .arg(&out_path)
         .arg("--output-format")
-        .arg("png");
+        .arg("png")
+        .arg("--scale=1"); // greatly speeds up tests
 
     cmd.assert().success();
 
