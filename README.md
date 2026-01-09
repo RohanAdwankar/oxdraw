@@ -50,6 +50,46 @@ oxdraw --code-map ./ --gemini YOUR_API_KEY
 oxdraw --code-map ./src/diagram.rs --no-ai --output test.png
 ```
 
+### Have AI Generate a Codedown (Markdown + Code Mappings)
+
+"Codedowns" are Markdown documents that include embedded mapping metadata so the editor can make headings/paragraphs/inline code clickable and jump into the codebase.
+
+`--codedown-style` selects a built-in prompt preset (architecture/tutorial/api). You can further refine the output by appending extra instructions via `--prompt`.
+
+```bash
+# Generate a codedown from a repo and launch the viewer
+oxdraw --codedown ./ --gemini YOUR_API_KEY
+
+# Same, but with extra instructions appended to a preset prompt
+oxdraw --codedown ./ --codedown-style architecture --gemini YOUR_API_KEY --prompt "Focus on auth + request lifecycle"
+
+# Save the codedown to a file instead of launching the viewer
+oxdraw --codedown ./ --codedown-style api --gemini YOUR_API_KEY --output docs/architecture.md
+
+# Print the codedown to stdout
+oxdraw --codedown ./ --gemini YOUR_API_KEY --output -
+```
+
+### Augment an Existing Markdown File With Code Mappings
+
+If you already have a markdown doc (e.g. `docs/notes.md`) and want to add mappings so it becomes clickable in the viewer:
+
+```bash
+# Produces docs/notes-mapped.md by default
+oxdraw --augment-markdown docs/notes.md --repo-path . --gemini YOUR_API_KEY
+
+# Or explicitly write to a file
+oxdraw --augment-markdown docs/notes.md --repo-path . --gemini YOUR_API_KEY --output docs/notes.codedown.md
+```
+
+### View a Codedown
+
+If you pass a `.md` file via `--input` and it contains codedown mappings, `oxdraw` will open it in the codedown viewer.
+
+```bash
+oxdraw --input docs/architecture.md
+```
+
 ## Features
 
 ### CLI Flags
@@ -67,11 +107,18 @@ oxdraw --code-map ./src/diagram.rs --no-ai --output test.png
 | `-q, --quiet` | Suppress informational stdout such as the success message after rendering to disk. |
 | `-n, --new` | Create new mermaid file and serves for editing. |
 | `--code-map <PATH>` | Generate a code map from the given codebase path. |
+| `--codedown <PATH>` | Generate a codedown (markdown with code mappings) from the given codebase path (launches viewer unless `--output` is set). |
+| `--codedown-style <STYLE>` | Documentation style for codedown generation: `architecture`, `tutorial`, or `api` (requires `--codedown`). |
+| `--augment-markdown <PATH>` | Augment an existing markdown file with code mappings (writes to `--output` or defaults to `<stem>-mapped.md`). |
+| `--repo-path <PATH>` | Repository path used by `--augment-markdown` (defaults to current directory). |
 | `--api-key <KEY>` | API Key for the LLM (optional, defaults to environment variable if not set). |
-| `--model <MODEL>` | Model to use for code map generation. |
+| `--model <MODEL>` | Model to use for AI-backed generation (codemap/codedown/augment-markdown). |
 | `--api-url <URL>` | API URL for the LLM. |
-| `--regen` | Force regeneration of the code map even if a cache exists. |
-| `--prompt <PROMPT>` | Custom prompt to append to the LLM instructions. |
+| `--regen` | Force regeneration even if a cache exists (codemap/codedown). |
+| `--prompt <PROMPT>` | Extra instructions appended to the AI prompt (codemap/codedown). |
+| `--no-ai` | Use deterministic generation instead of AI (only for `--code-map`). |
+| `--max-nodes <N>` | Maximum number of nodes to generate in deterministic mode (default `20`). |
+| `--gemini <KEY>` | Use Google Gemini API with the provided key (conflicts with `--api-key`). |
 
 ### Frontend Features
 
