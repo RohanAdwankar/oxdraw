@@ -113,6 +113,12 @@ export interface StyleUpdate {
   edgeStyles?: Record<string, EdgeStyleUpdate | null | undefined>;
 }
 
+export interface SearchResult {
+  file: string;
+  line: number;
+  content: string;
+}
+
 export interface CodeLocation {
   file: string;
   start_line?: number;

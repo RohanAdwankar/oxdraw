@@ -589,6 +589,7 @@ pub async fn run_serve(args: ServeArgs, ui_root: Option<PathBuf>) -> Result<()> 
         .route("/api/codemap/mapping", get(get_codemap_mapping))
         .route("/api/codemap/status", get(get_codemap_status))
         .route("/api/codemap/file", get(get_codemap_file))
+        .route("/api/codemap/search", get(get_codemap_search))
         .route("/api/codemap/open", axum::routing::post(open_in_editor))
         .layer(DefaultBodyLimit::max(MAX_IMAGE_REQUEST_BYTES))
         .with_state(state);
@@ -1126,4 +1127,90 @@ async fn get_codemap_file(
     }
 
     Err((StatusCode::NOT_FOUND, format!("File not found: {}", params.path)))
+}
+
+#[derive(Debug, Deserialize)]
+struct SearchRequest {
+    query: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SearchResult {
+    file: String,
+    line: usize,
+    content: String,
+}
+
+async fn get_codemap_search(
+    State(state): State<Arc<ServeState>>,
+    axum::extract::Query(params): axum::extract::Query<SearchRequest>,
+) -> Result<Json<Vec<SearchResult>>, (StatusCode, String)> {
+    let root = state.code_map_root.as_ref().ok_or((
+        StatusCode::BAD_REQUEST,
+        "Code map mode not active".to_string(),
+    ))?;
+    
+    let root_clone = root.clone();
+    let query = params.query.clone();
+
+    if query.len() < 2 {
+         return Ok(Json(Vec::new()));
+    }
+
+    let results = tokio::task::spawn_blocking(move || {
+        let mut matches = Vec::new();
+        let walker = WalkDir::new(&root_clone).into_iter();
+        
+        for entry in walker.filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            !matches!(
+                name.as_ref(),
+                "node_modules" | "target" | ".git" | "dist" | "build" | ".next" | "out"
+            )
+        }) {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+            
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            
+            let path = entry.path();
+            // Get relative path
+            let relative_path = match path.strip_prefix(&root_clone) {
+                Ok(p) => p.to_string_lossy().to_string(),
+                Err(_) => continue,
+            };
+
+            // Skip binary files and SVG/PNG
+            if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                if matches!(ext, "png" | "jpg" | "jpeg" | "gif" | "svg" | "ico" | "woff" | "woff2" | "ttf" | "eot") {
+                    continue;
+                }
+            }
+
+            if let Ok(content) = std::fs::read_to_string(path) {
+                for (i, line) in content.lines().enumerate() {
+                    if line.contains(&query) {
+                        matches.push(SearchResult {
+                            file: relative_path.clone(),
+                            line: i + 1,
+                            content: line.trim().to_string(),
+                        });
+                        
+                        if matches.len() >= 200 {
+                            return matches;
+                        }
+                    }
+                }
+            }
+        }
+        matches
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(results))
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import type { SearchResult } from "../lib/types";
 
 const LINE_HEIGHT_PX = 22;
 const OVERSCAN_ROWS = 60;
@@ -12,6 +13,8 @@ interface CodePanelProps {
   endLine?: number;
   onClose: () => void;
   onLineClick?: (line: number) => void;
+  searchResults?: SearchResult[] | null;
+  onResultClick?: (result: SearchResult) => void;
 }
 
 const getLanguage = (filename: string) => {
@@ -108,6 +111,8 @@ export default function CodePanel({
   endLine,
   onClose,
   onLineClick,
+  searchResults,
+  onResultClick,
 }: CodePanelProps) {
   const [width, setWidth] = useState(500);
   const [isResizing, setIsResizing] = useState(false);
@@ -202,6 +207,62 @@ export default function CodePanel({
       <div className="collapse-button collapsed-right" onClick={() => setIsCollapsed(false)} title="Expand Code Panel">
         ‹
       </div>
+    );
+  }
+
+  if (searchResults && searchResults.length > 0) {
+    return (
+      <aside className="code-panel" style={{ width }}>
+        <div
+          className="resize-handle"
+          onMouseDown={startResizing}
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: "8px",
+            cursor: "col-resize",
+            zIndex: 10,
+            background: "transparent",
+          }}
+        />
+        <button className="collapse-button right" onClick={() => setIsCollapsed(true)} title="Collapse Code Panel">
+          ›
+        </button>
+        <div className="panel-header">
+          <span className="panel-title">Search Results</span>
+          <span className="panel-caption">{searchResults.length} matches</span>
+        </div>
+        <div className="search-results" style={{ flex: 1, overflow: "auto", padding: "12px" }}>
+          {searchResults.map((result, idx) => (
+            <div
+              key={idx}
+              className="search-result-item"
+              onClick={() => onResultClick?.(result)}
+              style={{
+                marginBottom: "12px",
+                cursor: "pointer",
+                padding: "8px",
+                borderRadius: "4px",
+                backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
+              }}
+            >
+              <div style={{ fontSize: "0.85rem", fontWeight: "bold", marginBottom: "4px", color: "var(--text-primary)" }}>
+                {result.file}:{result.line}
+              </div>
+              <div style={{
+                fontSize: "0.8rem",
+                fontFamily: '"JetBrains Mono", monospace',
+                whiteSpace: "pre-wrap",
+                color: "var(--text-secondary)"
+              }}>
+                {result.content.trim()}
+              </div>
+            </div>
+          ))}
+        </div>
+      </aside>
     );
   }
 

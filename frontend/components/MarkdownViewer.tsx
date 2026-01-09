@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import type { CodeMapMapping } from '../lib/types';
+import type { CodeLocation, CodeMapMapping } from '../lib/types';
 
 interface MarkdownViewerProps {
   content: string;
@@ -18,6 +18,20 @@ export default function MarkdownViewer({
   codeMapMapping,
 }: MarkdownViewerProps) {
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
+
+  const symbolIndex = useMemo(() => {
+    if (!codeMapMapping) {
+      return null;
+    }
+
+    const index = new Map<string, CodeLocation>();
+    for (const location of Object.values(codeMapMapping.nodes)) {
+      if (location.symbol && !index.has(location.symbol)) {
+        index.set(location.symbol, location);
+      }
+    }
+    return index;
+  }, [codeMapMapping]);
 
   // Remove HTML mapping comments from display
   const displayContent = useMemo(() => {
@@ -67,73 +81,90 @@ export default function MarkdownViewer({
 
   const components: Components = useMemo(
     () => ({
-      code({ node, inline, className, children, ...props }: any) {
-        const match = /language-(\w+)/.exec(className || '');
-        const line = node?.position?.start.line;
+      pre: ({ node, children, ...props }: any) => {
+        const line = node?.position?.start?.line;
         const hasMapping = line ? hasMappingForLine(line) : false;
-        const isSelected = selectedLine === line;
+        const isSelected = line ? selectedLine === line : false;
 
-        if (!inline && match) {
-          return (
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                if (line) handleLineClick(line);
-              }}
-              style={{
-                cursor: hasMapping ? 'pointer' : 'default',
-                borderLeft: isSelected
-                  ? '3px solid #ECC94B'
-                  : hasMapping
-                  ? '3px solid #4299e1'
-                  : '3px solid transparent',
-                paddingLeft: hasMapping ? '4px' : '0',
-                margin: '1em 0',
-              }}
-            >
+        const firstChild = Array.isArray(children) ? children[0] : children;
+        const codeElement = React.isValidElement(firstChild) ? (firstChild as any) : null;
+        const codeClassName = codeElement?.props?.className as string | undefined;
+        const match = /language-(\w+)/.exec(codeClassName ?? '');
+        const rawCode = codeElement?.props?.children;
+        const codeText = typeof rawCode === 'string' ? rawCode : Array.isArray(rawCode) ? rawCode.join('') : String(rawCode ?? '');
+        const normalizedCode = codeText.replace(/\n$/, '');
+
+        return (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              if (line) {
+                handleLineClick(line);
+              }
+            }}
+            style={{
+              cursor: hasMapping ? 'pointer' : 'default',
+              borderLeft: isSelected
+                ? '3px solid #ECC94B'
+                : hasMapping
+                ? '3px solid #4299e1'
+                : '3px solid transparent',
+              paddingLeft: hasMapping ? '4px' : '0',
+              margin: '1em 0',
+            }}
+          >
+            {match ? (
               <SyntaxHighlighter
                 style={vscDarkPlus}
                 language={match[1]}
                 PreTag="div"
                 {...props}
               >
-                {String(children).replace(/\n$/, '')}
+                {normalizedCode}
               </SyntaxHighlighter>
-            </div>
-          );
-        } else if (inline) {
-            const text = String(children).trim();
-            // Check for file extension (basic heuristic)
-            if (/\.[a-zA-Z0-9]+$/.test(text)) {
-                 return (
-                    <code 
-                        className={className} 
-                        {...props} 
-                        onClick={(e) => { e.stopPropagation(); onNavigate && onNavigate(text); }}
-                        style={{cursor: 'pointer', color: '#3182ce', textDecoration: 'underline'}}
-                    >
-                        {children}
-                    </code>
-                 );
-            }
-            // Check for symbol match
-            if (codeMapMapping) {
-                const found = Object.values(codeMapMapping.nodes).find(n => n.symbol === text);
-                if (found) {
-                     return (
-                        <code 
-                            className={className} 
-                            {...props} 
-                            onClick={(e) => { e.stopPropagation(); onNavigate && onNavigate(found.file, found.start_line, found.end_line); }}
-                            style={{cursor: 'pointer', color: '#3182ce', textDecoration: 'underline'}}
-                        >
-                            {children}
-                        </code>
-                     );
+            ) : (
+              <pre {...props}>
+                <code className={codeClassName}>{normalizedCode}</code>
+              </pre>
+            )}
+          </div>
+        );
+      },
+      code({ className, children, ...props }: any) {
+        const text = String(children).trim();
+        const hasFileExtension = /\.[a-zA-Z0-9]+$/.test(text);
+        const looksLikePath = text.includes('/') || hasFileExtension;
+        const looksLikeIdentifier = /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(text);
+
+        const mapped = symbolIndex?.get(text);
+        const shouldLink = Boolean(mapped) || looksLikePath || looksLikeIdentifier;
+
+        if (shouldLink) {
+          return (
+            <code
+              className={className}
+              {...props}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!onNavigate) {
+                  return;
                 }
-            }
+
+                if (mapped) {
+                  // Delegate to the parent handler so it can also populate the occurrences UI.
+                  onNavigate(text);
+                  return;
+                }
+
+                onNavigate(text);
+              }}
+              style={{ cursor: 'pointer', color: '#3182ce', textDecoration: 'underline' }}
+            >
+              {children}
+            </code>
+          );
         }
-        
+
         return (
           <code className={className} {...props}>
             {children}

@@ -23,6 +23,7 @@ import {
   fetchCodeMapMapping,
   fetchCodeMapFile,
   openInEditor,
+  searchCodebase,
 } from "../lib/api";
 import {
   DiagramData,
@@ -35,6 +36,7 @@ import {
   Point,
   CodeMapMapping,
   CodeLocation,
+  SearchResult,
 } from "../lib/types";
 
 function hasOverrides(diagram: DiagramData | null): boolean {
@@ -295,6 +297,7 @@ export default function Home() {
   const [selectedFile, setSelectedFile] = useState<{ path: string; content: string } | null>(null);
   const [highlightedLines, setHighlightedLines] = useState<{ start: number; end: number } | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [leftPanelWidth, setLeftPanelWidth] = useState(280);
   const [isLeftPanelResizing, setIsLeftPanelResizing] = useState(false);
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
@@ -979,9 +982,10 @@ const deleteTarget = useCallback(
   [deleteEdge, deleteNode, loadDiagram, saving, sourceSaving]
 );
 
-const handleNavigate = useCallback((file: string, startLine?: number, endLine?: number) => {
+  const navigateToCode = useCallback((file: string, startLine?: number, endLine?: number) => {
     fetchCodeMapFile(file).then((content) => {
       setSelectedFile({ path: file, content });
+      setSearchResults(null);
       if (startLine && endLine) {
         setHighlightedLines({ start: startLine, end: endLine });
       } else if (startLine) {
@@ -993,6 +997,29 @@ const handleNavigate = useCallback((file: string, startLine?: number, endLine?: 
       console.error('Failed to fetch file:', err);
     });
   }, []);
+
+  const handleNavigate = useCallback((target: string, startLine?: number, endLine?: number) => {
+    const isFileLike = target.includes('/') || target.includes('.') || (startLine !== undefined);
+    
+    if (isFileLike) {
+        navigateToCode(target, startLine, endLine);
+    } else {
+        searchCodebase(target).then(results => {
+            if (results.length === 1) {
+                const res = results[0];
+                navigateToCode(res.file, res.line, res.line);
+            } else if (results.length > 1) {
+                setSearchResults(results);
+            } else {
+                console.log("No results found for", target);
+            }
+        }).catch(err => console.error("Search failed", err));
+    }
+  }, [navigateToCode]);
+
+  const handleResultClick = useCallback((result: SearchResult) => {
+      navigateToCode(result.file, result.line, result.line);
+  }, [navigateToCode]);
 
 const handleDeleteSelection = useCallback(async () => {
   if (selectedNodeId) {
@@ -1556,8 +1583,10 @@ return (
               content={selectedFile?.content ?? null}
               startLine={highlightedLines?.start}
               endLine={highlightedLines?.end}
-              onClose={() => setSelectedFile(null)}
+              onClose={() => { setSelectedFile(null); setSearchResults(null); }}
               onLineClick={handleLineClick}
+              searchResults={searchResults}
+              onResultClick={handleResultClick}
             />
           ) : (
             isRightPanelCollapsed ? (
