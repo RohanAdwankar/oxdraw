@@ -1026,7 +1026,7 @@ const deleteTarget = useCallback(
   }, []);
 
   const navigateToCode = useCallback(
-    (target: string, startLine?: number, endLine?: number) => {
+    (target: string, startLine?: number, endLine?: number, options?: { preserveMatches?: boolean }) => {
       const candidates = resolveCodeMapPathCandidates(target);
       const tryFetch = async () => {
         let lastError: unknown = null;
@@ -1034,8 +1034,10 @@ const deleteTarget = useCallback(
           try {
             const content = await fetchCodeMapFile(candidate);
             setSelectedFile({ path: candidate, content });
-            setSearchResults(null);
-            setActiveSearchIndex(0);
+            if (!options?.preserveMatches) {
+              setSearchResults(null);
+              setActiveSearchIndex(0);
+            }
             if (startLine && endLine) {
               setHighlightedLines({ start: startLine, end: endLine });
             } else if (startLine) {
@@ -1115,7 +1117,7 @@ const deleteTarget = useCallback(
           setSearchResults(results);
           setActiveSearchIndex(bestIndex);
           const best = results[bestIndex];
-          navigateToCode(best.file, best.line, best.line);
+          navigateToCode(best.file, best.line, best.line, { preserveMatches: true });
         })
         .catch(() => setError(`Search failed for: ${target}`));
     },
@@ -1133,7 +1135,7 @@ const deleteTarget = useCallback(
     const nextIndex = (activeSearchIndex - 1 + searchResults.length) % searchResults.length;
     setActiveSearchIndex(nextIndex);
     const next = searchResults[nextIndex];
-    navigateToCode(next.file, next.line, next.line);
+    navigateToCode(next.file, next.line, next.line, { preserveMatches: true });
   }, [activeSearchIndex, navigateToCode, searchResults]);
 
   const handleNextMatch = useCallback(() => {
@@ -1143,7 +1145,7 @@ const deleteTarget = useCallback(
     const nextIndex = (activeSearchIndex + 1) % searchResults.length;
     setActiveSearchIndex(nextIndex);
     const next = searchResults[nextIndex];
-    navigateToCode(next.file, next.line, next.line);
+    navigateToCode(next.file, next.line, next.line, { preserveMatches: true });
   }, [activeSearchIndex, navigateToCode, searchResults]);
 
 const handleDeleteSelection = useCallback(async () => {
