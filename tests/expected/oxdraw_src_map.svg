@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="780" height="1330" viewBox="0 0 780 1330" font-family="Inter, system-ui, sans-serif">
+  <defs>
+        <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
+        </marker>
+        <marker id="arrow-start" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M7,1 L2,4 L7,7 z" fill="context-stroke" />
+        </marker>
+  </defs>
+  <rect width="100%" height="100%" fill="white" />
+  <line x1="441.4" y1="130.0" x2="441.4" y2="239.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="430.2" y1="287.3" x2="374.3" y2="399.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="383.2" y="319.2" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="402.3" y="333.2" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
+  </g>
+  <line x1="357.8" y1="450.0" x2="342.2" y2="559.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="337.9" y1="610.0" x2="335.4" y2="719.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="351.5" y1="770.0" x2="426.6" y2="882.7" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="441.4" y1="930.0" x2="441.4" y2="1039.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="414.9" y="960.5" width="53.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="441.4" y="974.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Valid</text>
+  </g>
+  <line x1="441.4" y1="1090.0" x2="441.4" y2="1199.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="341.1,905.0 113.9,905.0 113.9,585.0 263.1,585.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="80.0" y="891.0" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="113.9" y="905.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Invalid</text>
+  </g>
+  <line x1="455.3" y1="286.7" x2="530.7" y2="403.8" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="475.0" y="321.2" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="493.0" y="335.2" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
+  </g>
+  <line x1="541.5" y1="449.0" x2="528.8" y2="559.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="516.1" y="480.0" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="535.2" y="494.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
+  </g>
+  <line x1="531.0" y1="610.0" x2="553.7" y2="719.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="557.9,445.1 699.9,654.7 680.5,775.2 661.1,895.7 474.6,1039.4" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="662.5" y="761.2" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="680.5" y="775.2" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
+  </g>
+  <rect x="333.7" y="80.0" width="215.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="441.4" y="105.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">CLI Arguments Parsing</text>
+  <polygon points="441.4,240.0 545.4,265.0 441.4,290.0 337.4,265.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="441.4" y="265.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Code Map Generation?</text>
+  <rect x="268.5" y="400.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="361.4" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Codebase Scanning</text>
+  <rect x="264.1" y="560.0" width="148.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="338.5" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">LLM API Call</text>
+  <rect x="227.1" y="720.0" width="215.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="334.8" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">JSON Response Parsing</text>
+  <polygon points="441.4,880.0 541.7,905.0 441.4,930.0 341.1,905.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="441.4" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Response Validation</text>
+  <rect x="348.5" y="1040.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="441.4" y="1065.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Diagram Rendering</text>
+  <rect x="348.5" y="1200.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="441.4" y="1225.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Output Generation</text>
+  <polygon points="544.3,400.0 614.3,425.0 544.3,450.0 474.3,425.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="544.3" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Edit Mode?</text>
+  <rect x="432.9" y="560.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="525.8" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Launch Web Server</text>
+  <rect x="462.5" y="720.0" width="193.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="559.1" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Serve Diagram &amp; UI</text>
+</svg>
