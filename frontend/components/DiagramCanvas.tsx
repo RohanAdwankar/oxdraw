@@ -16,6 +16,7 @@ import {
   DiagramData,
   EdgeArrowDirection,
   EdgeData,
+  EdgeEndpointMarker,
   EdgeKind,
   LayoutUpdate,
   Size,
@@ -189,8 +190,37 @@ interface EdgeView {
   hasOverride: boolean;
   color: string;
   arrowDirection: EdgeArrowDirection;
+  markerStart: EdgeEndpointMarker;
+  markerEnd: EdgeEndpointMarker;
   labelHandleIndex: number | null;
   labelPoint: Point;
+}
+
+function edgeMarkerUrl(marker: EdgeEndpointMarker, start: boolean): string | undefined {
+  switch (marker) {
+    case "none":
+      return undefined;
+    case "arrow":
+      return start ? "url(#arrow-start)" : "url(#arrow-end)";
+    case "triangle":
+      return start ? "url(#triangle-start)" : "url(#triangle-end)";
+    case "diamond":
+      return start ? "url(#diamond-start)" : "url(#diamond-end)";
+    case "diamond-open":
+      return start ? "url(#diamond-open-start)" : "url(#diamond-open-end)";
+    default:
+      return undefined;
+  }
+}
+
+function edgeStrokeWidth(kind: EdgeKind): number {
+  if (kind === "thick") {
+    return 4;
+  }
+  if (kind === "invisible") {
+    return 0;
+  }
+  return 2;
 }
 
 interface ContextMenuState {
@@ -905,6 +935,16 @@ function FlowchartDiagramCanvas({
 
         const color = edge.color ?? DEFAULT_EDGE_COLOR;
         const arrowDirection = edge.arrowDirection ?? "forward";
+        const markerStart =
+          edge.markerStart ??
+          ((arrowDirection === "backward" || arrowDirection === "both")
+            ? "arrow"
+            : "none");
+        const markerEnd =
+          edge.markerEnd ??
+          ((arrowDirection === "forward" || arrowDirection === "both")
+            ? "arrow"
+            : "none");
 
         return {
           edge,
@@ -913,6 +953,8 @@ function FlowchartDiagramCanvas({
           hasOverride,
           color,
           arrowDirection,
+          markerStart,
+          markerEnd,
           labelHandleIndex,
           labelPoint,
         };
@@ -2027,6 +2069,8 @@ function FlowchartDiagramCanvas({
             hasOverride,
             color,
             arrowDirection,
+            markerStart,
+            markerEnd,
             labelHandleIndex,
             labelPoint: resolvedLabelPoint,
           } = view;
@@ -2043,14 +2087,8 @@ function FlowchartDiagramCanvas({
             dragState.index === labelHandleIndex;
 
           const edgeSelected = selectedEdgeId === edge.id;
-          const markerStart =
-            arrowDirection === "backward" || arrowDirection === "both"
-              ? "url(#arrow-start)"
-              : undefined;
-          const markerEnd =
-            arrowDirection === "forward" || arrowDirection === "both"
-              ? "url(#arrow-end)"
-              : undefined;
+          const markerStartUrl = edgeMarkerUrl(markerStart, true);
+          const markerEndUrl = edgeMarkerUrl(markerEnd, false);
 
           const labelDisplayPoint = labelScreen;
           const labelLines = edge.label ? normalizeLabelLines(edge.label) : [];
@@ -2116,10 +2154,11 @@ function FlowchartDiagramCanvas({
                   x2={screenRoute[1].x}
                   y2={screenRoute[1].y}
                   stroke={color}
-                  strokeWidth={2}
-                  markerStart={markerStart}
-                  markerEnd={markerEnd}
+                  strokeWidth={edgeStrokeWidth(edge.kind)}
+                  markerStart={markerStartUrl}
+                  markerEnd={markerEndUrl}
                   strokeDasharray={edge.kind === "dashed" ? "8 6" : undefined}
+                  strokeOpacity={edge.kind === "invisible" ? 0 : undefined}
                   onPointerDown={(event: ReactPointerEvent<SVGLineElement>) =>
                     handleEdgePointerDown(edge.id, event)
                   }
@@ -2135,10 +2174,11 @@ function FlowchartDiagramCanvas({
                   points={pathPoints}
                   fill="none"
                   stroke={color}
-                  strokeWidth={2}
-                  markerStart={markerStart}
-                  markerEnd={markerEnd}
+                  strokeWidth={edgeStrokeWidth(edge.kind)}
+                  markerStart={markerStartUrl}
+                  markerEnd={markerEndUrl}
                   strokeDasharray={edge.kind === "dashed" ? "8 6" : undefined}
+                  strokeOpacity={edge.kind === "invisible" ? 0 : undefined}
                   onPointerDown={(event: ReactPointerEvent<SVGPolylineElement>) =>
                     handleEdgePointerDown(edge.id, event)
                   }
@@ -2820,6 +2860,72 @@ function FlowchartDiagramCanvas({
             markerUnits="strokeWidth"
           >
             <path d="M10,2 L2,6 L10,10 z" fill="context-stroke" />
+          </marker>
+          <marker
+            id="triangle-end"
+            markerWidth="12"
+            markerHeight="12"
+            refX="10"
+            refY="6"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <path d="M2,2 L10,6 L2,10 z" fill="white" stroke="context-stroke" strokeWidth="1.4" />
+          </marker>
+          <marker
+            id="triangle-start"
+            markerWidth="12"
+            markerHeight="12"
+            refX="2"
+            refY="6"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <path d="M10,2 L2,6 L10,10 z" fill="white" stroke="context-stroke" strokeWidth="1.4" />
+          </marker>
+          <marker
+            id="diamond-end"
+            markerWidth="12"
+            markerHeight="12"
+            refX="10"
+            refY="6"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <path d="M2,6 L6,2 L10,6 L6,10 z" fill="context-stroke" />
+          </marker>
+          <marker
+            id="diamond-start"
+            markerWidth="12"
+            markerHeight="12"
+            refX="2"
+            refY="6"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <path d="M10,6 L6,2 L2,6 L6,10 z" fill="context-stroke" />
+          </marker>
+          <marker
+            id="diamond-open-end"
+            markerWidth="12"
+            markerHeight="12"
+            refX="10"
+            refY="6"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <path d="M2,6 L6,2 L10,6 L6,10 z" fill="white" stroke="context-stroke" strokeWidth="1.4" />
+          </marker>
+          <marker
+            id="diamond-open-start"
+            markerWidth="12"
+            markerHeight="12"
+            refX="2"
+            refY="6"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <path d="M10,6 L6,2 L2,6 L6,10 z" fill="white" stroke="context-stroke" strokeWidth="1.4" />
           </marker>
         </defs>
         </g>

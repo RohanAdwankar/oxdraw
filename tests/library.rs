@@ -1,5 +1,5 @@
 use anyhow::Result;
-use oxdraw::Diagram;
+use oxdraw::{Diagram, EdgeEndpointMarker};
 
 #[test]
 fn diagram_parse_and_render_svg() -> Result<()> {
@@ -66,6 +66,55 @@ fn diagram_parses_image_comments() -> Result<()> {
         svg.contains("data:image/png;base64,"),
         "rendered svg should contain a data URI for the embedded image"
     );
+
+    Ok(())
+}
+
+#[test]
+fn class_diagram_parses_members_and_relationship_markers() -> Result<()> {
+    let definition = include_str!("input/uml.mmd");
+    let diagram = Diagram::parse(definition)?;
+
+    let animal = diagram
+        .nodes
+        .get("Animal")
+        .expect("Animal class should be present");
+    assert!(animal.label.contains("+int age"));
+    assert!(animal.label.contains("+mate()"));
+
+    let inheritance = diagram
+        .edges
+        .iter()
+        .find(|edge| edge.from == "Animal" && edge.to == "Duck")
+        .expect("Animal inheritance edge should be present");
+    assert_eq!(inheritance.marker_start, EdgeEndpointMarker::Triangle);
+    assert_eq!(inheritance.marker_end, EdgeEndpointMarker::None);
+
+    Ok(())
+}
+
+#[test]
+fn class_diagram_parses_composition_and_aggregation_markers() -> Result<()> {
+    let definition = r#"
+classDiagram
+    Car *-- Wheel
+    Team o-- Player
+"#;
+
+    let diagram = Diagram::parse(definition)?;
+    let composition = diagram
+        .edges
+        .iter()
+        .find(|edge| edge.from == "Car" && edge.to == "Wheel")
+        .expect("composition edge missing");
+    assert_eq!(composition.marker_start, EdgeEndpointMarker::Diamond);
+
+    let aggregation = diagram
+        .edges
+        .iter()
+        .find(|edge| edge.from == "Team" && edge.to == "Player")
+        .expect("aggregation edge missing");
+    assert_eq!(aggregation.marker_start, EdgeEndpointMarker::DiamondOpen);
 
     Ok(())
 }

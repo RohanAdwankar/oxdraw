@@ -158,7 +158,9 @@ impl Diagram {
         let mut lines = content_lines.into_iter();
 
         let header = lines.next().ok_or_else(|| {
-            anyhow!("diagram definition must start with a 'graph' or 'gantt' declaration")
+            anyhow!(
+                "diagram definition must start with a 'graph', 'gantt', or 'classDiagram' declaration"
+            )
         })?;
 
         let keyword = header
@@ -169,6 +171,10 @@ impl Diagram {
 
         if keyword == "gantt" {
             return parse_gantt_diagram(lines.collect(), &definition);
+        }
+
+        if keyword == "classdiagram" {
+            return parse_class_diagram(lines.collect());
         }
 
         let direction = parse_graph_header(&header)?;
@@ -282,6 +288,21 @@ impl Diagram {
         )?;
 
         let mut clip_defs = String::new();
+        let mut needs_triangle_marker = false;
+        let mut needs_diamond_marker = false;
+        let mut needs_open_diamond_marker = false;
+
+        for edge in &self.edges {
+            for marker in [edge.marker_start, edge.marker_end] {
+                match marker {
+                    EdgeEndpointMarker::Triangle => needs_triangle_marker = true,
+                    EdgeEndpointMarker::Diamond => needs_diamond_marker = true,
+                    EdgeEndpointMarker::DiamondOpen => needs_open_diamond_marker = true,
+                    _ => {}
+                }
+            }
+        }
+
         for id in &self.order {
             let Some(node) = self.nodes.get(id) else {
                 continue;
@@ -316,6 +337,33 @@ impl Diagram {
 "##,
             geometry.width, geometry.height, geometry.width, geometry.height,
         )?;
+        if needs_triangle_marker {
+            svg.push_str(
+                "        <marker id=\"triangle-end\" markerWidth=\"12\" markerHeight=\"12\" refX=\"10\" refY=\"6\" orient=\"auto\" markerUnits=\"strokeWidth\">\n            <path d=\"M2,2 L10,6 L2,10 z\" fill=\"white\" stroke=\"context-stroke\" stroke-width=\"1.4\" />\n        </marker>\n",
+            );
+            svg.push_str(
+                "        <marker id=\"triangle-start\" markerWidth=\"12\" markerHeight=\"12\" refX=\"2\" refY=\"6\" orient=\"auto\" markerUnits=\"strokeWidth\">\n            <path d=\"M10,2 L2,6 L10,10 z\" fill=\"white\" stroke=\"context-stroke\" stroke-width=\"1.4\" />\n        </marker>\n",
+            );
+        }
+
+        if needs_diamond_marker {
+            svg.push_str(
+                "        <marker id=\"diamond-end\" markerWidth=\"12\" markerHeight=\"12\" refX=\"10\" refY=\"6\" orient=\"auto\" markerUnits=\"strokeWidth\">\n            <path d=\"M2,6 L6,2 L10,6 L6,10 z\" fill=\"context-stroke\" />\n        </marker>\n",
+            );
+            svg.push_str(
+                "        <marker id=\"diamond-start\" markerWidth=\"12\" markerHeight=\"12\" refX=\"2\" refY=\"6\" orient=\"auto\" markerUnits=\"strokeWidth\">\n            <path d=\"M10,6 L6,2 L2,6 L6,10 z\" fill=\"context-stroke\" />\n        </marker>\n",
+            );
+        }
+
+        if needs_open_diamond_marker {
+            svg.push_str(
+                "        <marker id=\"diamond-open-end\" markerWidth=\"12\" markerHeight=\"12\" refX=\"10\" refY=\"6\" orient=\"auto\" markerUnits=\"strokeWidth\">\n            <path d=\"M2,6 L6,2 L10,6 L6,10 z\" fill=\"white\" stroke=\"context-stroke\" stroke-width=\"1.4\" />\n        </marker>\n",
+            );
+            svg.push_str(
+                "        <marker id=\"diamond-open-start\" markerWidth=\"12\" markerHeight=\"12\" refX=\"2\" refY=\"6\" orient=\"auto\" markerUnits=\"strokeWidth\">\n            <path d=\"M10,6 L6,2 L2,6 L6,10 z\" fill=\"white\" stroke=\"context-stroke\" stroke-width=\"1.4\" />\n        </marker>\n",
+            );
+        }
+
         svg.push_str(&clip_defs);
         write!(
             svg,
@@ -400,17 +448,28 @@ impl Diagram {
             let dash_attr_ref = dash_attr.as_str();
             let opacity_attr_ref = opacity_attr.as_str();
 
-            let marker_start_attr = if arrow_direction.marker_start() {
-                " marker-start=\"url(#arrow-start)\""
+            let marker_start = if edge.marker_start != EdgeEndpointMarker::None {
+                edge.marker_start
+            } else if arrow_direction.marker_start() {
+                EdgeEndpointMarker::Arrow
             } else {
-                ""
+                EdgeEndpointMarker::None
             };
 
-            let marker_end_attr = if arrow_direction.marker_end() {
-                " marker-end=\"url(#arrow-end)\""
+            let marker_end = if edge.marker_end != EdgeEndpointMarker::None {
+                edge.marker_end
+            } else if arrow_direction.marker_end() {
+                EdgeEndpointMarker::Arrow
             } else {
-                ""
+                EdgeEndpointMarker::None
             };
+
+            let marker_start_attr = edge_marker_url(marker_start, true)
+                .map(|url| format!(" marker-start=\"url(#{})\"", url))
+                .unwrap_or_default();
+            let marker_end_attr = edge_marker_url(marker_end, false)
+                .map(|url| format!(" marker-end=\"url(#{})\"", url))
+                .unwrap_or_default();
 
             if route.len() == 2 {
                 let a = route[0];
@@ -3238,6 +3297,20 @@ impl EdgeKind {
     }
 }
 
+fn edge_marker_url(marker: EdgeEndpointMarker, is_start: bool) -> Option<&'static str> {
+    match (marker, is_start) {
+        (EdgeEndpointMarker::None, _) => None,
+        (EdgeEndpointMarker::Arrow, true) => Some("arrow-start"),
+        (EdgeEndpointMarker::Arrow, false) => Some("arrow-end"),
+        (EdgeEndpointMarker::Triangle, true) => Some("triangle-start"),
+        (EdgeEndpointMarker::Triangle, false) => Some("triangle-end"),
+        (EdgeEndpointMarker::Diamond, true) => Some("diamond-start"),
+        (EdgeEndpointMarker::Diamond, false) => Some("diamond-end"),
+        (EdgeEndpointMarker::DiamondOpen, true) => Some("diamond-open-start"),
+        (EdgeEndpointMarker::DiamondOpen, false) => Some("diamond-open-end"),
+    }
+}
+
 fn normalize_label_lines(label: &str) -> Vec<String> {
     let mut normalized = label.to_string();
     for (pattern, replacement) in [
@@ -4340,10 +4413,316 @@ fn starts_with_supported_diagram_header(source: &str) -> bool {
             .next()
             .unwrap_or_default()
             .to_ascii_lowercase();
-        return keyword == "graph" || keyword == "gantt";
+        return keyword == "graph" || keyword == "gantt" || keyword == "classdiagram";
     }
 
     false
+}
+
+fn parse_class_diagram(lines: Vec<String>) -> Result<Diagram> {
+    let mut nodes: HashMap<String, Node> = HashMap::new();
+    let mut order: Vec<String> = Vec::new();
+    let mut edges: Vec<Edge> = Vec::new();
+    let mut node_membership: HashMap<String, Vec<String>> = HashMap::new();
+    let mut class_members: HashMap<String, Vec<String>> = HashMap::new();
+    let mut active_class_block: Option<String> = None;
+
+    for raw_line in lines {
+        let mut line = raw_line.trim();
+        if line.is_empty() || line.starts_with("%%") {
+            continue;
+        }
+
+        line = line.trim_end_matches(';').trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        if let Some(active_class_id) = active_class_block.clone() {
+            if line.contains('}') {
+                active_class_block = None;
+                continue;
+            }
+
+            let member = line.trim();
+            if !member.is_empty() {
+                class_members
+                    .entry(active_class_id)
+                    .or_default()
+                    .push(member.to_string());
+            }
+            continue;
+        }
+
+        if line.starts_with("note") {
+            continue;
+        }
+
+        if let Some((class_id, class_label, starts_block)) = parse_uml_class_declaration(line) {
+            let (node_id, is_new) = intern_node(&class_id, &mut nodes, &mut order)?;
+            if is_new {
+                node_membership.insert(node_id.clone(), Vec::new());
+            } else if !node_membership.contains_key(&node_id) {
+                node_membership.insert(node_id.clone(), Vec::new());
+            }
+
+            if let Some(node) = nodes.get_mut(&node_id) {
+                let final_label = class_label.unwrap_or_else(|| class_id.clone());
+                let (width, height) = compute_node_dimensions(NodeShape::Rectangle, &final_label);
+                node.label = final_label;
+                node.shape = NodeShape::Rectangle;
+                node.width = width;
+                node.height = height;
+            }
+
+            if starts_block {
+                active_class_block = Some(node_id);
+            }
+            continue;
+        }
+
+        if let Some((class_name, member)) = parse_uml_member_line(line) {
+            let (node_id, is_new) = intern_node(&class_name, &mut nodes, &mut order)?;
+            if is_new || !node_membership.contains_key(&node_id) {
+                node_membership.insert(node_id.clone(), Vec::new());
+            }
+            class_members.entry(node_id).or_default().push(member);
+            continue;
+        }
+
+        if let Some(edge) = parse_uml_relationship_line(line, &mut nodes, &mut order, &mut node_membership)? {
+            edges.push(edge);
+        }
+    }
+
+    for node_id in &order {
+        let Some(node) = nodes.get_mut(node_id) else {
+            continue;
+        };
+        let Some(members) = class_members.get(node_id) else {
+            continue;
+        };
+
+        if members.is_empty() {
+            continue;
+        }
+
+        let mut lines = vec![node.label.clone(), "----------------".to_string()];
+        lines.extend(members.iter().cloned());
+        let final_label = lines.join("\n");
+        let (width, height) = compute_node_dimensions(NodeShape::Rectangle, &final_label);
+        node.label = final_label;
+        node.width = width;
+        node.height = height;
+    }
+
+    if nodes.is_empty() {
+        bail!("class diagram does not declare any classes");
+    }
+
+    Ok(Diagram {
+        kind: DiagramKind::Flowchart,
+        direction: Direction::TopDown,
+        nodes,
+        order,
+        edges,
+        subgraphs: Vec::new(),
+        node_membership,
+    })
+}
+
+fn parse_uml_member_line(line: &str) -> Option<(String, String)> {
+    if UML_EDGE_TOKENS.iter().any(|token| line.contains(token)) {
+        return None;
+    }
+
+    let (lhs, rhs) = line.split_once(':')?;
+    let class_name = lhs.trim().trim_matches('`').trim_matches('"').trim();
+    let member = rhs.trim();
+    if class_name.is_empty() || member.is_empty() {
+        return None;
+    }
+
+    Some((class_name.to_string(), member.to_string()))
+}
+
+fn parse_uml_class_declaration(line: &str) -> Option<(String, Option<String>, bool)> {
+    let rest = line.strip_prefix("class")?.trim();
+    if rest.is_empty() {
+        return None;
+    }
+
+    // Ignore member/property lines like: MyClass : +method()
+    if rest.contains(':') {
+        return None;
+    }
+
+    let mut normalized = rest.trim();
+    let mut starts_block = false;
+    if normalized.ends_with('{') {
+        starts_block = true;
+        normalized = normalized[..normalized.len() - 1].trim_end();
+    }
+    if normalized.is_empty() {
+        return None;
+    }
+
+    if let Some((id_part, alias_part)) = split_once_case_insensitive(normalized, " as ") {
+        let id = id_part.trim().to_string();
+        if id.is_empty() {
+            return None;
+        }
+        let alias = alias_part.trim().trim_matches('"').trim();
+        let label = if alias.is_empty() {
+            None
+        } else {
+            Some(alias.to_string())
+        };
+        return Some((id, label, starts_block));
+    }
+
+    Some((normalized.to_string(), None, starts_block))
+}
+
+fn parse_uml_relationship_line(
+    line: &str,
+    nodes: &mut HashMap<String, Node>,
+    order: &mut Vec<String>,
+    node_membership: &mut HashMap<String, Vec<String>>,
+) -> Result<Option<Edge>> {
+    let (edge_segment, label) = if let Some((segment, edge_label)) = line.split_once(':') {
+        (segment.trim(), Some(edge_label.trim().to_string()))
+    } else {
+        (line.trim(), None)
+    };
+
+    let mut matched: Option<(&str, &str, &str)> = None;
+    for token in UML_EDGE_TOKENS {
+        if let Some((lhs, rhs)) = edge_segment.split_once(token) {
+            matched = Some((lhs.trim(), rhs.trim(), token));
+            break;
+        }
+    }
+
+    let Some((lhs_raw, rhs_raw, token)) = matched else {
+        return Ok(None);
+    };
+
+    let lhs = extract_uml_endpoint(lhs_raw, true);
+    let rhs = extract_uml_endpoint(rhs_raw, false);
+    if lhs.is_empty() || rhs.is_empty() {
+        return Ok(None);
+    }
+
+    let (from_id, from_new) = intern_node(&lhs, nodes, order)?;
+    if from_new || !node_membership.contains_key(&from_id) {
+        node_membership.insert(from_id.clone(), Vec::new());
+    }
+
+    let (to_id, to_new) = intern_node(&rhs, nodes, order)?;
+    if to_new || !node_membership.contains_key(&to_id) {
+        node_membership.insert(to_id.clone(), Vec::new());
+    }
+
+    let (kind, marker_start, marker_end, arrow) = classify_uml_edge_token(token);
+
+    Ok(Some(Edge {
+        from: from_id,
+        to: to_id,
+        label: label.filter(|l| !l.is_empty()),
+        kind,
+        arrow,
+        marker_start,
+        marker_end,
+    }))
+}
+
+const UML_EDGE_TOKENS: [&str; 14] = [
+    "<|..", "..|>", "<|--", "--|>", "<..", "..>", "<-->", "<--", "-->", "*--", "--*", "o--", "--o", "--",
+];
+
+fn classify_uml_edge_token(
+    token: &str,
+) -> (
+    EdgeKind,
+    EdgeEndpointMarker,
+    EdgeEndpointMarker,
+    EdgeArrowDirection,
+) {
+    let kind = if token.contains("..") {
+        EdgeKind::Dashed
+    } else {
+        EdgeKind::Solid
+    };
+
+    let mut marker_start = EdgeEndpointMarker::None;
+    let mut marker_end = EdgeEndpointMarker::None;
+
+    if token.starts_with("<|") {
+        marker_start = EdgeEndpointMarker::Triangle;
+    }
+    if token.ends_with("|>") {
+        marker_end = EdgeEndpointMarker::Triangle;
+    }
+    if token.starts_with('*') {
+        marker_start = EdgeEndpointMarker::Diamond;
+    }
+    if token.ends_with('*') {
+        marker_end = EdgeEndpointMarker::Diamond;
+    }
+    if token.starts_with('o') {
+        marker_start = EdgeEndpointMarker::DiamondOpen;
+    }
+    if token.ends_with('o') {
+        marker_end = EdgeEndpointMarker::DiamondOpen;
+    }
+
+    // Fallback arrows for association/dependency links that do not use UML diamonds/triangles.
+    if marker_start == EdgeEndpointMarker::None && token.contains('<') {
+        marker_start = EdgeEndpointMarker::Arrow;
+    }
+    if marker_end == EdgeEndpointMarker::None && token.contains('>') {
+        marker_end = EdgeEndpointMarker::Arrow;
+    }
+
+    let arrow = match (
+        marker_start == EdgeEndpointMarker::Arrow,
+        marker_end == EdgeEndpointMarker::Arrow,
+    ) {
+        (true, true) => EdgeArrowDirection::Both,
+        (true, false) => EdgeArrowDirection::Backward,
+        (false, true) => EdgeArrowDirection::Forward,
+        (false, false) => EdgeArrowDirection::None,
+    };
+
+    (kind, marker_start, marker_end, arrow)
+}
+
+fn extract_uml_endpoint(raw: &str, is_lhs: bool) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    // Handles multiplicity forms like: A "1" -- "*" B
+    let mut parts = trimmed.split_whitespace();
+    let selected = if is_lhs { parts.next() } else { trimmed.split_whitespace().last() };
+    selected
+        .unwrap_or(trimmed)
+        .trim_matches('"')
+        .trim_matches('`')
+        .to_string()
+}
+
+fn split_once_case_insensitive<'a>(input: &'a str, needle: &str) -> Option<(&'a str, &'a str)> {
+    if needle.is_empty() || input.len() < needle.len() {
+        return None;
+    }
+
+    let lower_input = input.to_ascii_lowercase();
+    let lower_needle = needle.to_ascii_lowercase();
+    let idx = lower_input.find(&lower_needle)?;
+    Some((&input[..idx], &input[idx + needle.len()..]))
 }
 
 fn parse_gantt_diagram(lines: Vec<String>, original_source: &str) -> Result<Diagram> {
@@ -4981,6 +5360,8 @@ fn push_gantt_edge(
         label: None,
         kind: EdgeKind::Solid,
         arrow: EdgeArrowDirection::Forward,
+        marker_start: EdgeEndpointMarker::None,
+        marker_end: EdgeEndpointMarker::Arrow,
     });
 }
 
@@ -5288,6 +5669,16 @@ fn parse_edge_line(
         label,
         kind,
         arrow,
+        marker_start: if arrow.marker_start() {
+            EdgeEndpointMarker::Arrow
+        } else {
+            EdgeEndpointMarker::None
+        },
+        marker_end: if arrow.marker_end() {
+            EdgeEndpointMarker::Arrow
+        } else {
+            EdgeEndpointMarker::None
+        },
     }))
 }
 
@@ -5586,5 +5977,26 @@ graph TD
             .get("I")
             .expect("expected node I to be present");
         assert_eq!(node.label, "Official Node");
+    }
+
+    #[test]
+    fn parses_class_diagram_relationships() {
+        let source = r#"
+classDiagram
+    class CoreParser
+    class Renderer
+    CoreParser --> Renderer : uses
+"#;
+
+        let diagram = Diagram::parse(source).expect("class diagram should parse");
+        assert!(diagram.nodes.contains_key("CoreParser"));
+        assert!(diagram.nodes.contains_key("Renderer"));
+        assert_eq!(diagram.edges.len(), 1);
+
+        let edge = &diagram.edges[0];
+        assert_eq!(edge.from, "CoreParser");
+        assert_eq!(edge.to, "Renderer");
+        assert_eq!(edge.label.as_deref(), Some("uses"));
+        assert_eq!(edge.arrow, EdgeArrowDirection::Forward);
     }
 }

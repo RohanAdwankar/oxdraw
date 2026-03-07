@@ -12,8 +12,14 @@ export type NodeShape =
   | "trapezoid"
   | "trapezoid-alt"
   | "asymmetric";
-export type EdgeKind = "solid" | "dashed";
+export type EdgeKind = "solid" | "dashed" | "thick" | "invisible";
 export type EdgeArrowDirection = "forward" | "backward" | "both" | "none";
+export type EdgeEndpointMarker =
+  | "none"
+  | "arrow"
+  | "triangle"
+  | "diamond"
+  | "diamond-open";
 
 export interface Point {
   x: number;
@@ -62,6 +68,8 @@ export interface EdgeData {
   overridePoints?: Point[];
   color?: string;
   arrowDirection?: EdgeArrowDirection;
+  markerStart?: EdgeEndpointMarker;
+  markerEnd?: EdgeEndpointMarker;
 }
 
 export interface SubgraphData {

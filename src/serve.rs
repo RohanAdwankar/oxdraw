@@ -204,6 +204,10 @@ struct EdgePayload {
     color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     arrow_direction: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    marker_start: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    marker_end: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -874,6 +878,16 @@ async fn get_diagram(
         let arrow_direction = style
             .and_then(|s| s.arrow)
             .map(|direction| direction.as_str().to_string());
+        let marker_start = if edge.marker_start == EdgeEndpointMarker::None {
+            None
+        } else {
+            Some(edge.marker_start.as_str().to_string())
+        };
+        let marker_end = if edge.marker_end == EdgeEndpointMarker::None {
+            None
+        } else {
+            Some(edge.marker_end.as_str().to_string())
+        };
 
         edges.push(EdgePayload {
             id: identifier,
@@ -886,6 +900,8 @@ async fn get_diagram(
             override_points: manual_points,
             color,
             arrow_direction,
+            marker_start,
+            marker_end,
         });
     }
 

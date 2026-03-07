@@ -71,6 +71,8 @@ const DEFAULT_NODE_TEXT = "#1a202c";
 const LINE_STYLE_OPTIONS: Array<{ value: EdgeKind; label: string }> = [
   { value: "solid", label: "Solid" },
   { value: "dashed", label: "Dashed" },
+  { value: "thick", label: "Thick" },
+  { value: "invisible", label: "Invisible" },
 ];
 
 const ARROW_DIRECTION_OPTIONS: Array<{ value: EdgeArrowDirection; label: string }> = [

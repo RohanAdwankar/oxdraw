@@ -54,8 +54,7 @@ pub struct RenderArgs {
     #[arg(
         long = "edit",
         action = ArgAction::SetTrue,
-        conflicts_with_all = ["output", "output_format"],
-        requires = "input"
+        conflicts_with_all = ["output", "output_format"]
     )]
     edit: bool,
 
@@ -136,6 +135,10 @@ pub struct RenderArgs {
     /// Use deterministic generation instead of AI (only for code-map).
     #[arg(long = "no-ai")]
     pub no_ai: bool,
+
+    /// Generate Mermaid class diagrams instead of flowcharts for code maps.
+    #[arg(long = "uml")]
+    pub uml: bool,
 
     /// Maximum number of nodes to generate in deterministic mode.
     #[arg(long = "max-nodes", default_value_t = 20)]
@@ -541,6 +544,7 @@ async fn run_new(cli: RenderArgs) -> Result<()> {
         regen: false,
         prompt: None,
         no_ai: false,
+        uml: false,
         max_nodes: 20,
         gemini: None,
         codedown: None,
@@ -644,6 +648,11 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
 
     let root_path = path.canonicalize()?;
 
+    let effective_no_ai = cli.no_ai || cli.uml;
+    if cli.uml {
+        println!("UML mode is deterministic; skipping LLM generation.");
+    }
+
     let (mermaid, mapping) = oxdraw::codemap::generate_code_map(
         &root_path,
         cli.api_key,
@@ -651,7 +660,8 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
         cli.api_url,
         cli.regen,
         cli.prompt,
-        cli.no_ai,
+        effective_no_ai,
+        cli.uml,
         cli.max_nodes,
         cli.gemini,
     )
@@ -721,7 +731,7 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
 
     // Persist AI-generated results by default so the user can reopen later without regenerating.
     // If deterministic mode is used (--no-ai), we keep the previous behavior (temp file).
-    let diagram_path = if cli.no_ai {
+    let diagram_path = if effective_no_ai {
         let temp_dir = std::env::temp_dir().join("oxdraw-codemap");
         fs::create_dir_all(&temp_dir)?;
         let diagram_path = temp_dir.join("codemap.mmd");

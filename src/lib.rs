@@ -167,6 +167,18 @@ pub struct Edge {
     pub label: Option<String>,
     pub kind: EdgeKind,
     pub arrow: EdgeArrowDirection,
+    pub marker_start: EdgeEndpointMarker,
+    pub marker_end: EdgeEndpointMarker,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EdgeEndpointMarker {
+    None,
+    Arrow,
+    Triangle,
+    Diamond,
+    DiamondOpen,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -307,6 +319,12 @@ impl Default for EdgeArrowDirection {
     }
 }
 
+impl Default for EdgeEndpointMarker {
+    fn default() -> Self {
+        EdgeEndpointMarker::None
+    }
+}
+
 impl EdgeArrowDirection {
     pub fn marker_start(self) -> bool {
         matches!(
@@ -325,6 +343,18 @@ impl EdgeArrowDirection {
             EdgeArrowDirection::Backward => "backward",
             EdgeArrowDirection::Both => "both",
             EdgeArrowDirection::None => "none",
+        }
+    }
+}
+
+impl EdgeEndpointMarker {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            EdgeEndpointMarker::None => "none",
+            EdgeEndpointMarker::Arrow => "arrow",
+            EdgeEndpointMarker::Triangle => "triangle",
+            EdgeEndpointMarker::Diamond => "diamond",
+            EdgeEndpointMarker::DiamondOpen => "diamond-open",
         }
     }
 }

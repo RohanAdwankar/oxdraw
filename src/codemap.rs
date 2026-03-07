@@ -53,9 +53,11 @@ pub async fn generate_code_map(
     regen: bool,
     custom_prompt: Option<String>,
     no_ai: bool,
+    uml: bool,
     max_nodes: usize,
     gemini_key: Option<String>,
 ) -> Result<(String, CodeMapMapping)> {
+    let deterministic_mode = no_ai || uml;
     let git_info = get_git_info(path);
 
     let project_dirs = ProjectDirs::from("", "", "oxdraw")
@@ -66,6 +68,7 @@ pub async fn generate_code_map(
     let abs_path = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     let mut hasher = DefaultHasher::new();
     abs_path.hash(&mut hasher);
+    uml.hash(&mut hasher);
     let path_hash = hasher.finish();
     let cache_path = config_dir.join(format!("cache_{:x}.json", path_hash));
 
@@ -85,9 +88,13 @@ pub async fn generate_code_map(
         }
     }
 
-    if no_ai {
+    if deterministic_mode {
         println!("Generating deterministic code map (no AI)...");
-        let (mermaid, mapping) = generate_deterministic_map(path, max_nodes)?;
+        let (mermaid, mapping) = if uml {
+            generate_deterministic_uml_map(path, max_nodes)?
+        } else {
+            generate_deterministic_map(path, max_nodes)?
+        };
 
         // Cache the result
         if let Some((commit, diff_hash, _)) = git_info {
@@ -114,24 +121,58 @@ pub async fn generate_code_map(
         file_summaries.len()
     );
 
-    let base_prompt = match granularity {
-        Granularity::File => "You are an expert software engineer. Analyze the following source file and generate a Mermaid flowchart that explains its internal logic, control flow, and structure.
+    let base_prompt = if uml {
+        match granularity {
+            Granularity::File => "You are an expert software engineer. Analyze the following source file and generate a Mermaid classDiagram that captures key classes/types, their relationships, and main members.
+
+        Use Mermaid classDiagram relationship syntax (inheritance, realization, composition, aggregation, association) when supported by the code.
 
         For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
         Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
         IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
 
-        Granularity::Directory => "You are an expert software architect. Analyze the files in the following directory and generate a Mermaid flowchart that explains the relationships and data flow between them.
+            Granularity::Directory => "You are an expert software architect. Analyze the files in the following directory and generate a Mermaid classDiagram that captures important classes/types and their relationships.
+
+        Use Mermaid classDiagram relationship syntax (inheritance, realization, composition, aggregation, association) when supported by the code.
 
         For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
         Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
         IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
 
-        Granularity::Repo => "You are an expert software architect. Analyze the following codebase and generate a Mermaid flowchart that explains the high-level architecture and data flow.
+            Granularity::Repo => "You are an expert software architect. Analyze the following codebase and generate a Mermaid classDiagram that captures high-level domain types and their relationships.
+
+        Use Mermaid classDiagram relationship syntax (inheritance, realization, composition, aggregation, association) when supported by the code.
 
         For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
         Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
         IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
+        }
+    } else {
+        match granularity {
+            Granularity::File => "You are an expert software engineer. Analyze the following source file and generate a Mermaid flowchart that explains its internal logic, control flow, and structure.
+
+        For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
+        Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
+        IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
+
+            Granularity::Directory => "You are an expert software architect. Analyze the files in the following directory and generate a Mermaid flowchart that explains the relationships and data flow between them.
+
+        For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
+        Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
+        IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
+
+            Granularity::Repo => "You are an expert software architect. Analyze the following codebase and generate a Mermaid flowchart that explains the high-level architecture and data flow.
+
+        For each node in the diagram, you MUST provide a mapping to the specific code location that the node represents.
+        Prefer using symbol names (functions, classes, structs, etc.) over line numbers when possible, as line numbers are brittle.
+        IMPORTANT: The keys in the 'mapping' object MUST match exactly the node IDs used in the Mermaid diagram.",
+        }
+    };
+
+    let mermaid_example = if uml {
+        "classDiagram\\n    class A\\n    class B\\n    A <|-- B"
+    } else {
+        "graph TD\\n    A[Node Label] --> B[Another Node]"
     };
 
     let mut prompt = format!(
@@ -139,13 +180,13 @@ pub async fn generate_code_map(
 
         Return ONLY a JSON object with the following structure. Do not include other components of mermaid syntax such as as style This is the JSON schema to follow:
         {{
-            \"mermaid\": \"graph TD\\n    A[Node Label] --> B[Another Node]\",
+            \"mermaid\": \"{}\",
             \"mapping\": {{
                 \"A\": {{ \"file\": \"src/main.rs\", \"symbol\": \"main\", \"start_line\": 10, \"end_line\": 20 }},
                 \"B\": {{ \"file\": \"src/lib.rs\", \"symbol\": \"MyStruct\", \"start_line\": 5, \"end_line\": 15 }}
             }}
         }}
-        ", base_prompt
+        ", base_prompt, mermaid_example
     );
 
     if let Some(custom) = custom_prompt {
@@ -872,6 +913,292 @@ fn generate_deterministic_map(
     }
 
     Ok((mermaid, CodeMapMapping { nodes }))
+}
+
+fn generate_deterministic_uml_map(
+    root_path: &Path,
+    _max_nodes: usize,
+) -> Result<(String, CodeMapMapping)> {
+    let walker = WalkDir::new(root_path).into_iter();
+    let include_exts = vec!["rs", "ts", "tsx", "js", "jsx", "py", "go"];
+    let ignore_dirs = vec![
+        "target",
+        "node_modules",
+        ".git",
+        "dist",
+        "build",
+        ".next",
+        "out",
+    ];
+
+    let mut file_data: HashMap<String, (String, String)> = HashMap::new();
+    let mut symbol_locations: HashMap<String, CodeLocation> = HashMap::new();
+    let mut node_ids_by_symbol: HashMap<String, String> = HashMap::new();
+    let mut symbol_kinds: HashMap<String, String> = HashMap::new();
+    let mut ordered_symbols: Vec<String> = Vec::new();
+
+    for entry in walker.filter_entry(|e| {
+        let file_name = e.file_name().to_string_lossy();
+        !ignore_dirs.iter().any(|d| file_name == *d)
+    }) {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            continue;
+        }
+
+        let Some(ext) = path.extension().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if !include_exts.contains(&ext) {
+            continue;
+        }
+
+        let Ok(content) = fs::read_to_string(path) else {
+            continue;
+        };
+
+        let rel_path = if root_path.is_file() {
+            path.file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string()
+        } else {
+            path.strip_prefix(root_path)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .to_string()
+        };
+        file_data.insert(rel_path.clone(), (content.clone(), ext.to_string()));
+
+        for (symbol, start, end) in find_all_definitions(&content, ext) {
+            if symbol_locations.contains_key(&symbol) {
+                continue;
+            }
+
+            let node_id = format!("class_{}", symbol_locations.len());
+            symbol_locations.insert(
+                symbol.clone(),
+                CodeLocation {
+                    file: rel_path.clone(),
+                    start_line: Some(start),
+                    end_line: Some(end),
+                    symbol: Some(symbol.clone()),
+                },
+            );
+            node_ids_by_symbol.insert(symbol.clone(), node_id);
+            ordered_symbols.push(symbol.clone());
+
+            let kind = infer_symbol_kind(&content, ext, &symbol).unwrap_or_else(|| "type".to_string());
+            symbol_kinds.insert(symbol, kind);
+        }
+    }
+
+    let symbol_set: HashSet<String> = symbol_locations.keys().cloned().collect();
+    let mut relationships: HashSet<(String, String, &'static str)> = HashSet::new();
+
+    for (_file, (content, ext)) in &file_data {
+        collect_language_relationships(content, ext, &symbol_set, &mut relationships);
+    }
+
+    let mut mapping_nodes: HashMap<String, CodeLocation> = HashMap::new();
+    let mut mermaid = String::from("classDiagram\n");
+
+    for symbol in &ordered_symbols {
+        let Some(node_id) = node_ids_by_symbol.get(symbol) else {
+            continue;
+        };
+        let Some(location) = symbol_locations.get(symbol) else {
+            continue;
+        };
+
+        mapping_nodes.insert(node_id.clone(), location.clone());
+        mermaid.push_str(&format!("    class {}\n", node_id));
+        mermaid.push_str(&format!("    {} : {}\n", node_id, symbol));
+        if let Some(kind) = symbol_kinds.get(symbol) {
+            mermaid.push_str(&format!("    {} : <<{}>>\n", node_id, kind));
+        }
+    }
+
+    let mut relationship_list: Vec<(String, String, &'static str)> = relationships
+        .into_iter()
+        .filter(|(lhs, rhs, _)| symbol_set.contains(lhs) && symbol_set.contains(rhs) && lhs != rhs)
+        .collect();
+    relationship_list.sort();
+
+    for (lhs, rhs, rel) in relationship_list {
+        let Some(lhs_id) = node_ids_by_symbol.get(&lhs) else {
+            continue;
+        };
+        let Some(rhs_id) = node_ids_by_symbol.get(&rhs) else {
+            continue;
+        };
+        mermaid.push_str(&format!("    {} {} {}\n", lhs_id, rel, rhs_id));
+    }
+
+    Ok((
+        mermaid,
+        CodeMapMapping {
+            nodes: mapping_nodes,
+        },
+    ))
+}
+
+fn infer_symbol_kind(content: &str, ext: &str, symbol: &str) -> Option<String> {
+    let escaped = regex::escape(symbol);
+    let patterns: Vec<(&str, String)> = match ext {
+        "rs" => vec![
+            ("struct", format!(r"\bstruct\s+{}\b", escaped)),
+            ("enum", format!(r"\benum\s+{}\b", escaped)),
+            ("trait", format!(r"\btrait\s+{}\b", escaped)),
+            ("function", format!(r"\bfn\s+{}\b", escaped)),
+        ],
+        "ts" | "tsx" | "js" | "jsx" => vec![
+            ("class", format!(r"\bclass\s+{}\b", escaped)),
+            ("interface", format!(r"\binterface\s+{}\b", escaped)),
+            ("function", format!(r"\bfunction\s+{}\b", escaped)),
+            ("type", format!(r"\btype\s+{}\b", escaped)),
+        ],
+        "py" => vec![
+            ("class", format!(r"\bclass\s+{}\b", escaped)),
+            ("function", format!(r"\bdef\s+{}\b", escaped)),
+        ],
+        "go" => vec![
+            ("type", format!(r"\btype\s+{}\b", escaped)),
+            ("function", format!(r"\bfunc\s+{}\b", escaped)),
+        ],
+        _ => vec![],
+    };
+
+    for (kind, pattern) in patterns {
+        if let Ok(re) = regex::Regex::new(&pattern) {
+            if re.is_match(content) {
+                return Some(kind.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn collect_language_relationships(
+    content: &str,
+    ext: &str,
+    symbols: &HashSet<String>,
+    out: &mut HashSet<(String, String, &'static str)>,
+) {
+    match ext {
+        "ts" | "tsx" | "js" | "jsx" => {
+            if let Ok(re_extends) = regex::Regex::new(r"class\s+(\w+)\s+extends\s+(\w+)") {
+                for cap in re_extends.captures_iter(content) {
+                    let derived = cap.get(1).map(|m| m.as_str().to_string());
+                    let base = cap.get(2).map(|m| m.as_str().to_string());
+                    if let (Some(derived), Some(base)) = (derived, base) {
+                        if symbols.contains(&derived) && symbols.contains(&base) {
+                            out.insert((base, derived, "<|--"));
+                        }
+                    }
+                }
+            }
+
+            if let Ok(re_implements) =
+                regex::Regex::new(r"class\s+(\w+)\s+implements\s+([A-Za-z0-9_,\s]+)")
+            {
+                for cap in re_implements.captures_iter(content) {
+                    let class_name = cap.get(1).map(|m| m.as_str().to_string());
+                    let interfaces = cap.get(2).map(|m| m.as_str().to_string());
+                    let (Some(class_name), Some(interfaces)) = (class_name, interfaces) else {
+                        continue;
+                    };
+                    if !symbols.contains(&class_name) {
+                        continue;
+                    }
+                    for iface in interfaces.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+                        let iface_name = iface.to_string();
+                        if symbols.contains(&iface_name) {
+                            out.insert((iface_name, class_name.clone(), "<|.."));
+                        }
+                    }
+                }
+            }
+
+            if let Ok(re_class_body) = regex::Regex::new(r"class\s+(\w+)[^{]*\{([\s\S]*?)\}") {
+                let re_field = regex::Regex::new(r"\b\w+\??\s*:\s*([A-Z][A-Za-z0-9_]*)").ok();
+                if let Some(re_field) = re_field {
+                    for cap in re_class_body.captures_iter(content) {
+                        let owner = cap.get(1).map(|m| m.as_str().to_string());
+                        let body = cap.get(2).map(|m| m.as_str().to_string());
+                        let (Some(owner), Some(body)) = (owner, body) else {
+                            continue;
+                        };
+                        if !symbols.contains(&owner) {
+                            continue;
+                        }
+                        for field_cap in re_field.captures_iter(&body) {
+                            let Some(target) = field_cap.get(1).map(|m| m.as_str().to_string())
+                            else {
+                                continue;
+                            };
+                            if symbols.contains(&target) && target != owner {
+                                out.insert((owner.clone(), target, "*--"));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        "rs" => {
+            if let Ok(re_impl_trait_for) = regex::Regex::new(r"impl\s+(\w+)\s+for\s+(\w+)") {
+                for cap in re_impl_trait_for.captures_iter(content) {
+                    let trait_name = cap.get(1).map(|m| m.as_str().to_string());
+                    let impl_type = cap.get(2).map(|m| m.as_str().to_string());
+                    if let (Some(trait_name), Some(impl_type)) = (trait_name, impl_type) {
+                        if symbols.contains(&trait_name) && symbols.contains(&impl_type) {
+                            out.insert((trait_name, impl_type, "<|.."));
+                        }
+                    }
+                }
+            }
+
+            if let Ok(re_struct) = regex::Regex::new(r"struct\s+(\w+)\s*\{([\s\S]*?)\}") {
+                let re_field_type = regex::Regex::new(r":\s*([A-Z][A-Za-z0-9_]*)").ok();
+                if let Some(re_field_type) = re_field_type {
+                    for cap in re_struct.captures_iter(content) {
+                        let owner = cap.get(1).map(|m| m.as_str().to_string());
+                        let body = cap.get(2).map(|m| m.as_str().to_string());
+                        let (Some(owner), Some(body)) = (owner, body) else {
+                            continue;
+                        };
+                        if !symbols.contains(&owner) {
+                            continue;
+                        }
+                        for field_cap in re_field_type.captures_iter(&body) {
+                            let Some(target) = field_cap.get(1).map(|m| m.as_str().to_string())
+                            else {
+                                continue;
+                            };
+                            if symbols.contains(&target) && target != owner {
+                                out.insert((owner.clone(), target, "*--"));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        "py" => {
+            if let Ok(re_py_inherit) = regex::Regex::new(r"class\s+(\w+)\((\w+)\)\s*:") {
+                for cap in re_py_inherit.captures_iter(content) {
+                    let derived = cap.get(1).map(|m| m.as_str().to_string());
+                    let base = cap.get(2).map(|m| m.as_str().to_string());
+                    if let (Some(derived), Some(base)) = (derived, base) {
+                        if symbols.contains(&derived) && symbols.contains(&base) && base != "object" {
+                            out.insert((base, derived, "<|--"));
+                        }
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 fn find_all_definitions(content: &str, ext: &str) -> Vec<(String, usize, usize)> {
