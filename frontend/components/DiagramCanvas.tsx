@@ -77,6 +77,9 @@ const SUBGRAPH_STROKE = "#a0aec0";
 const SUBGRAPH_LABEL_COLOR = "#2d3748";
 const SUBGRAPH_BORDER_RADIUS = 16;
 const SUBGRAPH_SEPARATION = 140;
+const UML_CLASS_HORIZONTAL_PADDING = 24;
+const UML_CLASS_SECTION_VERTICAL_PADDING = 10;
+const UML_CLASS_SECTION_GAP = 8;
 
 interface DiagramCanvasProps {
   diagram: DiagramData;
@@ -2301,6 +2304,7 @@ function FlowchartDiagramCanvas({
           const halfHeight = nodeHeight / 2;
 
           const imageData = node.image ?? null;
+          const umlClass = node.umlClass;
           const imagePadding = imageData
             ? Math.max(0, Number.isFinite(imageData.padding) ? imageData.padding : 0)
             : 0;
@@ -2689,6 +2693,9 @@ function FlowchartDiagramCanvas({
           const outlineElement = shapeComponents.outline ?? null;
 
           const renderLabel = () => {
+            if (umlClass) {
+              return null;
+            }
             if (!hasLabel) {
               return null;
             }
@@ -2772,35 +2779,151 @@ function FlowchartDiagramCanvas({
               }
               onDoubleClick={() => handleNodeDoubleClick(id)}
             >
-              {imageData ? (
-                <defs>
-                  <clipPath id={clipId}>{clipShapeElement}</clipPath>
-                </defs>
-              ) : null}
-              {shapeElement}
-              {imageData && labelAreaHeight > 0 ? (
-                <rect
-                  x={-halfWidth}
-                  y={-halfHeight}
-                  width={nodeWidth}
-                  height={labelAreaHeight}
-                  fill={labelFillColor}
-                  clipPath={`url(#${clipId})`}
-                />
-              ) : null}
-              {imageData && imageHeight > 0.5 && imageWidth > 0.5 ? (
-                <image
-                  x={-halfWidth + imagePadding}
-                  y={-halfHeight + labelAreaHeight + imagePadding}
-                  width={imageWidth}
-                  height={imageHeight}
-                  href={`data:${imageData.mimeType};base64,${imageData.data}`}
-                  clipPath={`url(#${clipId})`}
-                  preserveAspectRatio="xMidYMid slice"
-                />
-              ) : null}
-              {outlineElement}
-              {renderLabel()}
+              {umlClass ? (
+                  <>
+                    <rect
+                      x={-halfWidth}
+                      y={-halfHeight}
+                      width={nodeWidth}
+                      height={nodeHeight}
+                      fill={fillColor}
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                    />
+                    {(() => {
+                      const hasAttributes = umlClass.attributes.length > 0;
+                      const hasMethods = umlClass.methods.length > 0;
+                      const nameHeight = NODE_TEXT_LINE_HEIGHT + UML_CLASS_SECTION_VERTICAL_PADDING * 2;
+                      const attributesHeight = hasAttributes
+                        ? umlClass.attributes.length * NODE_TEXT_LINE_HEIGHT + UML_CLASS_SECTION_VERTICAL_PADDING * 2
+                        : 0;
+
+                      let sectionY = -halfHeight + nameHeight;
+                      const showNameDivider = hasAttributes || hasMethods;
+                      const textX = -halfWidth + UML_CLASS_HORIZONTAL_PADDING / 2;
+
+                      return (
+                        <>
+                          <text
+                            x={0}
+                            y={-halfHeight + nameHeight / 2}
+                            fill={textColor}
+                            fontSize={14}
+                            fontWeight={600}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                          >
+                            {umlClass.name}
+                          </text>
+
+                          {showNameDivider ? (
+                            <line
+                              x1={-halfWidth}
+                              y1={sectionY}
+                              x2={halfWidth}
+                              y2={sectionY}
+                              stroke={strokeColor}
+                              strokeWidth={1.5}
+                            />
+                          ) : null}
+
+                          {hasAttributes ? (
+                            <>
+                              {umlClass.attributes.map((attr, index) => (
+                                <text
+                                  key={`attr-${id}-${index}`}
+                                  x={textX}
+                                  y={
+                                    sectionY +
+                                    UML_CLASS_SECTION_GAP +
+                                    UML_CLASS_SECTION_VERTICAL_PADDING +
+                                    NODE_TEXT_LINE_HEIGHT / 2 +
+                                    index * NODE_TEXT_LINE_HEIGHT
+                                  }
+                                  fill={textColor}
+                                  fontSize={14}
+                                  textAnchor="start"
+                                  dominantBaseline="middle"
+                                >
+                                  {attr}
+                                </text>
+                              ))}
+                            </>
+                          ) : null}
+
+                          {hasAttributes && hasMethods ? (
+                            <line
+                              x1={-halfWidth}
+                              y1={sectionY + UML_CLASS_SECTION_GAP + attributesHeight}
+                              x2={halfWidth}
+                              y2={sectionY + UML_CLASS_SECTION_GAP + attributesHeight}
+                              stroke={strokeColor}
+                              strokeWidth={1.5}
+                            />
+                          ) : null}
+
+                          {hasMethods ? (
+                            <>
+                              {umlClass.methods.map((method, index) => (
+                                <text
+                                  key={`method-${id}-${index}`}
+                                  x={textX}
+                                  y={
+                                    sectionY +
+                                    UML_CLASS_SECTION_GAP +
+                                    attributesHeight +
+                                    (hasAttributes ? UML_CLASS_SECTION_GAP : 0) +
+                                    UML_CLASS_SECTION_VERTICAL_PADDING +
+                                    NODE_TEXT_LINE_HEIGHT / 2 +
+                                    index * NODE_TEXT_LINE_HEIGHT
+                                  }
+                                  fill={textColor}
+                                  fontSize={14}
+                                  textAnchor="start"
+                                  dominantBaseline="middle"
+                                >
+                                  {method}
+                                </text>
+                              ))}
+                            </>
+                          ) : null}
+                        </>
+                      );
+                    })()}
+                  </>
+                ) : (
+                  <>
+                    {imageData ? (
+                      <defs>
+                        <clipPath id={clipId}>{clipShapeElement}</clipPath>
+                      </defs>
+                    ) : null}
+                    {shapeElement}
+                    {imageData && labelAreaHeight > 0 ? (
+                      <rect
+                        x={-halfWidth}
+                        y={-halfHeight}
+                        width={nodeWidth}
+                        height={labelAreaHeight}
+                        fill={labelFillColor}
+                        clipPath={`url(#${clipId})`}
+                      />
+                    ) : null}
+                    {imageData && imageHeight > 0.5 && imageWidth > 0.5 ? (
+                      <image
+                        x={-halfWidth + imagePadding}
+                        y={-halfHeight + labelAreaHeight + imagePadding}
+                        width={imageWidth}
+                        height={imageHeight}
+                        href={`data:${imageData.mimeType};base64,${imageData.data}`}
+                        clipPath={`url(#${clipId})`}
+                        preserveAspectRatio="xMidYMid slice"
+                      />
+                    ) : null}
+                    {outlineElement}
+                    {renderLabel()}
+                </>
+              )}
             </g>
           );
         })}

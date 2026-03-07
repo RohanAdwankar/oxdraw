@@ -45,8 +45,15 @@ export interface NodeData {
   imageFillColor?: string;
   membership?: string[];
   image?: NodeImageData;
+  umlClass?: UmlClassData;
   width: number;
   height: number;
+}
+
+export interface UmlClassData {
+  name: string;
+  attributes: string[];
+  methods: string[];
 }
 
 export interface NodeImageData {

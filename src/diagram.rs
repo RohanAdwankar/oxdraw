@@ -594,6 +594,95 @@ impl Diagram {
                 }
             }
 
+            if let Some(uml) = &node.uml_class {
+                let left = position.x - node.width / 2.0;
+                let top = position.y - node.height / 2.0;
+                let layout = compute_uml_class_layout(&uml.name, &uml.attributes, &uml.methods);
+
+                write!(
+                    svg,
+                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    left,
+                    top,
+                    node.width,
+                    node.height,
+                    fill_color,
+                    stroke_color
+                )?;
+
+                let name_y = top + layout.name_height / 2.0;
+                write!(
+                    svg,
+                    "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" font-weight=\"600\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+                    position.x,
+                    name_y,
+                    text_color,
+                    escape_xml(&uml.name)
+                )?;
+
+                let mut current_y = top + layout.name_height;
+                if layout.attributes_height > 0.0 || layout.methods_height > 0.0 {
+                    write!(
+                        svg,
+                        "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.5\" />\n",
+                        left,
+                        current_y,
+                        left + node.width,
+                        current_y,
+                        stroke_color
+                    )?;
+                    current_y += UML_CLASS_SECTION_GAP;
+                }
+
+                if layout.attributes_height > 0.0 {
+                    let text_x = left + UML_CLASS_HORIZONTAL_PADDING / 2.0;
+                    let mut y = current_y + UML_CLASS_SECTION_VERTICAL_PADDING + NODE_TEXT_LINE_HEIGHT / 2.0;
+                    for line in &uml.attributes {
+                        write!(
+                            svg,
+                            "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"start\" dominant-baseline=\"middle\">{}</text>\n",
+                            text_x,
+                            y,
+                            text_color,
+                            escape_xml(line)
+                        )?;
+                        y += NODE_TEXT_LINE_HEIGHT;
+                    }
+                    current_y += layout.attributes_height;
+                }
+
+                if layout.attributes_height > 0.0 && layout.methods_height > 0.0 {
+                    write!(
+                        svg,
+                        "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.5\" />\n",
+                        left,
+                        current_y,
+                        left + node.width,
+                        current_y,
+                        stroke_color
+                    )?;
+                    current_y += UML_CLASS_SECTION_GAP;
+                }
+
+                if layout.methods_height > 0.0 {
+                    let text_x = left + UML_CLASS_HORIZONTAL_PADDING / 2.0;
+                    let mut y = current_y + UML_CLASS_SECTION_VERTICAL_PADDING + NODE_TEXT_LINE_HEIGHT / 2.0;
+                    for line in &uml.methods {
+                        write!(
+                            svg,
+                            "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"start\" dominant-baseline=\"middle\">{}</text>\n",
+                            text_x,
+                            y,
+                            text_color,
+                            escape_xml(line)
+                        )?;
+                        y += NODE_TEXT_LINE_HEIGHT;
+                    }
+                }
+
+                continue;
+            }
+
             let base_fill_color = fill_color.clone();
             let has_image = node.image.is_some();
             let image_fill_color = if has_image {
@@ -3363,6 +3452,65 @@ fn raw_node_text_height(lines: &[String]) -> f32 {
     NODE_TEXT_LINE_HEIGHT * lines.len().max(1) as f32 + NODE_TEXT_VERTICAL_PADDING
 }
 
+const UML_CLASS_HORIZONTAL_PADDING: f32 = 24.0;
+const UML_CLASS_SECTION_VERTICAL_PADDING: f32 = 10.0;
+const UML_CLASS_SECTION_GAP: f32 = 8.0;
+
+#[derive(Debug, Clone, Copy)]
+struct UmlClassLayout {
+    width: f32,
+    height: f32,
+    name_height: f32,
+    attributes_height: f32,
+    methods_height: f32,
+}
+
+fn uml_section_height(lines: &[String]) -> f32 {
+    if lines.is_empty() {
+        0.0
+    } else {
+        NODE_TEXT_LINE_HEIGHT * lines.len() as f32 + UML_CLASS_SECTION_VERTICAL_PADDING * 2.0
+    }
+}
+
+fn compute_uml_class_layout(name: &str, attributes: &[String], methods: &[String]) -> UmlClassLayout {
+    let mut max_chars = name.chars().count().max(1);
+    for item in attributes {
+        max_chars = max_chars.max(item.chars().count().max(1));
+    }
+    for item in methods {
+        max_chars = max_chars.max(item.chars().count().max(1));
+    }
+
+    let width = (NODE_TEXT_CHAR_WIDTH * max_chars as f32 + UML_CLASS_HORIZONTAL_PADDING * 2.0)
+        .max(NODE_WIDTH);
+
+    let name_height = NODE_TEXT_LINE_HEIGHT + UML_CLASS_SECTION_VERTICAL_PADDING * 2.0;
+    let attributes_height = uml_section_height(attributes);
+    let methods_height = uml_section_height(methods);
+
+    let mut height = name_height + attributes_height + methods_height;
+    if attributes_height > 0.0 {
+        height += UML_CLASS_SECTION_GAP;
+    }
+    if methods_height > 0.0 {
+        height += UML_CLASS_SECTION_GAP;
+    }
+
+    UmlClassLayout {
+        width,
+        height: height.max(NODE_HEIGHT),
+        name_height,
+        attributes_height,
+        methods_height,
+    }
+}
+
+fn compute_uml_class_dimensions(name: &str, attributes: &[String], methods: &[String]) -> (f32, f32) {
+    let layout = compute_uml_class_layout(name, attributes, methods);
+    (layout.width, layout.height)
+}
+
 fn compute_node_dimensions_from_lines(shape: NodeShape, lines: &[String]) -> (f32, f32) {
     let mut width = raw_node_text_width(lines).max(NODE_WIDTH);
     let mut height = raw_node_text_height(lines).max(NODE_HEIGHT);
@@ -4424,7 +4572,7 @@ fn parse_class_diagram(lines: Vec<String>) -> Result<Diagram> {
     let mut order: Vec<String> = Vec::new();
     let mut edges: Vec<Edge> = Vec::new();
     let mut node_membership: HashMap<String, Vec<String>> = HashMap::new();
-    let mut class_members: HashMap<String, Vec<String>> = HashMap::new();
+    let mut class_members: HashMap<String, UmlClassMembers> = HashMap::new();
     let mut active_class_block: Option<String> = None;
 
     for raw_line in lines {
@@ -4499,21 +4647,21 @@ fn parse_class_diagram(lines: Vec<String>) -> Result<Diagram> {
         let Some(node) = nodes.get_mut(node_id) else {
             continue;
         };
-        let Some(members) = class_members.get(node_id) else {
-            continue;
-        };
-
-        if members.is_empty() {
-            continue;
-        }
-
-        let mut lines = vec![node.label.clone(), "----------------".to_string()];
-        lines.extend(members.iter().cloned());
-        let final_label = lines.join("\n");
-        let (width, height) = compute_node_dimensions(NodeShape::Rectangle, &final_label);
-        node.label = final_label;
+        let members = class_members.get(node_id).cloned().unwrap_or_default();
+        let class_name = node.label.clone();
+        let (width, height) = compute_uml_class_dimensions(
+            &class_name,
+            &members.attributes,
+            &members.methods,
+        );
+        node.label = class_name.clone();
         node.width = width;
         node.height = height;
+        node.uml_class = Some(UmlClassData {
+            name: class_name,
+            attributes: members.attributes,
+            methods: members.methods,
+        });
     }
 
     if nodes.is_empty() {
@@ -4544,6 +4692,22 @@ fn parse_uml_member_line(line: &str) -> Option<(String, String)> {
     }
 
     Some((class_name.to_string(), member.to_string()))
+}
+
+#[derive(Debug, Clone, Default)]
+struct UmlClassMembers {
+    attributes: Vec<String>,
+    methods: Vec<String>,
+}
+
+impl UmlClassMembers {
+    fn push(&mut self, raw_member: String) {
+        if raw_member.contains('(') {
+            self.methods.push(raw_member);
+        } else {
+            self.attributes.push(raw_member);
+        }
+    }
 }
 
 fn parse_uml_class_declaration(line: &str) -> Option<(String, Option<String>, bool)> {
@@ -4884,6 +5048,7 @@ fn parse_gantt_diagram(lines: Vec<String>, original_source: &str) -> Result<Diag
                 image: None,
                 width,
                 height,
+                uml_class: None,
             },
         );
         order.push(node_id.clone());
@@ -5732,6 +5897,7 @@ fn insert_node_spec(
                 image: None,
                 width,
                 height,
+                uml_class: None,
             });
             inserted = true;
         }

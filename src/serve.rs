@@ -159,6 +159,16 @@ struct NodePayload {
     height: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
     image: Option<NodeImagePayload>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    uml_class: Option<UmlClassPayload>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UmlClassPayload {
+    name: String,
+    attributes: Vec<String>,
+    methods: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -278,6 +288,7 @@ impl ServeState {
                             image: None,
                             width: NODE_WIDTH,
                             height: NODE_HEIGHT,
+                            uml_class: None,
                         },
                     );
                     Diagram {
@@ -848,6 +859,11 @@ async fn get_diagram(
             width: node.width,
             height: node.height,
             image: image_payload,
+            uml_class: node.uml_class.as_ref().map(|uml| UmlClassPayload {
+                name: uml.name.clone(),
+                attributes: uml.attributes.clone(),
+                methods: uml.methods.clone(),
+            }),
         });
     }
 

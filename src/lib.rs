@@ -132,6 +132,14 @@ pub struct Node {
     pub image: Option<NodeImage>,
     pub width: f32,
     pub height: f32,
+    pub uml_class: Option<UmlClassData>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UmlClassData {
+    pub name: String,
+    pub attributes: Vec<String>,
+    pub methods: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
