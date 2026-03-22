@@ -16,6 +16,7 @@ const API_BASE = process.env.NEXT_PUBLIC_OXDRAW_API ?? "http://127.0.0.1:5151";
 const LOCAL_SOURCE_KEY = "oxdraw.local.source.v1";
 const LOCAL_BACKGROUND_KEY = "oxdraw.local.background.v1";
 const LOCAL_SOURCE_PATH = "playground.mmd";
+const LOCAL_SHARE_PARAM = "d";
 const LOCAL_SAMPLE_SOURCE = `graph TD
     A[Client] --> B{Payload valid?}
     B -->|Yes| C[Queue job]
@@ -29,8 +30,94 @@ const LOCAL_SAMPLE_SOURCE = `graph TD
 let localCorePromise: Promise<WasmEditorCore> | null = null;
 let localCore: WasmEditorCore | null = null;
 
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
 function isBrowser(): boolean {
   return typeof window !== "undefined";
+}
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlToBytes(value: string): Uint8Array {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64 + "=".repeat((4 - (base64.length % 4 || 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+async function gzipBytes(bytes: Uint8Array): Promise<Uint8Array | null> {
+  if (!isBrowser() || typeof CompressionStream === "undefined") {
+    return null;
+  }
+  const stream = new Blob([toArrayBuffer(bytes)]).stream().pipeThrough(new CompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function gunzipBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  if (!isBrowser() || typeof DecompressionStream === "undefined") {
+    throw new Error("This browser cannot open compressed shared diagrams.");
+  }
+  const stream = new Blob([toArrayBuffer(bytes)]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function encodeLocalShareSource(source: string): Promise<string> {
+  const plainBytes = textEncoder.encode(source);
+  const gzippedBytes = await gzipBytes(plainBytes);
+  if (gzippedBytes && gzippedBytes.length < plainBytes.length) {
+    return `gz.${bytesToBase64Url(gzippedBytes)}`;
+  }
+  return `txt.${bytesToBase64Url(plainBytes)}`;
+}
+
+async function decodeLocalShareSource(token: string): Promise<string> {
+  const trimmed = token.trim();
+  if (!trimmed) {
+    throw new Error("Shared diagram URL is empty.");
+  }
+
+  const separatorIndex = trimmed.indexOf(".");
+  const prefix = separatorIndex === -1 ? "txt" : trimmed.slice(0, separatorIndex);
+  const payload = separatorIndex === -1 ? trimmed : trimmed.slice(separatorIndex + 1);
+  const bytes = base64UrlToBytes(payload);
+
+  if (prefix === "gz") {
+    const uncompressed = await gunzipBytes(bytes);
+    return textDecoder.decode(uncompressed);
+  }
+
+  return textDecoder.decode(bytes);
+}
+
+function readLocalShareTokenFromUrl(): string | null {
+  if (!isBrowser()) {
+    return null;
+  }
+  const rawHash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  if (!rawHash) {
+    return null;
+  }
+  const params = new URLSearchParams(rawHash);
+  return params.get(LOCAL_SHARE_PARAM);
 }
 
 function readLocalStorage(key: string): string | null {
@@ -60,9 +147,20 @@ async function ensureLocalCore(): Promise<WasmEditorCore> {
     return localCore;
   }
   if (!localCorePromise) {
-    const source = readLocalStorage(LOCAL_SOURCE_KEY) ?? LOCAL_SAMPLE_SOURCE;
     const background = readLocalStorage(LOCAL_BACKGROUND_KEY) ?? "white";
-    localCorePromise = createWasmEditor(source, background).then((core) => {
+    localCorePromise = (async () => {
+      let source = readLocalStorage(LOCAL_SOURCE_KEY) ?? LOCAL_SAMPLE_SOURCE;
+      const sharedToken = readLocalShareTokenFromUrl();
+      if (sharedToken) {
+        try {
+          source = await decodeLocalShareSource(sharedToken);
+          writeLocalStorage(LOCAL_SOURCE_KEY, source);
+        } catch (error) {
+          console.warn("Failed to decode shared diagram URL.", error);
+        }
+      }
+      return createWasmEditor(source, background);
+    })().then((core) => {
       localCore = core;
       return core;
     });
@@ -171,6 +269,24 @@ function toLocalStylePayload(update: StyleUpdate): Record<string, unknown> {
 function persistLocalCore(core: WasmEditorCore, overrideSource?: string): void {
   const source = overrideSource ?? core.source();
   writeLocalStorage(LOCAL_SOURCE_KEY, source);
+}
+
+export function isLocalMode(): boolean {
+  return MODE === "local";
+}
+
+export async function buildLocalShareUrl(source: string): Promise<string> {
+  if (MODE !== "local") {
+    throw new Error("Share links are only available in local mode.");
+  }
+  if (!isBrowser()) {
+    throw new Error("Share links require a browser environment.");
+  }
+
+  const token = await encodeLocalShareSource(source);
+  const url = new URL(window.location.href);
+  url.hash = `${LOCAL_SHARE_PARAM}=${token}`;
+  return url.toString();
 }
 
 export async function searchCodebase(query: string): Promise<SearchResult[]> {
