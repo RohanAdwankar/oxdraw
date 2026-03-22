@@ -1083,6 +1083,32 @@ impl EditorCore {
         Ok(update)
     }
 
+    pub fn delete_node(&mut self, id: &str) -> Result<bool> {
+        let mut diagram = Diagram::parse(&self.definition)?;
+        if !diagram.remove_node(id) {
+            return Ok(false);
+        }
+        self.definition = diagram.to_definition();
+        let node_ids: HashSet<String> = diagram.nodes.keys().cloned().collect();
+        let edge_ids: HashSet<String> = diagram.edges.iter().map(edge_identifier).collect();
+        self.overrides.prune(&node_ids, &edge_ids);
+        self.drag_state = None;
+        Ok(true)
+    }
+
+    pub fn delete_edge(&mut self, id: &str) -> Result<bool> {
+        let mut diagram = Diagram::parse(&self.definition)?;
+        if !diagram.remove_edge_by_identifier(id) {
+            return Ok(false);
+        }
+        self.definition = diagram.to_definition();
+        let node_ids: HashSet<String> = diagram.nodes.keys().cloned().collect();
+        let edge_ids: HashSet<String> = diagram.edges.iter().map(edge_identifier).collect();
+        self.overrides.prune(&node_ids, &edge_ids);
+        self.drag_state = None;
+        Ok(true)
+    }
+
     fn effective_overrides(&self) -> LayoutOverrides {
         let mut effective = self.overrides.clone();
         if let Some(drag) = &self.drag_state {
@@ -1401,6 +1427,16 @@ mod wasm {
         #[wasm_bindgen(js_name = source)]
         pub fn source(&self) -> Result<String, JsValue> {
             self.inner.borrow().source().map_err(to_js_error)
+        }
+
+        #[wasm_bindgen(js_name = deleteNode)]
+        pub fn delete_node(&self, id: &str) -> Result<bool, JsValue> {
+            self.inner.borrow_mut().delete_node(id).map_err(to_js_error)
+        }
+
+        #[wasm_bindgen(js_name = deleteEdge)]
+        pub fn delete_edge(&self, id: &str) -> Result<bool, JsValue> {
+            self.inner.borrow_mut().delete_edge(id).map_err(to_js_error)
         }
     }
 

@@ -1,7 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
-export const main: (a: number, b: number) => number;
 export const __wbg_wasmeditorcore_free: (a: number, b: number) => void;
 export const wasmeditorcore_applyLayoutUpdate: (a: number, b: any) => [number, number];
 export const wasmeditorcore_applyStyleUpdate: (a: number, b: any) => [number, number];
@@ -10,6 +9,8 @@ export const wasmeditorcore_beginGanttTaskDrag: (a: number, b: number, c: number
 export const wasmeditorcore_beginNodeDrag: (a: number, b: number, c: number, d: number, e: number) => [number, number];
 export const wasmeditorcore_beginSubgraphDrag: (a: number, b: number, c: number, d: number, e: number) => [number, number];
 export const wasmeditorcore_cancelDrag: (a: number) => void;
+export const wasmeditorcore_deleteEdge: (a: number, b: number, c: number) => [number, number, number];
+export const wasmeditorcore_deleteNode: (a: number, b: number, c: number) => [number, number, number];
 export const wasmeditorcore_endEdgeDrag: (a: number) => [number, number, number];
 export const wasmeditorcore_endGanttTaskDrag: (a: number) => [number, number, number];
 export const wasmeditorcore_endNodeDrag: (a: number) => [number, number, number];

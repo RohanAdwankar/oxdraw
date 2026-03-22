@@ -15,6 +15,12 @@ export interface WasmEditorCore {
   endGanttTaskDrag(): unknown;
   cancelDrag(): void;
   nudgeNode(id: string, dx: number, dy: number): unknown;
+  source(): string;
+  applyLayoutUpdate(update: unknown): void;
+  applyStyleUpdate(update: unknown): void;
+  setSource(source: string): void;
+  deleteNode(id: string): boolean;
+  deleteEdge(id: string): boolean;
 }
 
 interface WasmModule {
@@ -31,13 +37,23 @@ interface WasmModule {
 let modulePromise: Promise<WasmModule> | null = null;
 let initPromise: Promise<unknown> | null = null;
 
+function withBasePath(path: string): string {
+  const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  if (!base) {
+    return path;
+  }
+  const normalizedBase = base.endsWith("/") ? base.slice(0, -1) : base;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}`;
+}
+
 async function loadWasmModule(): Promise<WasmModule> {
   if (!modulePromise) {
     const dynamicImport = new Function(
       "path",
       "return import(/* webpackIgnore: true */ path);"
     ) as (path: string) => Promise<WasmModule>;
-    modulePromise = dynamicImport("/oxdraw_wasm.js");
+    modulePromise = dynamicImport(withBasePath("/oxdraw_wasm.js"));
   }
   return modulePromise;
 }
@@ -49,8 +65,8 @@ export async function createWasmEditor(
   const wasm = await loadWasmModule();
   if (!initPromise) {
     initPromise = wasm
-      .default({ module_or_path: "/oxdraw_wasm_bg.wasm" })
-      .catch(() => wasm.default("/oxdraw_wasm_bg.wasm"));
+      .default({ module_or_path: withBasePath("/oxdraw_wasm_bg.wasm") })
+      .catch(() => wasm.default(withBasePath("/oxdraw_wasm_bg.wasm")));
   }
   await initPromise;
   return new wasm.WasmEditorCore(source, background);

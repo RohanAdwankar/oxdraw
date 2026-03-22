@@ -8,6 +8,8 @@ export class WasmEditorCore {
   setSource(source: string): void;
   viewModel(): any;
   cancelDrag(): void;
+  deleteEdge(id: string): boolean;
+  deleteNode(id: string): boolean;
   endEdgeDrag(): any;
   endNodeDrag(): any;
   setBackground(background: string): void;
@@ -31,7 +33,6 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly main: (a: number, b: number) => number;
   readonly __wbg_wasmeditorcore_free: (a: number, b: number) => void;
   readonly wasmeditorcore_applyLayoutUpdate: (a: number, b: any) => [number, number];
   readonly wasmeditorcore_applyStyleUpdate: (a: number, b: any) => [number, number];
@@ -40,6 +41,8 @@ export interface InitOutput {
   readonly wasmeditorcore_beginNodeDrag: (a: number, b: number, c: number, d: number, e: number) => [number, number];
   readonly wasmeditorcore_beginSubgraphDrag: (a: number, b: number, c: number, d: number, e: number) => [number, number];
   readonly wasmeditorcore_cancelDrag: (a: number) => void;
+  readonly wasmeditorcore_deleteEdge: (a: number, b: number, c: number) => [number, number, number];
+  readonly wasmeditorcore_deleteNode: (a: number, b: number, c: number) => [number, number, number];
   readonly wasmeditorcore_endEdgeDrag: (a: number) => [number, number, number];
   readonly wasmeditorcore_endGanttTaskDrag: (a: number) => [number, number, number];
   readonly wasmeditorcore_endNodeDrag: (a: number) => [number, number, number];

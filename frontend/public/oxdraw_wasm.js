@@ -266,6 +266,32 @@ export class WasmEditorCore {
         wasm.wasmeditorcore_cancelDrag(this.__wbg_ptr);
     }
     /**
+     * @param {string} id
+     * @returns {boolean}
+     */
+    deleteEdge(id) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmeditorcore_deleteEdge(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] !== 0;
+    }
+    /**
+     * @param {string} id
+     * @returns {boolean}
+     */
+    deleteNode(id) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmeditorcore_deleteNode(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] !== 0;
+    }
+    /**
      * @returns {any}
      */
     endEdgeDrag() {
