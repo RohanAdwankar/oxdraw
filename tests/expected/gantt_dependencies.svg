@@ -31,20 +31,48 @@
   <text x="1210.0" y="420.0" fill="#64748b" font-size="16" text-anchor="middle">2024-02-10</text>
   <line x1="1360.0" y1="54.0" x2="1360.0" y2="388.0" stroke="#cbd5e1" stroke-width="1" />
   <text x="1360.0" y="420.0" fill="#64748b" font-size="16" text-anchor="middle">2024-02-15</text>
-  <polygon points="978.5,79.6 986.9,88.0 978.5,96.4 970.1,88.0" fill="#1d4ed8" stroke="#ffffff" stroke-width="2" />
-  <text x="994.9" y="88.0" fill="#111827" font-size="14" text-anchor="start" dominant-baseline="middle">deadline A</text>
-  <polygon points="1358.6,119.6 1367.0,128.0 1358.6,136.4 1350.2,128.0" fill="#1d4ed8" stroke="#ffffff" stroke-width="2" />
-  <text x="1342.2" y="128.0" fill="#111827" font-size="14" text-anchor="end" dominant-baseline="middle">deadline B</text>
-  <rect x="865.9" y="158.0" width="380.1" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
-  <text x="1055.9" y="168.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">boss on leave</text>
-  <rect x="160.0" y="198.0" width="190.0" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
-  <text x="255.0" y="208.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">onboarding</text>
-  <rect x="160.0" y="238.0" width="271.5" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
-  <text x="295.7" y="248.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">literature review</text>
-  <rect x="431.5" y="278.0" width="434.4" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
-  <text x="648.7" y="288.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">project A</text>
-  <rect x="865.9" y="318.0" width="108.6" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
-  <text x="920.2" y="328.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">chilling</text>
-  <rect x="979.9" y="358.0" width="374.7" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
-  <text x="1167.2" y="368.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">project B</text>
+  <g class="gantt-task" data-task-id="deadlineA">
+    <polygon class="gantt-handle" data-drag-kind="milestone" points="978.5,79.6 986.9,88.0 978.5,96.4 970.1,88.0" fill="#1d4ed8" stroke="#ffffff" stroke-width="2" />
+    <text x="994.9" y="88.0" fill="#111827" font-size="14" text-anchor="start" dominant-baseline="middle">deadline A</text>
+  </g>
+  <g class="gantt-task" data-task-id="deadlineB">
+    <polygon class="gantt-handle" data-drag-kind="milestone" points="1358.6,119.6 1367.0,128.0 1358.6,136.4 1350.2,128.0" fill="#1d4ed8" stroke="#ffffff" stroke-width="2" />
+    <text x="1342.2" y="128.0" fill="#111827" font-size="14" text-anchor="end" dominant-baseline="middle">deadline B</text>
+  </g>
+  <g class="gantt-task" data-task-id="bossaway">
+    <rect class="gantt-handle" data-drag-kind="move" x="865.9" y="158.0" width="380.1" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
+    <text x="1055.9" y="168.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">boss on leave</text>
+    <rect class="gantt-handle" data-drag-kind="resize-start" x="861.9" y="156.0" width="8" height="24.0" fill="transparent" />
+    <rect class="gantt-handle" data-drag-kind="resize-end" x="1242.0" y="156.0" width="8" height="24.0" fill="transparent" />
+  </g>
+  <g class="gantt-task" data-task-id="onboarding">
+    <rect class="gantt-handle" data-drag-kind="move" x="160.0" y="198.0" width="190.0" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
+    <text x="255.0" y="208.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">onboarding</text>
+    <rect class="gantt-handle" data-drag-kind="resize-start" x="156.0" y="196.0" width="8" height="24.0" fill="transparent" />
+    <rect class="gantt-handle" data-drag-kind="resize-end" x="346.0" y="196.0" width="8" height="24.0" fill="transparent" />
+  </g>
+  <g class="gantt-task" data-task-id="litreview">
+    <rect class="gantt-handle" data-drag-kind="move" x="160.0" y="238.0" width="271.5" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
+    <text x="295.7" y="248.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">literature review</text>
+    <rect class="gantt-handle" data-drag-kind="resize-start" x="156.0" y="236.0" width="8" height="24.0" fill="transparent" />
+    <rect class="gantt-handle" data-drag-kind="resize-end" x="427.5" y="236.0" width="8" height="24.0" fill="transparent" />
+  </g>
+  <g class="gantt-task" data-task-id="projectA">
+    <rect class="gantt-handle" data-drag-kind="move" x="431.5" y="278.0" width="434.4" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
+    <text x="648.7" y="288.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">project A</text>
+    <rect class="gantt-handle" data-drag-kind="resize-start" x="427.5" y="276.0" width="8" height="24.0" fill="transparent" />
+    <rect class="gantt-handle" data-drag-kind="resize-end" x="861.9" y="276.0" width="8" height="24.0" fill="transparent" />
+  </g>
+  <g class="gantt-task" data-task-id="chilling">
+    <rect class="gantt-handle" data-drag-kind="move" x="865.9" y="318.0" width="108.6" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
+    <text x="920.2" y="328.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">chilling</text>
+    <rect class="gantt-handle" data-drag-kind="resize-start" x="861.9" y="316.0" width="8" height="24.0" fill="transparent" />
+    <rect class="gantt-handle" data-drag-kind="resize-end" x="970.5" y="316.0" width="8" height="24.0" fill="transparent" />
+  </g>
+  <g class="gantt-task" data-task-id="projectB">
+    <rect class="gantt-handle" data-drag-kind="move" x="979.9" y="358.0" width="374.7" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
+    <text x="1167.2" y="368.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">project B</text>
+    <rect class="gantt-handle" data-drag-kind="resize-start" x="975.9" y="356.0" width="8" height="24.0" fill="transparent" />
+    <rect class="gantt-handle" data-drag-kind="resize-end" x="1350.6" y="356.0" width="8" height="24.0" fill="transparent" />
+  </g>
 </svg>

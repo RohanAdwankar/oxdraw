@@ -30,16 +30,40 @@
   <text x="1210.0" y="340.0" fill="#64748b" font-size="16" text-anchor="middle">13:07</text>
   <line x1="1360.0" y1="54.0" x2="1360.0" y2="308.0" stroke="#cbd5e1" stroke-width="1" />
   <text x="1360.0" y="340.0" fill="#64748b" font-size="16" text-anchor="middle">13:17</text>
-  <rect x="160.0" y="78.0" width="155.8" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
-  <text x="237.9" y="88.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">Clean</text>
-  <rect x="627.5" y="118.0" width="187.0" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
-  <text x="721.0" y="128.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">Clean</text>
-  <rect x="1095.1" y="158.0" width="124.7" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
-  <text x="1157.4" y="168.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">Clean</text>
-  <rect x="160.0" y="198.0" width="981.8" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
-  <text x="650.9" y="208.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">A</text>
-  <rect x="627.5" y="238.0" width="187.0" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
-  <text x="721.0" y="248.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">B</text>
-  <rect x="1173.0" y="278.0" width="187.0" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
-  <text x="1266.5" y="288.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">C</text>
+  <g class="gantt-task" data-task-id="task_1">
+    <rect class="gantt-handle" data-drag-kind="move" x="160.0" y="78.0" width="155.8" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
+    <text x="237.9" y="88.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">Clean</text>
+    <rect class="gantt-handle" data-drag-kind="resize-start" x="156.0" y="76.0" width="8" height="24.0" fill="transparent" />
+    <rect class="gantt-handle" data-drag-kind="resize-end" x="311.8" y="76.0" width="8" height="24.0" fill="transparent" />
+  </g>
+  <g class="gantt-task" data-task-id="task_2">
+    <rect class="gantt-handle" data-drag-kind="move" x="627.5" y="118.0" width="187.0" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
+    <text x="721.0" y="128.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">Clean</text>
+    <rect class="gantt-handle" data-drag-kind="resize-start" x="623.5" y="116.0" width="8" height="24.0" fill="transparent" />
+    <rect class="gantt-handle" data-drag-kind="resize-end" x="810.5" y="116.0" width="8" height="24.0" fill="transparent" />
+  </g>
+  <g class="gantt-task" data-task-id="task_3">
+    <rect class="gantt-handle" data-drag-kind="move" x="1095.1" y="158.0" width="124.7" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
+    <text x="1157.4" y="168.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">Clean</text>
+    <rect class="gantt-handle" data-drag-kind="resize-start" x="1091.1" y="156.0" width="8" height="24.0" fill="transparent" />
+    <rect class="gantt-handle" data-drag-kind="resize-end" x="1215.7" y="156.0" width="8" height="24.0" fill="transparent" />
+  </g>
+  <g class="gantt-task" data-task-id="task_4">
+    <rect class="gantt-handle" data-drag-kind="move" x="160.0" y="198.0" width="981.8" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
+    <text x="650.9" y="208.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">A</text>
+    <rect class="gantt-handle" data-drag-kind="resize-start" x="156.0" y="196.0" width="8" height="24.0" fill="transparent" />
+    <rect class="gantt-handle" data-drag-kind="resize-end" x="1137.8" y="196.0" width="8" height="24.0" fill="transparent" />
+  </g>
+  <g class="gantt-task" data-task-id="task_5">
+    <rect class="gantt-handle" data-drag-kind="move" x="627.5" y="238.0" width="187.0" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
+    <text x="721.0" y="248.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">B</text>
+    <rect class="gantt-handle" data-drag-kind="resize-start" x="623.5" y="236.0" width="8" height="24.0" fill="transparent" />
+    <rect class="gantt-handle" data-drag-kind="resize-end" x="810.5" y="236.0" width="8" height="24.0" fill="transparent" />
+  </g>
+  <g class="gantt-task" data-task-id="task_6">
+    <rect class="gantt-handle" data-drag-kind="move" x="1173.0" y="278.0" width="187.0" height="20.0" rx="4" ry="4" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
+    <text x="1266.5" y="288.0" fill="#ffffff" font-size="13" text-anchor="middle" dominant-baseline="middle">C</text>
+    <rect class="gantt-handle" data-drag-kind="resize-start" x="1169.0" y="276.0" width="8" height="24.0" fill="transparent" />
+    <rect class="gantt-handle" data-drag-kind="resize-end" x="1356.0" y="276.0" width="8" height="24.0" fill="transparent" />
+  </g>
 </svg>

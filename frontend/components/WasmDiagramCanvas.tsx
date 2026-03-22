@@ -24,6 +24,8 @@ interface DiagramVm {
   edges?: EdgeVm[];
 }
 
+type UnknownEntryMap<T> = Record<string, T> | Map<string, T> | null | undefined;
+
 function toDiagramPoint(svg: SVGSVGElement, clientX: number, clientY: number): Point | null {
   const ctm = svg.getScreenCTM();
   if (!ctm) {
@@ -46,15 +48,41 @@ function applyLayoutPatch(
     return;
   }
 
-  const payload = patch as {
-    nodes?: Record<string, Point | null>;
-    edges?: Record<string, { points?: Point[] | null } | null>;
-    ganttTasks?: Record<string, { startDay?: number; endDay?: number } | null>;
+  const mapEntries = <T,>(value: UnknownEntryMap<T>): Array<[string, T]> => {
+    if (!value) {
+      return [];
+    }
+    if (value instanceof Map) {
+      return Array.from(value.entries());
+    }
+    return Object.entries(value);
   };
 
-  const hasNodes = payload.nodes && Object.keys(payload.nodes).length > 0;
-  const hasEdges = payload.edges && Object.keys(payload.edges).length > 0;
-  const hasGanttTasks = payload.ganttTasks && Object.keys(payload.ganttTasks).length > 0;
+  const payload = patch as {
+    nodes?: UnknownEntryMap<Point | null>;
+    edges?: UnknownEntryMap<{ points?: Point[] | null } | null>;
+    ganttTasks?: UnknownEntryMap<{ startDay?: number; endDay?: number } | null>;
+    gantt_tasks?: UnknownEntryMap<{ start_day?: number; end_day?: number } | null>;
+  };
+
+  const nodeEntries = mapEntries(payload.nodes);
+  const edgeEntries = mapEntries(payload.edges);
+  const ganttEntriesCamel = mapEntries(payload.ganttTasks);
+  const ganttEntriesSnake = mapEntries(payload.gantt_tasks).map(([id, value]) => [
+    id,
+    value
+      ? {
+          startDay: value.start_day,
+          endDay: value.end_day,
+        }
+      : null,
+  ]) as Array<[string, { startDay?: number; endDay?: number } | null]>;
+  const ganttEntries =
+    ganttEntriesCamel.length > 0 ? ganttEntriesCamel : ganttEntriesSnake;
+
+  const hasNodes = nodeEntries.length > 0;
+  const hasEdges = edgeEntries.length > 0;
+  const hasGanttTasks = ganttEntries.length > 0;
 
   if (!hasNodes && !hasEdges && !hasGanttTasks) {
     return;
@@ -62,32 +90,28 @@ function applyLayoutPatch(
 
   if (onLayoutUpdate) {
     const update: LayoutUpdate = {};
-    if (payload.nodes) {
-      update.nodes = payload.nodes;
+    if (nodeEntries.length > 0) {
+      update.nodes = Object.fromEntries(nodeEntries);
     }
-    if (payload.edges) {
+    if (edgeEntries.length > 0) {
       const normalized: Record<string, { points?: Point[] | null }> = {};
-      for (const [edgeId, value] of Object.entries(payload.edges)) {
+      for (const [edgeId, value] of edgeEntries) {
         normalized[edgeId] = value ?? { points: null };
       }
       update.edges = normalized;
     }
-    if (payload.ganttTasks) {
-      update.ganttTasks = payload.ganttTasks;
+    if (ganttEntries.length > 0) {
+      update.ganttTasks = Object.fromEntries(ganttEntries);
     }
     onLayoutUpdate(update);
     return;
   }
 
-  if (payload.nodes) {
-    for (const [nodeId, value] of Object.entries(payload.nodes)) {
-      onNodeMove(nodeId, value);
-    }
+  for (const [nodeId, value] of nodeEntries) {
+    onNodeMove(nodeId, value);
   }
-  if (payload.edges) {
-    for (const [edgeId, value] of Object.entries(payload.edges)) {
-      onEdgeMove(edgeId, value?.points ?? null);
-    }
+  for (const [edgeId, value] of edgeEntries) {
+    onEdgeMove(edgeId, value?.points ?? null);
   }
 }
 

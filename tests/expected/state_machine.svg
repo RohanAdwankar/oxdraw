@@ -9,30 +9,44 @@
         </marker>
   </defs>
   <rect width="100%" height="100%" fill="white" />
+  <g class="edge" data-id="Start --&gt; Proc">
   <polyline points="185.6,193.0 224.0,220.0 230.0,220.0 236.0,220.0 273.6,193.6" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="203.5" y="206.0" width="53.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="230.0" y="220.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">start</text>
   </g>
+  </g>
+  <g class="edge" data-id="Proc --&gt; Start">
   <polyline points="274.4,143.0 236.0,116.0 230.0,116.0 224.0,116.0 186.4,142.4" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="199.8" y="102.0" width="60.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="230.0" y="116.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">cancel</text>
   </g>
+  </g>
+  <g class="edge" data-id="Proc --&gt; Done">
   <polyline points="342.6,193.0 370.0,214.0 390.0,214.0 410.0,214.0 436.6,193.6" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="356.1" y="200.0" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="390.0" y="214.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">success</text>
   </g>
+  </g>
+  <g class="edge" data-id="Done --&gt; Start">
   <polyline points="470.0,143.0 470.0,94.0 150.0,94.0 150.0,142.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="436.1" y="80.0" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="470.0" y="94.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">restart</text>
   </g>
+  </g>
+  <g class="node" data-id="Start">
   <rect x="80.0" y="143.0" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
   <text x="150.0" y="168.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Idle</text>
+  </g>
+  <g class="node" data-id="Proc">
   <rect x="240.0" y="143.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="310.0" y="168.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Processing</text>
+  </g>
+  <g class="node" data-id="Done">
   <rect x="400.0" y="143.0" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
   <text x="470.0" y="168.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Completed</text>
+  </g>
 </svg>
