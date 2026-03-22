@@ -29,7 +29,7 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: Install wasm-bindgen CLI
-        run: cargo install wasm-bindgen-cli --version 0.2.100
+        run: cargo install wasm-bindgen-cli --version 0.2.105
 
       - name: Build Rust wasm library
         run: cargo build --target wasm32-unknown-unknown --release --no-default-features --lib
