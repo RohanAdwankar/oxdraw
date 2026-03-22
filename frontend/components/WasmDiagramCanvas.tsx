@@ -147,6 +147,7 @@ export default function WasmDiagramCanvas({
   onNodeMove,
   onEdgeMove,
   onLayoutUpdate,
+  onSvgMarkupChange,
   selectedNodeId,
   onSelectNode,
   onSelectEdge,
@@ -163,8 +164,10 @@ export default function WasmDiagramCanvas({
     if (!coreRef.current) {
       return;
     }
-    setSvgMarkup(coreRef.current.renderSvg());
-  }, []);
+    const nextMarkup = coreRef.current.renderSvg();
+    setSvgMarkup(nextMarkup);
+    onSvgMarkupChange?.(nextMarkup);
+  }, [onSvgMarkupChange]);
 
   const zoomIn = useCallback(() => {
     setTransform((prev) => ({ ...prev, scale: Math.min(ZOOM_MAX, prev.scale * ZOOM_STEP) }));
@@ -189,7 +192,9 @@ export default function WasmDiagramCanvas({
         coreRef.current = core;
         dragRef.current = null;
         setError(null);
-        setSvgMarkup(core.renderSvg());
+        const nextMarkup = core.renderSvg();
+        setSvgMarkup(nextMarkup);
+        onSvgMarkupChange?.(nextMarkup);
       } catch (err) {
         if (cancelled) {
           return;
@@ -202,7 +207,7 @@ export default function WasmDiagramCanvas({
     return () => {
       cancelled = true;
     };
-  }, [diagram.background, diagram.source]);
+  }, [diagram.background, diagram.source, onSvgMarkupChange]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

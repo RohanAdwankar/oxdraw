@@ -280,6 +280,65 @@ const normalizeColorInput = (value: string): string => value.trim().toLowerCase(
 const hasCodeAnnotations = (source: string): boolean =>
   /^\s*%%\s*OXDRAW CODE\b/m.test(source);
 
+const loadImageFromUrl = (url: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to render diagram for PNG download."));
+    image.src = url;
+  });
+
+const svgMarkupToPngBlob = async (svgMarkup: string): Promise<Blob> => {
+  const svgBlob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
+  const svgUrl = URL.createObjectURL(svgBlob);
+  try {
+    const image = await loadImageFromUrl(svgUrl);
+    const width = image.naturalWidth || image.width;
+    const height = image.naturalHeight || image.height;
+    if (!width || !height) {
+      throw new Error("Diagram has no renderable size.");
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Canvas support is required to download PNG files.");
+    }
+
+    context.clearRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    const pngBlob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/png")
+    );
+    if (!pngBlob) {
+      throw new Error("Failed to encode PNG download.");
+    }
+    return pngBlob;
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+};
+
+const downloadBlob = (blob: Blob, filename: string): void => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
+const toPngFilename = (sourcePath: string): string => {
+  const basename = sourcePath.split("/").pop() ?? "diagram";
+  return basename.replace(/\.[^.]+$/, "") + ".png";
+};
+
 export default function Home() {
   const [diagram, setDiagram] = useState<DiagramData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -310,6 +369,8 @@ export default function Home() {
   const [rightPanelWidth, setRightPanelWidth] = useState(380);
   const [isRightPanelResizing, setIsRightPanelResizing] = useState(false);
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
+  const [svgMarkup, setSvgMarkup] = useState("");
+  const [downloadingPng, setDownloadingPng] = useState(false);
 
   const saveTimer = useRef<number | null>(null);
   const lastSubmittedSource = useRef<string | null>(null);
@@ -1248,6 +1309,23 @@ const handleResetOverrides = useCallback(() => {
   void applyUpdate({ nodes: nodesUpdate, edges: edgesUpdate });
 }, [applyUpdate, diagram]);
 
+const handleDownloadPng = useCallback(async () => {
+  if (!diagram || !svgMarkup || downloadingPng) {
+    return;
+  }
+
+  try {
+    setDownloadingPng(true);
+    setError(null);
+    const pngBlob = await svgMarkupToPngBlob(svgMarkup);
+    downloadBlob(pngBlob, toPngFilename(diagram.sourcePath));
+  } catch (err) {
+    setError((err as Error).message);
+  } finally {
+    setDownloadingPng(false);
+  }
+}, [diagram, downloadingPng, svgMarkup]);
+
 const statusMessage = useMemo(() => {
   if (loading) {
     return "Loading diagram...";
@@ -1258,11 +1336,14 @@ const statusMessage = useMemo(() => {
   if (sourceSaving) {
     return "Syncing source...";
   }
+  if (downloadingPng) {
+    return "Preparing PNG download...";
+  }
   if (error) {
     return `Error: ${error}`;
   }
   return diagram ? `Editing ${diagram.sourcePath}` : "No diagram selected";
-}, [diagram, error, loading, saving, sourceSaving]);
+}, [diagram, downloadingPng, error, loading, saving, sourceSaving]);
 
 useEffect(() => {
   if (!diagram || dragging) {
@@ -1490,6 +1571,13 @@ return (
       <div className="actions">
         <button onClick={toggleTheme} title="Toggle Theme">
           {theme === "light" ? "Dark Mode" : "Light Mode"}
+        </button>
+        <button
+          onClick={() => void handleDownloadPng()}
+          disabled={codedownMode || !diagram || !svgMarkup || loading || saving || sourceSaving || downloadingPng}
+          title="Download the current diagram as a PNG"
+        >
+          {downloadingPng ? "Downloading PNG..." : "Download PNG"}
         </button>
         {isCodeAnnotated && codeMapMapping && (
           <button
@@ -1845,6 +1933,7 @@ return (
                 onNodeMove={handleNodeMove}
                 onLayoutUpdate={handleLayoutUpdate}
                 onEdgeMove={handleEdgeMove}
+                onSvgMarkupChange={setSvgMarkup}
                 selectedNodeId={selectedNodeId}
                 selectedEdgeId={selectedEdgeId}
                 onSelectNode={handleSelectNode}
