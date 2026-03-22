@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import DiagramCanvas from "../components/DiagramCanvas";
+import WasmDiagramCanvas from "../components/WasmDiagramCanvas";
 import MarkdownViewer from "../components/MarkdownViewer";
 import CodePanel from "../components/CodePanel";
 import {
@@ -1840,7 +1840,7 @@ return (
                 codeMapMapping={codeMapMapping}
               />
             ) : (
-              <DiagramCanvas
+              <WasmDiagramCanvas
                 diagram={diagram}
                 onNodeMove={handleNodeMove}
                 onLayoutUpdate={handleLayoutUpdate}

@@ -41,6 +41,16 @@ oxdraw --input flow.mmd
 oxdraw --input flow.mmd --edit
 ```
 
+### Build WebAssembly Editor Bundle
+
+Build the wasm bundle and place `oxdraw_wasm.js` + `oxdraw_wasm_bg.wasm` in `frontend/public/`:
+
+```bash
+cargo build --target wasm32-unknown-unknown --release --no-default-features --lib
+wasm-bindgen target/wasm32-unknown-unknown/release/oxdraw.wasm --target web --out-dir frontend/public --out-name oxdraw_wasm
+oxdraw --input flow.mmd --edit
+```
+
 ### Gantt Syntax
 Aside from the default flowcharts, Gantt charts can also be rendered in Mermaid syntax using the CLI.
 

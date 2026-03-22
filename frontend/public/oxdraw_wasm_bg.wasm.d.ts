@@ -1,0 +1,35 @@
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const main: (a: number, b: number) => number;
+export const __wbg_wasmeditorcore_free: (a: number, b: number) => void;
+export const wasmeditorcore_applyLayoutUpdate: (a: number, b: any) => [number, number];
+export const wasmeditorcore_applyStyleUpdate: (a: number, b: any) => [number, number];
+export const wasmeditorcore_beginEdgeDrag: (a: number, b: number, c: number, d: number) => [number, number];
+export const wasmeditorcore_beginGanttTaskDrag: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
+export const wasmeditorcore_beginNodeDrag: (a: number, b: number, c: number, d: number, e: number) => [number, number];
+export const wasmeditorcore_beginSubgraphDrag: (a: number, b: number, c: number, d: number, e: number) => [number, number];
+export const wasmeditorcore_cancelDrag: (a: number) => void;
+export const wasmeditorcore_endEdgeDrag: (a: number) => [number, number, number];
+export const wasmeditorcore_endGanttTaskDrag: (a: number) => [number, number, number];
+export const wasmeditorcore_endNodeDrag: (a: number) => [number, number, number];
+export const wasmeditorcore_endSubgraphDrag: (a: number) => [number, number, number];
+export const wasmeditorcore_new: (a: number, b: number, c: number, d: number) => [number, number, number];
+export const wasmeditorcore_nudgeNode: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+export const wasmeditorcore_renderSvg: (a: number) => [number, number, number, number];
+export const wasmeditorcore_setBackground: (a: number, b: number, c: number) => void;
+export const wasmeditorcore_setSource: (a: number, b: number, c: number) => [number, number];
+export const wasmeditorcore_source: (a: number) => [number, number, number, number];
+export const wasmeditorcore_updateEdgeDrag: (a: number, b: number, c: number) => [number, number];
+export const wasmeditorcore_updateGanttTaskDrag: (a: number, b: number) => [number, number];
+export const wasmeditorcore_updateNodeDrag: (a: number, b: number, c: number) => [number, number];
+export const wasmeditorcore_updateSubgraphDrag: (a: number, b: number, c: number) => [number, number];
+export const wasmeditorcore_viewModel: (a: number) => [number, number, number];
+export const __wbindgen_malloc: (a: number, b: number) => number;
+export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+export const __wbindgen_exn_store: (a: number) => void;
+export const __externref_table_alloc: () => number;
+export const __wbindgen_externrefs: WebAssembly.Table;
+export const __externref_table_dealloc: (a: number) => void;
+export const __wbindgen_free: (a: number, b: number, c: number) => void;
+export const __wbindgen_start: () => void;

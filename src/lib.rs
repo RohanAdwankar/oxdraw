@@ -8,11 +8,13 @@ pub mod codedown;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod codemap;
 pub mod diagram;
+pub mod editor_core;
 #[cfg(feature = "server")]
 pub mod serve;
 pub mod utils;
 
 pub use diagram::*;
+pub use editor_core::*;
 #[cfg(feature = "server")]
 pub use serve::*;
 pub use utils::*;

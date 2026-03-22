@@ -353,6 +353,12 @@ impl Diagram {
                 .cloned()
                 .ok_or_else(|| anyhow!("missing geometry for edge '{id}'"))?;
 
+            write!(
+                svg,
+                "  <g class=\"edge\" data-id=\"{}\">\n",
+                escape_xml(&id)
+            )?;
+
             let mut stroke_color = "#2d3748".to_string();
             let mut effective_kind = edge.kind;
             let mut arrow_direction = edge.arrow;
@@ -499,6 +505,7 @@ impl Diagram {
 
                 svg.push_str("  </g>\n");
             }
+            svg.push_str("  </g>\n");
         }
         for id in &self.order {
             let node = self.nodes.get(id).unwrap();
@@ -555,6 +562,8 @@ impl Diagram {
                     .clone()
                     .unwrap_or_else(|| image_fill_color.clone())
             };
+
+            write!(svg, "  <g class=\"node\" data-id=\"{}\">\n", escape_xml(id))?;
 
             node.shape.render_svg_shape(
                 &mut svg,
@@ -683,6 +692,8 @@ impl Diagram {
                     svg.push_str("  </text>\n");
                 }
             }
+
+            svg.push_str("  </g>\n");
         }
 
         svg.push_str("</svg>\n");
@@ -952,13 +963,19 @@ impl Diagram {
                 .and_then(|style| style.stroke.as_deref())
                 .unwrap_or("#ffffff");
 
+            write!(
+                svg,
+                "  <g class=\"gantt-task\" data-task-id=\"{}\">\n",
+                escape_xml(&task.id)
+            )?;
+
             if task.milestone {
                 let cx = start_x + bar_width / 2.0;
                 let cy = bar_y + bar_height / 2.0;
                 let half = bar_height * 0.42;
                 write!(
                     svg,
-                    "  <polygon points=\"{:.1},{:.1} {:.1},{:.1} {:.1},{:.1} {:.1},{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "    <polygon class=\"gantt-handle\" data-drag-kind=\"milestone\" points=\"{:.1},{:.1} {:.1},{:.1} {:.1},{:.1} {:.1},{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
                     cx,
                     cy - half,
                     cx + half,
@@ -983,7 +1000,7 @@ impl Diagram {
                 };
                 write!(
                     svg,
-                    "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"{}\" dominant-baseline=\"middle\">{}</text>\n",
+                    "    <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"{}\" dominant-baseline=\"middle\">{}</text>\n",
                     label_x,
                     cy,
                     escape_xml(text_color),
@@ -993,7 +1010,7 @@ impl Diagram {
             } else {
                 write!(
                     svg,
-                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "    <rect class=\"gantt-handle\" data-drag-kind=\"move\" x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
                     start_x,
                     bar_y,
                     bar_width,
@@ -1003,13 +1020,24 @@ impl Diagram {
                 )?;
                 write!(
                     svg,
-                    "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"13\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+                    "    <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"13\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
                     start_x + bar_width / 2.0,
                     bar_y + bar_height / 2.0,
                     escape_xml(text_color),
                     escape_xml(&task.label)
                 )?;
+                write!(
+                    svg,
+                    "    <rect class=\"gantt-handle\" data-drag-kind=\"resize-start\" x=\"{:.1}\" y=\"{:.1}\" width=\"8\" height=\"{:.1}\" fill=\"transparent\" />\n    <rect class=\"gantt-handle\" data-drag-kind=\"resize-end\" x=\"{:.1}\" y=\"{:.1}\" width=\"8\" height=\"{:.1}\" fill=\"transparent\" />\n",
+                    start_x - 4.0,
+                    bar_y - 2.0,
+                    bar_height + 4.0,
+                    start_x + bar_width - 4.0,
+                    bar_y - 2.0,
+                    bar_height + 4.0
+                )?;
             }
+            svg.push_str("  </g>\n");
         }
 
         svg.push_str("</svg>\n");
@@ -4222,8 +4250,8 @@ fn rects_intersect_with_margin(a: &Rect, b: &Rect, margin: f32) -> bool {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Point {
-    x: f32,
-    y: f32,
+    pub x: f32,
+    pub y: f32,
 }
 
 pub fn centroid(points: &[Point]) -> Point {
