@@ -43,6 +43,12 @@ oxdraw --input flow.mmd
 oxdraw --input flow.mmd --edit
 ```
 
+### Sharing
+
+To share your diagrams there are currently 2 options: 
+1. Export as an Image (png or svg).
+2. Share button on the [static site](https://rohanadwankar.github.io/oxdraw/)) which saves your diagram in the hash fragment of the URL so your coworkers can view and perhaps make edits to the diagram you created.
+
 ### Gantt Syntax
 Aside from the default flowcharts, Gantt charts can also be rendered in Mermaid syntax using the CLI.
 
@@ -160,11 +166,13 @@ https://github.com/user-attachments/assets/4430147a-83d8-4d83-aca6-7beec197c0e3
 The path drawing algorithm is fun because there is a lot of ambiguity with what optimal behavior could be.
 Some prefer smooth lines because there is less total line but I prefer strong edges to make the diagram a bit more clear. 
 Some prefer no overlapping lines but I sometimes prefer an overlap rather than letting the lines get super long and string out of the diagram very far.
+Some prefer less overall joints which is directly contrary to some people's preferences for orthagonal lines.
 This is an example of using the delete key to remove one relationship and then using the arrow keys to move around one the nodes and seeing how the algorithm recomputes the positioning.
-There's definitely some improvements to be made to this algorithm so I imagine this will keep getting better :)
+There's definitely some improvements to be made to this algorithm so I imagine this will keep getting better and eventually add variants for different preferenes :)
 
 ## Community
 If you do end up using oxdraw or are interested in contributing to oxdraw feel free to send me a message in the oxdraw channel on [my discord](https://discord.gg/cHpnNAYqD3), open a Github Issue, or submite a PR. I would love to hear how you are using it, any feedback you have, and/or add your project to this section! 
 
-Check out these projects using oxdraw:
+Check out these projects involving oxdraw:
 - [Typst-Oxdraw](https://github.com/hongjr03/typst-oxdraw/) is a repo that integrates oxdraw diagrams into Typst documents. 
+- [Asciidoctor](https://docs.asciidoctor.org/diagram-extension/latest/diagram_types/oxdraw/) has oxdraw support. 
