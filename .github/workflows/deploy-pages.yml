@@ -3,7 +3,7 @@ name: Deploy GitHub Pages
 on:
   push:
     branches:
-      - wasm-refactor
+      - master 
   workflow_dispatch:
 
 permissions:
