@@ -7,6 +7,7 @@ export interface DiagramCanvasProps {
   onNodeMove: (id: string, position: Point | null) => void;
   onLayoutUpdate?: (update: LayoutUpdate) => void;
   onEdgeMove: (id: string, points: Point[] | null) => void;
+  onSvgMarkupChange?: (markup: string) => void;
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
   onSelectNode: (id: string | null) => void;
