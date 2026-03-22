@@ -13,9 +13,11 @@ import WasmDiagramCanvas from "../components/WasmDiagramCanvas";
 import MarkdownViewer from "../components/MarkdownViewer";
 import CodePanel from "../components/CodePanel";
 import {
+  buildLocalShareUrl,
   deleteEdge,
   deleteNode,
   fetchDiagram,
+  isLocalMode,
   updateLayout,
   updateNodeImage,
   updateSource,
@@ -339,6 +341,31 @@ const toPngFilename = (sourcePath: string): string => {
   return basename.replace(/\.[^.]+$/, "") + ".png";
 };
 
+const copyTextToClipboard = async (text: string): Promise<void> => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "absolute";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    const copied = document.execCommand("copy");
+    if (!copied) {
+      throw new Error("Clipboard copy failed.");
+    }
+  } finally {
+    textarea.remove();
+  }
+};
+
+const LOCAL_MODE = isLocalMode();
+
 export default function Home() {
   const [diagram, setDiagram] = useState<DiagramData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -371,11 +398,22 @@ export default function Home() {
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [svgMarkup, setSvgMarkup] = useState("");
   const [downloadingPng, setDownloadingPng] = useState(false);
+  const [sharingLink, setSharingLink] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const saveTimer = useRef<number | null>(null);
   const lastSubmittedSource = useRef<string | null>(null);
   const nodeImageInputRef = useRef<HTMLInputElement | null>(null);
   const imagePaddingValueRef = useRef(imagePaddingValue);
+  const shareCopiedTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (shareCopiedTimer.current !== null) {
+        window.clearTimeout(shareCopiedTimer.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     document.body.setAttribute("data-theme", theme);
@@ -1326,6 +1364,31 @@ const handleDownloadPng = useCallback(async () => {
   }
 }, [diagram, downloadingPng, svgMarkup]);
 
+const handleShare = useCallback(async () => {
+  if (!LOCAL_MODE || codedownMode || sharingLink) {
+    return;
+  }
+
+  try {
+    setSharingLink(true);
+    setError(null);
+    const shareUrl = await buildLocalShareUrl(sourceDraft);
+    await copyTextToClipboard(shareUrl);
+    setShareCopied(true);
+    if (shareCopiedTimer.current !== null) {
+      window.clearTimeout(shareCopiedTimer.current);
+    }
+    shareCopiedTimer.current = window.setTimeout(() => {
+      setShareCopied(false);
+      shareCopiedTimer.current = null;
+    }, 2000);
+  } catch (err) {
+    setError((err as Error).message);
+  } finally {
+    setSharingLink(false);
+  }
+}, [codedownMode, sharingLink, sourceDraft]);
+
 const statusMessage = useMemo(() => {
   if (loading) {
     return "Loading diagram...";
@@ -1339,11 +1402,17 @@ const statusMessage = useMemo(() => {
   if (downloadingPng) {
     return "Preparing PNG download...";
   }
+  if (sharingLink) {
+    return "Preparing share link...";
+  }
+  if (shareCopied) {
+    return "Share link copied.";
+  }
   if (error) {
     return `Error: ${error}`;
   }
   return diagram ? `Editing ${diagram.sourcePath}` : "No diagram selected";
-}, [diagram, downloadingPng, error, loading, saving, sourceSaving]);
+}, [diagram, downloadingPng, error, loading, saving, shareCopied, sharingLink, sourceSaving]);
 
 useEffect(() => {
   if (!diagram || dragging) {
@@ -1579,6 +1648,15 @@ return (
         >
           {downloadingPng ? "Downloading PNG..." : "Download PNG"}
         </button>
+        {LOCAL_MODE && (
+          <button
+            onClick={() => void handleShare()}
+            disabled={codedownMode || !diagram || loading || saving || sourceSaving || sharingLink}
+            title="Copy a shareable link for the current diagram"
+          >
+            {sharingLink ? "Sharing..." : shareCopied ? "Link Copied" : "Share"}
+          </button>
+        )}
         {isCodeAnnotated && codeMapMapping && (
           <button
             onClick={() => setCodeMapMode((current) => !current)}
