@@ -17,6 +17,8 @@ Aside from the normal diagrams, oxdraw can also embed images directly into the d
 The changes are saved as comments in the mermaid file so it remains compatible with other Mermaid tools.
 The repo is composed of the Rust CLI to compile `.mmd` files into images, a React based web interface to editing the files, and some AI and static analysis algorithm options for automatic generation of code maps.
 
+Feel free to try it out [here](https://rohanadwankar.github.io/oxdraw/). Since the algorithm in rust is compiled to wasm it can be deployed easily as a static site.
+
 ## Vision
 
 The reason I started this project was I used Mermaid a lot in the past when making architecture diagrams or trying to understand large codebases through having AI tools generate .mmd files to visualize them. However what typically happened was since these diagrams couldn't be edited minutely for example cleaning up joints and chart organization, I would have to move over the diagrams I started to things like Lucidchart. So the big picture goal of this project is to unite the benefits of code generated diagramming like Mermaid with the customizability of diagram software like Lucidchart.
@@ -38,16 +40,6 @@ oxdraw --input flow.mmd
 ### Launch the Interactive Editor
 
 ```bash
-oxdraw --input flow.mmd --edit
-```
-
-### Build WebAssembly Editor Bundle
-
-Build the wasm bundle and place `oxdraw_wasm.js` + `oxdraw_wasm_bg.wasm` in `frontend/public/`:
-
-```bash
-cargo build --target wasm32-unknown-unknown --release --no-default-features --lib
-wasm-bindgen target/wasm32-unknown-unknown/release/oxdraw.wasm --target web --out-dir frontend/public --out-name oxdraw_wasm
 oxdraw --input flow.mmd --edit
 ```
 
