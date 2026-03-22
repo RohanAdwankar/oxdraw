@@ -148,7 +148,6 @@ export default function WasmDiagramCanvas({
   onEdgeMove,
   onLayoutUpdate,
   selectedNodeId,
-  selectedEdgeId,
   onSelectNode,
   onSelectEdge,
   onDragStateChange,
@@ -312,10 +311,7 @@ export default function WasmDiagramCanvas({
         return;
       }
       onSelectEdge(null);
-      if (selectedNodeId !== nodeId) {
-        onSelectNode(nodeId);
-        return;
-      }
+      onSelectNode(nodeId);
 
       try {
         core.beginNodeDrag(nodeId, point.x, point.y);
@@ -336,10 +332,7 @@ export default function WasmDiagramCanvas({
         return;
       }
       onSelectNode(null);
-      if (selectedEdgeId !== edgeId) {
-        onSelectEdge(edgeId);
-        return;
-      }
+      onSelectEdge(edgeId);
       try {
         const index = pickEdgeHandleIndex(core, edgeId, point);
         core.beginEdgeDrag(edgeId, index);
