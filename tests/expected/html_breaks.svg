@@ -9,7 +9,10 @@
         </marker>
   </defs>
   <rect width="100%" height="100%" fill="white" />
+  <g class="edge" data-id="Start --&gt; Process">
   <line x1="230.7" y1="130.0" x2="230.7" y2="237.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  </g>
+  <g class="edge" data-id="Process --&gt; Decision">
   <line x1="230.7" y1="292.0" x2="230.7" y2="389.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="204.2" y="308.5" width="53.0" height="44.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
@@ -18,6 +21,8 @@
       <tspan x="230.7" y="338.5" dominant-baseline="middle">label</tspan>
     </text>
   </g>
+  </g>
+  <g class="edge" data-id="Decision --&gt; Success">
   <line x1="216.6" y1="453.0" x2="164.1" y2="557.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="160.1" y="473.0" width="60.4" height="44.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
@@ -26,6 +31,8 @@
       <tspan x="190.3" y="503.0" dominant-baseline="middle">Option</tspan>
     </text>
   </g>
+  </g>
+  <g class="edge" data-id="Decision -.-&gt; Retry">
   <line x1="244.7" y1="453.0" x2="296.8" y2="557.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" stroke-dasharray="8 6" />
   <g pointer-events="none">
     <rect x="247.9" y="473.1" width="45.6" height="44.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
@@ -34,31 +41,48 @@
       <tspan x="270.7" y="503.1" dominant-baseline="middle">Path</tspan>
     </text>
   </g>
+  </g>
+  <g class="edge" data-id="Success --&gt; End">
   <line x1="163.6" y1="612.0" x2="217.6" y2="719.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  </g>
+  <g class="edge" data-id="Retry --&gt; Process">
   <polyline points="326.9,558.0 370.7,485.0 350.7,405.0 330.7,325.0 276.6,292.5" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  </g>
+  <g class="node" data-id="Start">
   <rect x="160.0" y="80.0" width="141.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="230.7" y="105.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Single Line</text>
+  </g>
+  <g class="node" data-id="Process">
   <rect x="160.0" y="238.0" width="141.4" height="54.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="230.7" fill="#1a202c" font-size="14" text-anchor="middle">
     <tspan x="230.7" y="257.0" dominant-baseline="middle">Two Lines</tspan>
     <tspan x="230.7" y="273.0" dominant-baseline="middle">Second Line</tspan>
   </text>
+  </g>
+  <g class="node" data-id="Decision">
   <polygon points="230.7,390.0 300.7,425.0 230.7,460.0 160.7,425.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
   <text x="230.7" fill="#1a202c" font-size="14" text-anchor="middle">
     <tspan x="230.7" y="409.0" dominant-baseline="middle">Three</tspan>
     <tspan x="230.7" y="425.0" dominant-baseline="middle">Lines</tspan>
     <tspan x="230.7" y="441.0" dominant-baseline="middle">Here</tspan>
   </text>
+  </g>
+  <g class="node" data-id="Success">
   <rect x="80.0" y="558.0" width="140.0" height="54.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
   <text x="150.0" fill="#1a202c" font-size="14" text-anchor="middle">
     <tspan x="150.0" y="577.0" dominant-baseline="middle">Uppercase</tspan>
     <tspan x="150.0" y="593.0" dominant-baseline="middle">Also Works</tspan>
   </text>
+  </g>
+  <g class="node" data-id="Retry">
   <rect x="240.0" y="558.0" width="141.4" height="54.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="310.7" fill="#1a202c" font-size="14" text-anchor="middle">
     <tspan x="310.7" y="577.0" dominant-baseline="middle">With Space</tspan>
     <tspan x="310.7" y="593.0" dominant-baseline="middle">Still Works</tspan>
   </text>
+  </g>
+  <g class="node" data-id="End">
   <rect x="160.7" y="720.0" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
   <text x="230.7" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Final</text>
+  </g>
 </svg>

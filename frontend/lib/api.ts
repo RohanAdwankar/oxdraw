@@ -7,10 +7,176 @@ import {
   CodeMapMapping,
   SearchResult,
 } from "./types";
+import { createWasmEditor, type WasmEditorCore } from "./wasmEditor";
+
+type Mode = "server" | "local";
+const MODE: Mode = process.env.NEXT_PUBLIC_OXDRAW_MODE === "local" ? "local" : "server";
 
 const API_BASE = process.env.NEXT_PUBLIC_OXDRAW_API ?? "http://127.0.0.1:5151";
+const LOCAL_SOURCE_KEY = "oxdraw.local.source.v1";
+const LOCAL_BACKGROUND_KEY = "oxdraw.local.background.v1";
+const LOCAL_SOURCE_PATH = "playground.mmd";
+const LOCAL_SAMPLE_SOURCE = `graph TD
+    A[Client] --> B{Payload valid?}
+    B -->|Yes| C[Queue job]
+    B -->|No| D[Show error]
+    C --> E[Process]
+    E --> F{Needs retry?}
+    F -->|Yes| C
+    F -->|No| G[Done]
+`;
+
+let localCorePromise: Promise<WasmEditorCore> | null = null;
+let localCore: WasmEditorCore | null = null;
+
+function isBrowser(): boolean {
+  return typeof window !== "undefined";
+}
+
+function readLocalStorage(key: string): string | null {
+  if (!isBrowser()) {
+    return null;
+  }
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalStorage(key: string, value: string): void {
+  if (!isBrowser()) {
+    return;
+  }
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // ignore quota/private mode failures
+  }
+}
+
+async function ensureLocalCore(): Promise<WasmEditorCore> {
+  if (localCore) {
+    return localCore;
+  }
+  if (!localCorePromise) {
+    const source = readLocalStorage(LOCAL_SOURCE_KEY) ?? LOCAL_SAMPLE_SOURCE;
+    const background = readLocalStorage(LOCAL_BACKGROUND_KEY) ?? "white";
+    localCorePromise = createWasmEditor(source, background).then((core) => {
+      localCore = core;
+      return core;
+    });
+  }
+  return localCorePromise;
+}
+
+function localDiagramFromCore(core: WasmEditorCore): DiagramData {
+  const vm = core.viewModel() as Record<string, unknown>;
+  return {
+    sourcePath: LOCAL_SOURCE_PATH,
+    kind: (vm.kind as "flowchart" | "gantt") ?? "flowchart",
+    background: (vm.background as string) ?? "white",
+    autoSize: (vm.autoSize as { width: number; height: number }) ?? { width: 0, height: 0 },
+    renderSize: (vm.renderSize as { width: number; height: number }) ?? { width: 0, height: 0 },
+    nodes: (vm.nodes as DiagramData["nodes"]) ?? [],
+    edges: (vm.edges as DiagramData["edges"]) ?? [],
+    subgraphs: (vm.subgraphs as DiagramData["subgraphs"]) ?? [],
+    gantt: (vm.gantt as DiagramData["gantt"]) ?? undefined,
+    source: (vm.source as string) ?? "",
+  };
+}
+
+function toLocalLayoutPayload(update: LayoutUpdate): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (update.nodes && Object.keys(update.nodes).length > 0) {
+    payload.nodes = update.nodes;
+  }
+  if (update.edges && Object.keys(update.edges).length > 0) {
+    payload.edges = update.edges;
+  }
+  if (update.ganttTasks && Object.keys(update.ganttTasks).length > 0) {
+    const entries: Array<[string, { start_day?: number; end_day?: number } | null]> = [];
+    for (const [taskId, value] of Object.entries(update.ganttTasks)) {
+      if (value === null) {
+        entries.push([taskId, null]);
+        continue;
+      }
+      const patch: { start_day?: number; end_day?: number } = {};
+      if (value.startDay !== undefined) {
+        patch.start_day = value.startDay;
+      }
+      if (value.endDay !== undefined) {
+        patch.end_day = value.endDay;
+      }
+      entries.push([taskId, patch]);
+    }
+    payload.gantt_tasks = Object.fromEntries(entries);
+  }
+  return payload;
+}
+
+function toLocalStylePayload(update: StyleUpdate): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+
+  const nodeEntries: Array<[string, Record<string, string | null> | null]> = [];
+  for (const [key, value] of Object.entries(update.nodeStyles ?? {})) {
+    const normalized = normalizeNodeStyle(value);
+    if (normalized !== undefined) {
+      nodeEntries.push([key, normalized]);
+    }
+  }
+  if (nodeEntries.length > 0) {
+    payload["node_styles"] = Object.fromEntries(nodeEntries);
+  }
+
+  const edgeEntries: Array<[string, Record<string, string | null> | null]> = [];
+  for (const [key, value] of Object.entries(update.edgeStyles ?? {})) {
+    const normalized = normalizeEdgeStyle(value);
+    if (normalized !== undefined) {
+      edgeEntries.push([key, normalized]);
+    }
+  }
+  if (edgeEntries.length > 0) {
+    payload["edge_styles"] = Object.fromEntries(edgeEntries);
+  }
+
+  if (update.ganttStyle) {
+    const ganttPatch: Record<string, string | null> = {};
+    if (update.ganttStyle.rowFillEven !== undefined) {
+      ganttPatch.row_fill_even = update.ganttStyle.rowFillEven;
+    }
+    if (update.ganttStyle.rowFillOdd !== undefined) {
+      ganttPatch.row_fill_odd = update.ganttStyle.rowFillOdd;
+    }
+    if (update.ganttStyle.taskFill !== undefined) {
+      ganttPatch.task_fill = update.ganttStyle.taskFill;
+    }
+    if (update.ganttStyle.milestoneFill !== undefined) {
+      ganttPatch.milestone_fill = update.ganttStyle.milestoneFill;
+    }
+    if (update.ganttStyle.taskText !== undefined) {
+      ganttPatch.task_text = update.ganttStyle.taskText;
+    }
+    if (update.ganttStyle.milestoneText !== undefined) {
+      ganttPatch.milestone_text = update.ganttStyle.milestoneText;
+    }
+    if (Object.keys(ganttPatch).length > 0) {
+      payload["gantt_style"] = ganttPatch;
+    }
+  }
+
+  return payload;
+}
+
+function persistLocalCore(core: WasmEditorCore, overrideSource?: string): void {
+  const source = overrideSource ?? core.source();
+  writeLocalStorage(LOCAL_SOURCE_KEY, source);
+}
 
 export async function searchCodebase(query: string): Promise<SearchResult[]> {
+  if (MODE === "local") {
+    return [];
+  }
   const response = await fetch(`${API_BASE}/api/codemap/search?query=${encodeURIComponent(query)}`);
   if (!response.ok) {
     const text = await response.text();
@@ -21,6 +187,11 @@ export async function searchCodebase(query: string): Promise<SearchResult[]> {
 }
 
 export async function fetchDiagram(): Promise<DiagramData> {
+  if (MODE === "local") {
+    const core = await ensureLocalCore();
+    return localDiagramFromCore(core);
+  }
+
   const response = await fetch(`${API_BASE}/api/diagram`, {
     method: "GET",
     cache: "no-store",
@@ -66,6 +237,13 @@ export async function updateLayout(update: LayoutUpdate): Promise<void> {
     return;
   }
 
+  if (MODE === "local") {
+    const core = await ensureLocalCore();
+    core.applyLayoutUpdate(toLocalLayoutPayload(update));
+    persistLocalCore(core);
+    return;
+  }
+
   const response = await fetch(`${API_BASE}/api/diagram/layout`, {
     method: "PUT",
     headers: {
@@ -81,6 +259,13 @@ export async function updateLayout(update: LayoutUpdate): Promise<void> {
 }
 
 export async function updateSource(source: string): Promise<void> {
+  if (MODE === "local") {
+    const core = await ensureLocalCore();
+    core.setSource(source);
+    persistLocalCore(core, source);
+    return;
+  }
+
   const response = await fetch(`${API_BASE}/api/diagram/source`, {
     method: "PUT",
     headers: {
@@ -149,6 +334,13 @@ export async function updateStyle(update: StyleUpdate): Promise<void> {
     return;
   }
 
+  if (MODE === "local") {
+    const core = await ensureLocalCore();
+    core.applyStyleUpdate(toLocalStylePayload(update));
+    persistLocalCore(core);
+    return;
+  }
+
   const response = await fetch(`${API_BASE}/api/diagram/style`, {
     method: "PUT",
     headers: {
@@ -160,6 +352,40 @@ export async function updateStyle(update: StyleUpdate): Promise<void> {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || `Failed to update style: ${response.status}`);
+  }
+}
+
+export async function updateNodeImage(
+  nodeId: string,
+  image: { mimeType?: string; data?: string; padding?: number } | null
+): Promise<void> {
+  if (MODE === "local") {
+    throw new Error("Node image upload is not available in local mode yet.");
+  }
+
+  const payload =
+    image === null
+      ? null
+      : {
+          ...(image.mimeType !== undefined ? { mime_type: image.mimeType } : {}),
+          ...(image.data !== undefined ? { data: image.data } : {}),
+          ...(image.padding !== undefined ? { padding: image.padding } : {}),
+        };
+
+  const response = await fetch(
+    `${API_BASE}/api/diagram/nodes/${encodeURIComponent(nodeId)}/image`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to update node image: ${response.status}`);
   }
 }
 
@@ -218,6 +444,16 @@ function normalizeEdgeStyle(
 }
 
 export async function deleteNode(nodeId: string): Promise<void> {
+  if (MODE === "local") {
+    const core = await ensureLocalCore();
+    const deleted = core.deleteNode(nodeId);
+    if (!deleted) {
+      throw new Error(`Node not found: ${nodeId}`);
+    }
+    persistLocalCore(core);
+    return;
+  }
+
   const response = await fetch(
     `${API_BASE}/api/diagram/nodes/${encodeURIComponent(nodeId)}`,
     {
@@ -232,6 +468,16 @@ export async function deleteNode(nodeId: string): Promise<void> {
 }
 
 export async function deleteEdge(edgeId: string): Promise<void> {
+  if (MODE === "local") {
+    const core = await ensureLocalCore();
+    const deleted = core.deleteEdge(edgeId);
+    if (!deleted) {
+      throw new Error(`Edge not found: ${edgeId}`);
+    }
+    persistLocalCore(core);
+    return;
+  }
+
   const response = await fetch(
     `${API_BASE}/api/diagram/edges/${encodeURIComponent(edgeId)}`,
     {
@@ -245,76 +491,67 @@ export async function deleteEdge(edgeId: string): Promise<void> {
   }
 }
 
-export async function updateNodeImage(
-  nodeId: string,
-  payload: ({ mimeType?: string; data?: string | null; padding?: number } | null)
-): Promise<void> {
-  let body: Record<string, unknown>;
+export async function fetchCodeMapMapping(): Promise<CodeMapMapping> {
+  if (MODE === "local") {
+    throw new Error("Code map is not available in local mode.");
+  }
+  const response = await fetch(`${API_BASE}/api/codemap/mapping`, {
+    method: "GET",
+    cache: "no-store",
+  });
 
-  if (payload === null) {
-    body = { data: null };
-  } else {
-    body = {};
-    if (payload.mimeType !== undefined) {
-      body.mime_type = payload.mimeType;
-    }
-    if (payload.data !== undefined) {
-      body.data = payload.data;
-    }
-    if (payload.padding !== undefined) {
-      body.padding = payload.padding;
-    }
-    if (Object.keys(body).length === 0) {
-      return;
-    }
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Failed to load code map mapping: ${response.status}`);
   }
 
+  return (await response.json()) as CodeMapMapping;
+}
+
+export async function fetchCodeMapFile(path: string): Promise<string> {
+  if (MODE === "local") {
+    throw new Error("Code map is not available in local mode.");
+  }
   const response = await fetch(
-    `${API_BASE}/api/diagram/nodes/${encodeURIComponent(nodeId)}/image`,
+    `${API_BASE}/api/codemap/file?path=${encodeURIComponent(path)}`,
     {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
+      method: "GET",
+      cache: "no-store",
     }
   );
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Failed to update node image: ${response.status}`);
-  }
-}
-
-export async function fetchCodeMapMapping(): Promise<CodeMapMapping | null> {
-  const response = await fetch(`${API_BASE}/api/codemap/mapping`);
-  if (!response.ok) {
     const text = await response.text();
-    console.error("Fetch mapping failed:", text);
-    throw new Error(`Failed to fetch code map mapping: ${response.statusText}`);
+    throw new Error(text || `Failed to load code map file: ${response.status}`);
   }
-  return response.json();
+
+  return await response.text();
 }
 
-export async function fetchCodeMapFile(path: string): Promise<string> {
-  const response = await fetch(`${API_BASE}/api/codemap/file?path=${encodeURIComponent(path)}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch file content: ${response.statusText}`);
+export async function openInEditor(file: string, line?: number, editor: string = "vscode"): Promise<void> {
+  if (MODE === "local") {
+    throw new Error("Open in editor is not available in local mode.");
   }
-  return response.text();
-}
-
-export async function openInEditor(path: string, line: number | undefined, editor: "vscode" | "nvim"): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/codemap/open`, {
+  const response = await fetch(`${API_BASE}/api/open-in-editor`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ path, line, editor }),
+    body: JSON.stringify({ file, line, editor }),
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Failed to open editor: ${response.status}`);
+    const text = await response.text();
+    throw new Error(text || `Failed to open file in editor: ${response.status}`);
   }
+}
+
+export function __debugLocalSnapshot(): Record<string, unknown> | null {
+  if (MODE !== "local" || !localCore) {
+    return null;
+  }
+  return {
+    source: localCore.source(),
+    viewModel: localCore.viewModel(),
+  };
 }

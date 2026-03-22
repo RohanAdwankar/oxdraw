@@ -117,6 +117,20 @@ body > div:first-of-type {
   min-width: 0;
 }
 
+.diagram-canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg-primary);
+}
+
+.diagram-canvas svg {
+  display: block;
+  max-width: none;
+}
+
 .placeholder {
   margin: auto;
   padding: 1rem 1.5rem;
