@@ -12,6 +12,7 @@ import {
 import WasmDiagramCanvas from "../components/WasmDiagramCanvas";
 import MarkdownViewer from "../components/MarkdownViewer";
 import CodePanel from "../components/CodePanel";
+import type { CanvasContextMenuRequest, CanvasToolMode } from "../components/diagramCanvasTypes";
 import {
   buildLocalShareUrl,
   deleteEdge,
@@ -39,7 +40,14 @@ import {
   CodeMapMapping,
   CodeLocation,
   SearchResult,
+  NodeShape,
 } from "../lib/types";
+import {
+  addEdgeToSource,
+  addNodeToSource,
+  makeUniqueNodeId,
+  updateNodeShapeInSource,
+} from "../lib/sourceBuilder";
 
 function hasOverrides(diagram: DiagramData | null): boolean {
   if (!diagram) {
@@ -81,6 +89,24 @@ const ARROW_DIRECTION_OPTIONS: Array<{ value: EdgeArrowDirection; label: string 
   { value: "both", label: "Both" },
   { value: "none", label: "None" },
 ];
+
+const NODE_SHAPE_OPTIONS: Array<{ value: NodeShape; label: string }> = [
+  { value: "rectangle", label: "Rectangle" },
+  { value: "stadium", label: "Stadium" },
+  { value: "circle", label: "Circle" },
+  { value: "double-circle", label: "Double circle" },
+  { value: "diamond", label: "Diamond" },
+  { value: "subroutine", label: "Subroutine" },
+  { value: "cylinder", label: "Cylinder" },
+  { value: "hexagon", label: "Hexagon" },
+  { value: "parallelogram", label: "Parallelogram" },
+  { value: "parallelogram-alt", label: "Parallelogram alt" },
+  { value: "trapezoid", label: "Trapezoid" },
+  { value: "trapezoid-alt", label: "Trapezoid alt" },
+  { value: "asymmetric", label: "Asymmetric" },
+];
+
+type ContextMenuState = CanvasContextMenuRequest | null;
 
 const HEX_COLOR_RE = /^#([0-9a-f]{6})$/i;
 
@@ -400,12 +426,20 @@ export default function Home() {
   const [downloadingPng, setDownloadingPng] = useState(false);
   const [sharingLink, setSharingLink] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [activeTool, setActiveTool] = useState<CanvasToolMode>("select");
+  const [toolNodeShape, setToolNodeShape] = useState<NodeShape>("rectangle");
+  const [toolEdgeKind, setToolEdgeKind] = useState<EdgeKind>("solid");
+  const [toolEdgeDirected, setToolEdgeDirected] = useState(true);
+  const [connectStartNodeId, setConnectStartNodeId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
+  const [pendingPlacedNode, setPendingPlacedNode] = useState<{ id: string; point: Point } | null>(null);
 
   const saveTimer = useRef<number | null>(null);
   const lastSubmittedSource = useRef<string | null>(null);
   const nodeImageInputRef = useRef<HTMLInputElement | null>(null);
   const imagePaddingValueRef = useRef(imagePaddingValue);
   const shareCopiedTimer = useRef<number | null>(null);
+  const reservedNodeIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     return () => {
@@ -418,6 +452,39 @@ export default function Home() {
   useEffect(() => {
     document.body.setAttribute("data-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    const handleWindowPointerDown = () => setContextMenu(null);
+    window.addEventListener("pointerdown", handleWindowPointerDown);
+    return () => window.removeEventListener("pointerdown", handleWindowPointerDown);
+  }, []);
+
+  useEffect(() => {
+    if (activeTool !== "connect" && connectStartNodeId) {
+      setConnectStartNodeId(null);
+    }
+  }, [activeTool, connectStartNodeId]);
+
+  useEffect(() => {
+    if (!diagram || !connectStartNodeId) {
+      return;
+    }
+    if (!diagram.nodes.some((node) => node.id === connectStartNodeId)) {
+      setConnectStartNodeId(null);
+    }
+  }, [connectStartNodeId, diagram]);
+
+  useEffect(() => {
+    if (!diagram) {
+      return;
+    }
+    const existingIds = new Set(diagram.nodes.map((node) => node.id));
+    reservedNodeIdsRef.current.forEach((id) => {
+      if (existingIds.has(id)) {
+        reservedNodeIdsRef.current.delete(id);
+      }
+    });
+  }, [diagram]);
 
   const toggleTheme = useCallback(() => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
@@ -1488,8 +1555,124 @@ const selectionLabel = useMemo(() => {
   if (selectedEdgeId) {
     return `Selected edge: ${selectedEdgeId}`;
   }
+  if (activeTool === "connect" && connectStartNodeId) {
+    return `Connect from: ${connectStartNodeId}`;
+  }
   return "No selection";
-}, [selectedEdgeId, selectedNodeId]);
+}, [activeTool, connectStartNodeId, selectedEdgeId, selectedNodeId]);
+
+const handleCanvasAddNode = useCallback((point: Point) => {
+  if (!diagram) {
+    return;
+  }
+  try {
+    const label = `Node ${diagram.nodes.length + reservedNodeIdsRef.current.size + 1}`;
+    const id = makeUniqueNodeId(
+      [...diagram.nodes.map((node) => node.id), ...Array.from(reservedNodeIdsRef.current)],
+      label
+    );
+    reservedNodeIdsRef.current.add(id);
+    const nextSource = addNodeToSource(sourceDraft, {
+      id,
+      label,
+      shape: toolNodeShape,
+    });
+    lastSubmittedSource.current = null;
+    setSourceDraft(nextSource);
+    setPendingPlacedNode({ id, point });
+    setSelectedNodeId(id);
+    setSelectedEdgeId(null);
+    setError(null);
+    setSourceError(null);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to add node.";
+    setSourceError(message);
+    setError(message);
+  }
+}, [diagram, sourceDraft, toolNodeShape]);
+
+const handleConnectNodeClick = useCallback((nodeId: string) => {
+  if (!connectStartNodeId) {
+    setConnectStartNodeId(nodeId);
+    return;
+  }
+  if (connectStartNodeId === nodeId) {
+    setConnectStartNodeId(null);
+    return;
+  }
+  try {
+    const nextSource = addEdgeToSource(sourceDraft, {
+      from: connectStartNodeId,
+      to: nodeId,
+      label: "",
+      kind: toolEdgeKind,
+      directed: toolEdgeDirected,
+    });
+    lastSubmittedSource.current = null;
+    setSourceDraft(nextSource);
+    setConnectStartNodeId(nodeId);
+    setSelectedNodeId(nodeId);
+    setSelectedEdgeId(null);
+    setError(null);
+    setSourceError(null);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to add relation.";
+    setSourceError(message);
+    setError(message);
+  }
+}, [connectStartNodeId, sourceDraft, toolEdgeDirected, toolEdgeKind]);
+
+const handleContextMenuRequest = useCallback((request: CanvasContextMenuRequest) => {
+  setContextMenu(request);
+}, []);
+
+const handleNodeShapeChangeFromMenu = useCallback((shape: NodeShape) => {
+  if (!contextMenu?.nodeId || !diagram) {
+    return;
+  }
+  const node = diagram.nodes.find((entry) => entry.id === contextMenu.nodeId);
+  if (!node) {
+    return;
+  }
+  try {
+    const nextSource = updateNodeShapeInSource(sourceDraft, node.id, node.label, shape);
+    lastSubmittedSource.current = null;
+    setSourceDraft(nextSource);
+    setContextMenu(null);
+    setError(null);
+    setSourceError(null);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to change node shape.";
+    setSourceError(message);
+    setError(message);
+  }
+}, [contextMenu, diagram, sourceDraft]);
+
+const handleEdgeTypeChangeFromMenu = useCallback((kind: EdgeKind, directed: boolean) => {
+  if (!contextMenu?.edgeId) {
+    return;
+  }
+  void submitStyleUpdate({
+    edgeStyles: {
+      [contextMenu.edgeId]: {
+        line: kind,
+        arrow: directed ? "forward" : "none",
+      },
+    },
+  });
+  setContextMenu(null);
+}, [contextMenu, submitStyleUpdate]);
+
+useEffect(() => {
+  if (!diagram || !pendingPlacedNode) {
+    return;
+  }
+  if (!diagram.nodes.some((node) => node.id === pendingPlacedNode.id)) {
+    return;
+  }
+  handleNodeMove(pendingPlacedNode.id, pendingPlacedNode.point);
+  setPendingPlacedNode(null);
+}, [diagram, handleNodeMove, pendingPlacedNode]);
 
 const hasSelection = selectedNodeId !== null || selectedEdgeId !== null;
 const ganttStyle = diagram?.kind === "gantt" ? diagram.gantt?.style : null;
@@ -1684,6 +1867,84 @@ return (
     <main className="workspace">
       {diagram && !loading ? (
         <>
+          {!codedownMode && diagram.kind === "flowchart" ? (
+            <div
+              className="toolbox"
+              style={{ left: isLeftPanelCollapsed ? 16 : leftPanelWidth + 16 }}
+            >
+              <div className="toolbox-group">
+                <button
+                  type="button"
+                  className={activeTool === "select" ? "toolbox-button active" : "toolbox-button"}
+                  onClick={() => {
+                    setActiveTool("select");
+                    setConnectStartNodeId(null);
+                  }}
+                >
+                  Select
+                </button>
+                <button
+                  type="button"
+                  className={activeTool === "add-node" ? "toolbox-button active" : "toolbox-button"}
+                  onClick={() => {
+                    setActiveTool("add-node");
+                    setConnectStartNodeId(null);
+                  }}
+                >
+                  Add Node
+                </button>
+                <button
+                  type="button"
+                  className={activeTool === "connect" ? "toolbox-button active" : "toolbox-button"}
+                  onClick={() => setActiveTool("connect")}
+                >
+                  Connect
+                </button>
+              </div>
+              {activeTool === "add-node" ? (
+                <div className="toolbox-group">
+                  <label className="toolbox-field">
+                    <span>Node shape</span>
+                    <select
+                      value={toolNodeShape}
+                      onChange={(event) => setToolNodeShape(event.target.value as NodeShape)}
+                    >
+                      {NODE_SHAPE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              ) : null}
+              {activeTool === "connect" ? (
+                <div className="toolbox-group">
+                  <label className="toolbox-field">
+                    <span>Line</span>
+                    <select
+                      value={toolEdgeKind}
+                      onChange={(event) => setToolEdgeKind(event.target.value as EdgeKind)}
+                    >
+                      {LINE_STYLE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="toolbox-toggle">
+                    <input
+                      type="checkbox"
+                      checked={toolEdgeDirected}
+                      onChange={(event) => setToolEdgeDirected(event.target.checked)}
+                    />
+                    <span>Arrow</span>
+                  </label>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {isLeftPanelCollapsed ? (
             <div className="collapse-button collapsed-left" onClick={() => setIsLeftPanelCollapsed(false)} title="Expand Style Panel">
               ›
@@ -2020,6 +2281,14 @@ return (
                 onDeleteNode={handleDeleteNodeDirect}
                 onDeleteEdge={handleDeleteEdgeDirect}
                 codeMapMapping={codeMapMapping}
+                activeTool={activeTool}
+                connectStartNodeId={connectStartNodeId}
+                toolNodeShape={toolNodeShape}
+                toolEdgeKind={toolEdgeKind}
+                toolEdgeDirected={toolEdgeDirected}
+                onCanvasAddNode={handleCanvasAddNode}
+                onConnectNodeClick={handleConnectNodeClick}
+                onContextMenuRequest={handleContextMenuRequest}
               />
             )}
             {(codeMapMode || codedownMode) ? (
@@ -2086,6 +2355,63 @@ return (
         {error}
       </footer>
     )}
+    {contextMenu ? (
+      <div
+        className="context-menu"
+        style={{ left: contextMenu.clientX, top: contextMenu.clientY }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        {contextMenu.kind === "canvas" && contextMenu.point ? (
+          <button
+            type="button"
+            onClick={() => {
+              handleCanvasAddNode(contextMenu.point as Point);
+              setContextMenu(null);
+            }}
+          >
+            Add {NODE_SHAPE_OPTIONS.find((option) => option.value === toolNodeShape)?.label ?? "Node"} Here
+          </button>
+        ) : null}
+        {contextMenu.kind === "node" ? (
+          <>
+            {NODE_SHAPE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleNodeShapeChangeFromMenu(option.value)}
+              >
+                Shape: {option.label}
+              </button>
+            ))}
+            {contextMenu.nodeId ? <div className="context-menu-separator" /> : null}
+            {contextMenu.nodeId ? (
+              <button type="button" onClick={() => void handleDeleteNodeDirect(contextMenu.nodeId!)}>
+                Delete Node
+              </button>
+            ) : null}
+          </>
+        ) : null}
+        {contextMenu.kind === "edge" ? (
+          <>
+            <button type="button" onClick={() => handleEdgeTypeChangeFromMenu("solid", true)}>
+              Relation: Solid Arrow
+            </button>
+            <button type="button" onClick={() => handleEdgeTypeChangeFromMenu("dashed", true)}>
+              Relation: Dashed Arrow
+            </button>
+            <button type="button" onClick={() => handleEdgeTypeChangeFromMenu("solid", false)}>
+              Relation: Plain Line
+            </button>
+            <div className="context-menu-separator" />
+            {contextMenu.edgeId ? (
+              <button type="button" onClick={() => void handleDeleteEdgeDirect(contextMenu.edgeId!)}>
+                Delete Relation
+              </button>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    ) : null}
   </div>
 );
 }

@@ -1,6 +1,17 @@
 'use client';
 
-import type { CodeMapMapping, DiagramData, LayoutUpdate, Point } from "../lib/types";
+import type { CodeMapMapping, DiagramData, LayoutUpdate, NodeShape, Point, EdgeKind } from "../lib/types";
+
+export type CanvasToolMode = "select" | "add-node" | "connect";
+
+export interface CanvasContextMenuRequest {
+  kind: "canvas" | "node" | "edge";
+  clientX: number;
+  clientY: number;
+  point: Point | null;
+  nodeId?: string;
+  edgeId?: string;
+}
 
 export interface DiagramCanvasProps {
   diagram: DiagramData;
@@ -16,4 +27,12 @@ export interface DiagramCanvasProps {
   onDeleteNode: (id: string) => Promise<void> | void;
   onDeleteEdge: (id: string) => Promise<void> | void;
   codeMapMapping?: CodeMapMapping | null;
+  activeTool: CanvasToolMode;
+  connectStartNodeId: string | null;
+  toolNodeShape: NodeShape;
+  toolEdgeKind: EdgeKind;
+  toolEdgeDirected: boolean;
+  onCanvasAddNode: (point: Point) => void;
+  onConnectNodeClick: (id: string) => void;
+  onContextMenuRequest?: (request: CanvasContextMenuRequest) => void;
 }

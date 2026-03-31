@@ -10,9 +10,18 @@ import {
 import { createWasmEditor, type WasmEditorCore } from "./wasmEditor";
 
 type Mode = "server" | "local";
-const MODE: Mode = process.env.NEXT_PUBLIC_OXDRAW_MODE === "local" ? "local" : "server";
+const CONFIGURED_MODE = process.env.NEXT_PUBLIC_OXDRAW_MODE;
+const CONFIGURED_API_BASE = process.env.NEXT_PUBLIC_OXDRAW_API;
+const MODE: Mode =
+  CONFIGURED_MODE === "local"
+    ? "local"
+    : CONFIGURED_MODE === "server"
+      ? "server"
+      : CONFIGURED_API_BASE
+        ? "server"
+        : "local";
 
-const API_BASE = process.env.NEXT_PUBLIC_OXDRAW_API ?? "http://127.0.0.1:5151";
+const API_BASE = CONFIGURED_API_BASE ?? "http://127.0.0.1:5151";
 const LOCAL_SOURCE_KEY = "oxdraw.local.source.v1";
 const LOCAL_BACKGROUND_KEY = "oxdraw.local.background.v1";
 const LOCAL_SOURCE_PATH = "playground.mmd";

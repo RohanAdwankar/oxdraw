@@ -149,9 +149,15 @@ export default function WasmDiagramCanvas({
   onLayoutUpdate,
   onSvgMarkupChange,
   selectedNodeId,
+  selectedEdgeId,
   onSelectNode,
   onSelectEdge,
   onDragStateChange,
+  activeTool,
+  connectStartNodeId,
+  onCanvasAddNode,
+  onConnectNodeClick,
+  onContextMenuRequest,
 }: DiagramCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [svgMarkup, setSvgMarkup] = useState("");
@@ -247,6 +253,10 @@ export default function WasmDiagramCanvas({
   }, [onEdgeMove, onLayoutUpdate, onNodeMove, renderFromCore, selectedNodeId]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+
     const core = coreRef.current;
     if (!core) {
       return;
@@ -267,6 +277,32 @@ export default function WasmDiagramCanvas({
     const subgraphGroup = target.closest("g.subgraph[data-id]");
     const nodeGroup = target.closest("g.node[data-id]");
     const edgeGroup = target.closest("g.edge[data-id]");
+
+    if (activeTool === "add-node") {
+      if (!ganttTaskGroup && !subgraphGroup && !nodeGroup && !edgeGroup) {
+        onSelectNode(null);
+        onSelectEdge(null);
+        onCanvasAddNode(point);
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (activeTool === "connect") {
+      if (nodeGroup) {
+        const nodeId = nodeGroup.getAttribute("data-id");
+        if (nodeId) {
+          onSelectEdge(null);
+          onSelectNode(nodeId);
+          onConnectNodeClick(nodeId);
+          event.preventDefault();
+        }
+        return;
+      }
+      onSelectNode(null);
+      onSelectEdge(null);
+      return;
+    }
 
     if (ganttTaskGroup) {
       const taskId = ganttTaskGroup.getAttribute("data-task-id");
@@ -355,6 +391,56 @@ export default function WasmDiagramCanvas({
 
     onSelectNode(null);
     onSelectEdge(null);
+  };
+
+  const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    const svg = wrapperRef.current?.querySelector("svg");
+    const point = svg ? toDiagramPoint(svg, event.clientX, event.clientY) : null;
+    const target = event.target as Element;
+    const nodeGroup = target.closest("g.node[data-id]");
+    const edgeGroup = target.closest("g.edge[data-id]");
+
+    if (nodeGroup) {
+      const nodeId = nodeGroup.getAttribute("data-id");
+      if (nodeId) {
+        onSelectEdge(null);
+        onSelectNode(nodeId);
+        onContextMenuRequest?.({
+          kind: "node",
+          clientX: event.clientX,
+          clientY: event.clientY,
+          point,
+          nodeId,
+        });
+        event.preventDefault();
+        return;
+      }
+    }
+
+    if (edgeGroup) {
+      const edgeId = edgeGroup.getAttribute("data-id");
+      if (edgeId) {
+        onSelectNode(null);
+        onSelectEdge(edgeId);
+        onContextMenuRequest?.({
+          kind: "edge",
+          clientX: event.clientX,
+          clientY: event.clientY,
+          point,
+          edgeId,
+        });
+        event.preventDefault();
+        return;
+      }
+    }
+
+    onContextMenuRequest?.({
+      kind: "canvas",
+      clientX: event.clientX,
+      clientY: event.clientY,
+      point,
+    });
+    event.preventDefault();
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -475,12 +561,13 @@ export default function WasmDiagramCanvas({
   return (
     <div
       ref={wrapperRef}
-      className="diagram-canvas"
+      className={`diagram-canvas tool-${activeTool}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
       onWheel={handleWheel}
+      onContextMenu={handleContextMenu}
     >
       <div
         style={{
@@ -498,6 +585,14 @@ export default function WasmDiagramCanvas({
         </button>
         <button type="button" onClick={zoomIn} title="Zoom in">+</button>
       </div>
+      {activeTool === "connect" ? (
+        <div className="canvas-mode-badge">
+          {connectStartNodeId ? `Connect: ${connectStartNodeId} ->` : "Connect mode"}
+        </div>
+      ) : null}
+      {activeTool === "add-node" ? (
+        <div className="canvas-mode-badge">Click canvas to add node</div>
+      ) : null}
     </div>
   );
 }

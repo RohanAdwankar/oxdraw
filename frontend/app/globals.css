@@ -110,6 +110,76 @@ body > div:first-of-type {
   overflow: hidden;
 }
 
+.toolbox {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  width: 180px;
+}
+
+.toolbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.8rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 10px 30px var(--shadow-color);
+  backdrop-filter: blur(10px);
+}
+
+[data-theme="dark"] .toolbox-group {
+  background: rgba(15, 10, 30, 0.9);
+}
+
+.toolbox-button {
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.toolbox-button.active {
+  background: var(--accent-primary);
+  color: var(--accent-text);
+  border-color: var(--accent-primary);
+}
+
+.toolbox-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.toolbox-field span,
+.toolbox-toggle span {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.toolbox-field select {
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 0.4rem 0.45rem;
+}
+
+.toolbox-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 .diagram-wrapper {
   position: relative;
   flex: 1;
@@ -124,6 +194,27 @@ body > div:first-of-type {
   min-height: 0;
   overflow: auto;
   background: var(--bg-primary);
+}
+
+.diagram-canvas.tool-add-node {
+  cursor: crosshair;
+}
+
+.diagram-canvas.tool-connect {
+  cursor: cell;
+}
+
+.canvas-mode-badge {
+  position: absolute;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 12;
+  padding: 0.45rem 0.7rem;
+  background: rgba(15, 23, 42, 0.9);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.2);
 }
 
 .diagram-canvas svg {
@@ -566,6 +657,115 @@ body > div:first-of-type {
   color: var(--text-primary);
   font-weight: 600;
   word-break: break-all;
+}
+
+.quick-add-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.9rem 1.1rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.quick-add-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  box-shadow: 0 8px 22px var(--shadow-color);
+}
+
+.quick-add-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.quick-add-heading h3 {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--text-primary);
+}
+
+.quick-add-heading span {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.quick-add-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.quick-add-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.quick-add-field span {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.quick-add-field input,
+.quick-add-field select {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 0.45rem 0.55rem;
+  font-size: 0.85rem;
+  box-sizing: border-box;
+}
+
+.quick-add-field input:focus,
+.quick-add-field select:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--accent-primary);
+}
+
+.quick-add-field-wide {
+  grid-column: 1 / -1;
+}
+
+.quick-add-checkbox {
+  justify-content: flex-end;
+}
+
+.quick-add-checkbox input {
+  width: 1rem;
+  height: 1rem;
+  align-self: flex-start;
+}
+
+.quick-add-button {
+  align-self: flex-start;
+  padding: 0.45rem 0.9rem;
+  border: none;
+  background: var(--accent-primary);
+  color: var(--accent-text);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.quick-add-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.quick-add-button:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: not-allowed;
 }
 
 .source-editor {
