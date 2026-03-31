@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { WheelEvent as ReactWheelEvent } from "react";
 import type { DiagramCanvasProps } from "./diagramCanvasTypes";
@@ -13,6 +13,12 @@ interface ActiveDrag {
   kind: DragKind;
   id: string;
   pointerId: number;
+}
+
+interface MarqueeSelection {
+  pointerId: number;
+  origin: Point;
+  current: Point;
 }
 
 interface EdgeVm {
@@ -149,15 +155,20 @@ export default function WasmDiagramCanvas({
   onLayoutUpdate,
   onSvgMarkupChange,
   selectedNodeId,
+  selectedNodeIds,
   selectedEdgeId,
   onSelectNode,
+  onSelectNodes,
   onSelectEdge,
   onDragStateChange,
   activeTool,
   connectStartNodeId,
+  addNodeSourceId,
   onCanvasAddNode,
+  onAddNodeSourceSelect,
   onConnectNodeClick,
   onContextMenuRequest,
+  onViewportControlsChange,
 }: DiagramCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [svgMarkup, setSvgMarkup] = useState("");
@@ -165,6 +176,8 @@ export default function WasmDiagramCanvas({
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const coreRef = useRef<WasmEditorCore | null>(null);
   const dragRef = useRef<ActiveDrag | null>(null);
+  const marqueeRef = useRef<MarqueeSelection | null>(null);
+  const [marqueeRect, setMarqueeRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   const renderFromCore = useCallback(() => {
     if (!coreRef.current) {
@@ -186,6 +199,16 @@ export default function WasmDiagramCanvas({
   const resetZoom = useCallback(() => {
     setTransform({ x: 0, y: 0, scale: 1 });
   }, []);
+
+  useEffect(() => {
+    onViewportControlsChange?.({
+      zoomIn,
+      zoomOut,
+      resetZoom,
+      getScale: () => transform.scale,
+    });
+    return () => onViewportControlsChange?.(null);
+  }, [onViewportControlsChange, resetZoom, transform.scale, zoomIn, zoomOut]);
 
   useEffect(() => {
     let cancelled = false;
@@ -214,6 +237,37 @@ export default function WasmDiagramCanvas({
       cancelled = true;
     };
   }, [diagram.background, diagram.source, onSvgMarkupChange]);
+
+  useEffect(() => {
+    const root = wrapperRef.current;
+    if (!root) {
+      return;
+    }
+    const nodeIds = new Set(selectedNodeIds);
+    root.querySelectorAll("g.node[data-id]").forEach((element) => {
+      const id = element.getAttribute("data-id");
+      element.classList.toggle("selected", !!id && nodeIds.has(id));
+    });
+    root.querySelectorAll("g.edge[data-id]").forEach((element) => {
+      const id = element.getAttribute("data-id");
+      element.classList.toggle("selected", !!id && id === selectedEdgeId);
+    });
+  }, [selectedEdgeId, selectedNodeIds, svgMarkup]);
+
+  const nodeBounds = useMemo(
+    () =>
+      diagram.nodes.map((node) => {
+        const center = node.renderedPosition;
+        return {
+          id: node.id,
+          left: center.x - node.width / 2,
+          right: center.x + node.width / 2,
+          top: center.y - node.height / 2,
+          bottom: center.y + node.height / 2,
+        };
+      }),
+    [diagram.nodes]
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -279,8 +333,20 @@ export default function WasmDiagramCanvas({
     const edgeGroup = target.closest("g.edge[data-id]");
 
     if (activeTool === "add-node") {
-      if (!ganttTaskGroup && !subgraphGroup && !nodeGroup && !edgeGroup) {
+      if (nodeGroup) {
+        const nodeId = nodeGroup.getAttribute("data-id");
+        if (nodeId) {
+          onSelectEdge(null);
+          onSelectNode(nodeId);
+          onSelectNodes([nodeId]);
+          onAddNodeSourceSelect(nodeId);
+          event.preventDefault();
+        }
+        return;
+      }
+      if (!ganttTaskGroup && !subgraphGroup && !edgeGroup) {
         onSelectNode(null);
+        onSelectNodes([]);
         onSelectEdge(null);
         onCanvasAddNode(point);
         event.preventDefault();
@@ -301,6 +367,22 @@ export default function WasmDiagramCanvas({
       }
       onSelectNode(null);
       onSelectEdge(null);
+      return;
+    }
+
+    if (!ganttTaskGroup && !subgraphGroup && !nodeGroup && !edgeGroup && activeTool === "select") {
+      marqueeRef.current = {
+        pointerId: event.pointerId,
+        origin: point,
+        current: point,
+      };
+      setMarqueeRect({ x: point.x, y: point.y, width: 0, height: 0 });
+      onSelectNode(null);
+      onSelectNodes([]);
+      onSelectEdge(null);
+      onDragStateChange?.(true);
+      (event.currentTarget as HTMLDivElement).setPointerCapture(event.pointerId);
+      event.preventDefault();
       return;
     }
 
@@ -353,6 +435,8 @@ export default function WasmDiagramCanvas({
       }
       onSelectEdge(null);
       onSelectNode(nodeId);
+      onSelectNodes([nodeId]);
+      onAddNodeSourceSelect(null);
 
       try {
         core.beginNodeDrag(nodeId, point.x, point.y);
@@ -444,6 +528,26 @@ export default function WasmDiagramCanvas({
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const marquee = marqueeRef.current;
+    if (marquee && marquee.pointerId === event.pointerId) {
+      const svg = wrapperRef.current?.querySelector("svg");
+      if (!svg) {
+        return;
+      }
+      const point = toDiagramPoint(svg, event.clientX, event.clientY);
+      if (!point) {
+        return;
+      }
+      marquee.current = point;
+      const x = Math.min(marquee.origin.x, point.x);
+      const y = Math.min(marquee.origin.y, point.y);
+      const width = Math.abs(point.x - marquee.origin.x);
+      const height = Math.abs(point.y - marquee.origin.y);
+      setMarqueeRect({ x, y, width, height });
+      event.preventDefault();
+      return;
+    }
+
     const core = coreRef.current;
     const active = dragRef.current;
     if (!core || !active || active.pointerId !== event.pointerId) {
@@ -509,6 +613,34 @@ export default function WasmDiagramCanvas({
   };
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const marquee = marqueeRef.current;
+    if (marquee && marquee.pointerId === event.pointerId) {
+      const current = marquee.current;
+      const x = Math.min(marquee.origin.x, current.x);
+      const y = Math.min(marquee.origin.y, current.y);
+      const right = Math.max(marquee.origin.x, current.x);
+      const bottom = Math.max(marquee.origin.y, current.y);
+      const selectedIds = nodeBounds
+        .filter(
+          (node) =>
+            node.right >= x &&
+            node.left <= right &&
+            node.bottom >= y &&
+            node.top <= bottom
+        )
+        .map((node) => node.id);
+      onSelectNodes(selectedIds);
+      onSelectNode(selectedIds.length === 1 ? selectedIds[0] : null);
+      onSelectEdge(null);
+      marqueeRef.current = null;
+      setMarqueeRect(null);
+      onDragStateChange?.(false);
+      if ((event.currentTarget as HTMLDivElement).hasPointerCapture(event.pointerId)) {
+        (event.currentTarget as HTMLDivElement).releasePointerCapture(event.pointerId);
+      }
+      event.preventDefault();
+      return;
+    }
     finishDrag(event.pointerId);
     if ((event.currentTarget as HTMLDivElement).hasPointerCapture(event.pointerId)) {
       (event.currentTarget as HTMLDivElement).releasePointerCapture(event.pointerId);
@@ -516,6 +648,8 @@ export default function WasmDiagramCanvas({
   };
 
   const handlePointerCancel = (event: ReactPointerEvent<HTMLDivElement>) => {
+    marqueeRef.current = null;
+    setMarqueeRect(null);
     const core = coreRef.current;
     if (core) {
       core.cancelDrag();
@@ -578,20 +712,26 @@ export default function WasmDiagramCanvas({
         }}
         dangerouslySetInnerHTML={{ __html: svgMarkup }}
       />
-      <div className="zoom-controls">
-        <button type="button" onClick={zoomOut} title="Zoom out">-</button>
-        <button type="button" className="zoom-display" onClick={resetZoom} title="Reset zoom">
-          {Math.round(transform.scale * 100)}%
-        </button>
-        <button type="button" onClick={zoomIn} title="Zoom in">+</button>
-      </div>
+      {marqueeRect ? (
+        <div
+          className="marquee-selection"
+          style={{
+            left: marqueeRect.x * transform.scale + transform.x,
+            top: marqueeRect.y * transform.scale + transform.y,
+            width: marqueeRect.width * transform.scale,
+            height: marqueeRect.height * transform.scale,
+          }}
+        />
+      ) : null}
       {activeTool === "connect" ? (
         <div className="canvas-mode-badge">
           {connectStartNodeId ? `Connect: ${connectStartNodeId} ->` : "Connect mode"}
         </div>
       ) : null}
       {activeTool === "add-node" ? (
-        <div className="canvas-mode-badge">Click canvas to add node</div>
+        <div className="canvas-mode-badge">
+          {addNodeSourceId ? `Add from: ${addNodeSourceId}` : "Click canvas to add node"}
+        </div>
       ) : null}
     </div>
   );

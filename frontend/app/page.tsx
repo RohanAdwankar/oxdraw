@@ -402,6 +402,7 @@ export default function Home() {
   const [sourceSaving, setSourceSaving] = useState(false);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [imagePaddingValue, setImagePaddingValue] = useState<string>("");
   const [dragging, setDragging] = useState(false);
@@ -431,8 +432,15 @@ export default function Home() {
   const [toolEdgeKind, setToolEdgeKind] = useState<EdgeKind>("solid");
   const [toolEdgeDirected, setToolEdgeDirected] = useState(true);
   const [connectStartNodeId, setConnectStartNodeId] = useState<string | null>(null);
+  const [addNodeSourceId, setAddNodeSourceId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [pendingPlacedNode, setPendingPlacedNode] = useState<{ id: string; point: Point } | null>(null);
+  const [viewportControls, setViewportControls] = useState<{
+    zoomIn: () => void;
+    zoomOut: () => void;
+    resetZoom: () => void;
+    getScale: () => number;
+  } | null>(null);
 
   const saveTimer = useRef<number | null>(null);
   const lastSubmittedSource = useRef<string | null>(null);
@@ -464,6 +472,12 @@ export default function Home() {
       setConnectStartNodeId(null);
     }
   }, [activeTool, connectStartNodeId]);
+
+  useEffect(() => {
+    if (activeTool !== "add-node" && addNodeSourceId) {
+      setAddNodeSourceId(null);
+    }
+  }, [activeTool, addNodeSourceId]);
 
   useEffect(() => {
     if (!diagram || !connectStartNodeId) {
@@ -583,6 +597,9 @@ const loadDiagram = useCallback(
 
       setSelectedNodeId((current) =>
         current && data.nodes.some((node) => node.id === current) ? current : null
+      );
+      setSelectedNodeIds((current) =>
+        current.filter((id) => data.nodes.some((node) => node.id === id))
       );
       setSelectedEdgeId((current) =>
         current && data.edges.some((edge) => edge.id === current) ? current : null
@@ -1167,10 +1184,19 @@ const handleSelectNode = useCallback((id: string | null) => {
   }
 }, []);
 
+const handleSelectNodes = useCallback((ids: string[]) => {
+  setSelectedNodeIds(ids);
+  setSelectedNodeId(ids.length === 1 ? ids[0] : null);
+  if (ids.length > 0) {
+    setSelectedEdgeId(null);
+  }
+}, []);
+
 const handleSelectEdge = useCallback((id: string | null) => {
   setSelectedEdgeId(id);
   if (id) {
     setSelectedNodeId(null);
+    setSelectedNodeIds([]);
   }
 }, []);
 
@@ -1185,6 +1211,7 @@ const deleteTarget = useCallback(
       if (target.type === "node") {
         await deleteNode(target.id);
         setSelectedNodeId((current) => (current === target.id ? null : current));
+        setSelectedNodeIds((current) => current.filter((id) => id !== target.id));
         setSelectedEdgeId(null);
       } else {
         await deleteEdge(target.id);
@@ -1366,12 +1393,31 @@ const deleteTarget = useCallback(
   }, [activeSearchIndex, navigateToCode, searchResults]);
 
 const handleDeleteSelection = useCallback(async () => {
-  if (selectedNodeId) {
+  if (saving || sourceSaving) {
+    return;
+  }
+  if (selectedNodeIds.length > 0) {
+    try {
+      setSaving(true);
+      setError(null);
+      for (const nodeId of selectedNodeIds) {
+        await deleteNode(nodeId);
+      }
+      setSelectedNodeIds([]);
+      setSelectedNodeId(null);
+      setSelectedEdgeId(null);
+      await loadDiagram({ silent: true });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  } else if (selectedNodeId) {
     await deleteTarget({ type: "node", id: selectedNodeId });
   } else if (selectedEdgeId) {
     await deleteTarget({ type: "edge", id: selectedEdgeId });
   }
-}, [deleteTarget, selectedEdgeId, selectedNodeId]);
+}, [deleteNode, deleteTarget, loadDiagram, saving, selectedEdgeId, selectedNodeId, selectedNodeIds, sourceSaving]);
 
 const handleDeleteNodeDirect = useCallback(
   async (id: string) => {
@@ -1549,6 +1595,9 @@ const sourceStatus = useMemo(() => {
 }, [sourceError, sourceSaving, sourceDraft, source]);
 
 const selectionLabel = useMemo(() => {
+  if (selectedNodeIds.length > 1) {
+    return `Selected nodes: ${selectedNodeIds.length}`;
+  }
   if (selectedNodeId) {
     return `Selected node: ${selectedNodeId}`;
   }
@@ -1558,8 +1607,11 @@ const selectionLabel = useMemo(() => {
   if (activeTool === "connect" && connectStartNodeId) {
     return `Connect from: ${connectStartNodeId}`;
   }
+  if (activeTool === "add-node" && addNodeSourceId) {
+    return `Add from: ${addNodeSourceId}`;
+  }
   return "No selection";
-}, [activeTool, connectStartNodeId, selectedEdgeId, selectedNodeId]);
+}, [activeTool, addNodeSourceId, connectStartNodeId, selectedEdgeId, selectedNodeId, selectedNodeIds]);
 
 const handleCanvasAddNode = useCallback((point: Point) => {
   if (!diagram) {
@@ -1577,10 +1629,20 @@ const handleCanvasAddNode = useCallback((point: Point) => {
       label,
       shape: toolNodeShape,
     });
+    const finalSource = addNodeSourceId
+      ? addEdgeToSource(nextSource, {
+          from: addNodeSourceId,
+          to: id,
+          label: "",
+          kind: toolEdgeKind,
+          directed: toolEdgeDirected,
+        })
+      : nextSource;
     lastSubmittedSource.current = null;
-    setSourceDraft(nextSource);
+    setSourceDraft(finalSource);
     setPendingPlacedNode({ id, point });
     setSelectedNodeId(id);
+    setSelectedNodeIds([id]);
     setSelectedEdgeId(null);
     setError(null);
     setSourceError(null);
@@ -1589,7 +1651,7 @@ const handleCanvasAddNode = useCallback((point: Point) => {
     setSourceError(message);
     setError(message);
   }
-}, [diagram, sourceDraft, toolNodeShape]);
+}, [addNodeSourceId, diagram, sourceDraft, toolEdgeDirected, toolEdgeKind, toolNodeShape]);
 
 const handleConnectNodeClick = useCallback((nodeId: string) => {
   if (!connectStartNodeId) {
@@ -1612,6 +1674,7 @@ const handleConnectNodeClick = useCallback((nodeId: string) => {
     setSourceDraft(nextSource);
     setConnectStartNodeId(nodeId);
     setSelectedNodeId(nodeId);
+    setSelectedNodeIds([nodeId]);
     setSelectedEdgeId(null);
     setError(null);
     setSourceError(null);
@@ -1674,7 +1737,7 @@ useEffect(() => {
   setPendingPlacedNode(null);
 }, [diagram, handleNodeMove, pendingPlacedNode]);
 
-const hasSelection = selectedNodeId !== null || selectedEdgeId !== null;
+const hasAnySelection = selectedNodeIds.length > 0 || selectedNodeId !== null || selectedEdgeId !== null;
 const ganttStyle = diagram?.kind === "gantt" ? diagram.gantt?.style : null;
 
 const nodeFillValue = useMemo(() => {
@@ -1857,7 +1920,7 @@ return (
         </button>
         <button
           onClick={() => void handleDeleteSelection()}
-          disabled={!hasSelection || saving || sourceSaving}
+          disabled={!hasAnySelection || saving || sourceSaving}
           title="Delete the currently selected node or edge"
         >
           Delete selected
@@ -1867,84 +1930,6 @@ return (
     <main className="workspace">
       {diagram && !loading ? (
         <>
-          {!codedownMode && diagram.kind === "flowchart" ? (
-            <div
-              className="toolbox"
-              style={{ left: isLeftPanelCollapsed ? 16 : leftPanelWidth + 16 }}
-            >
-              <div className="toolbox-group">
-                <button
-                  type="button"
-                  className={activeTool === "select" ? "toolbox-button active" : "toolbox-button"}
-                  onClick={() => {
-                    setActiveTool("select");
-                    setConnectStartNodeId(null);
-                  }}
-                >
-                  Select
-                </button>
-                <button
-                  type="button"
-                  className={activeTool === "add-node" ? "toolbox-button active" : "toolbox-button"}
-                  onClick={() => {
-                    setActiveTool("add-node");
-                    setConnectStartNodeId(null);
-                  }}
-                >
-                  Add Node
-                </button>
-                <button
-                  type="button"
-                  className={activeTool === "connect" ? "toolbox-button active" : "toolbox-button"}
-                  onClick={() => setActiveTool("connect")}
-                >
-                  Connect
-                </button>
-              </div>
-              {activeTool === "add-node" ? (
-                <div className="toolbox-group">
-                  <label className="toolbox-field">
-                    <span>Node shape</span>
-                    <select
-                      value={toolNodeShape}
-                      onChange={(event) => setToolNodeShape(event.target.value as NodeShape)}
-                    >
-                      {NODE_SHAPE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              ) : null}
-              {activeTool === "connect" ? (
-                <div className="toolbox-group">
-                  <label className="toolbox-field">
-                    <span>Line</span>
-                    <select
-                      value={toolEdgeKind}
-                      onChange={(event) => setToolEdgeKind(event.target.value as EdgeKind)}
-                    >
-                      {LINE_STYLE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="toolbox-toggle">
-                    <input
-                      type="checkbox"
-                      checked={toolEdgeDirected}
-                      onChange={(event) => setToolEdgeDirected(event.target.checked)}
-                    />
-                    <span>Arrow</span>
-                  </label>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
           {isLeftPanelCollapsed ? (
             <div className="collapse-button collapsed-left" onClick={() => setIsLeftPanelCollapsed(false)} title="Expand Style Panel">
               ›
@@ -1979,6 +1964,98 @@ return (
                   </span>
                 </div>
                 <div className="panel-body">
+                {!codedownMode && diagram.kind === "flowchart" ? (
+                  <section className="toolbox-panel">
+                    <div className="toolbox-group">
+                      <button
+                        type="button"
+                        className={activeTool === "select" ? "toolbox-button active" : "toolbox-button"}
+                        onClick={() => {
+                          setActiveTool("select");
+                          setConnectStartNodeId(null);
+                        }}
+                      >
+                        Select
+                      </button>
+                      <button
+                        type="button"
+                        className={activeTool === "add-node" ? "toolbox-button active" : "toolbox-button"}
+                        onClick={() => {
+                          setActiveTool("add-node");
+                          setConnectStartNodeId(null);
+                        }}
+                      >
+                        Add Node
+                      </button>
+                      <button
+                        type="button"
+                        className={activeTool === "connect" ? "toolbox-button active" : "toolbox-button"}
+                        onClick={() => setActiveTool("connect")}
+                      >
+                        Connect
+                      </button>
+                    </div>
+                    {activeTool === "add-node" ? (
+                      <div className="toolbox-group">
+                        <label className="toolbox-field">
+                          <span>Node shape</span>
+                          <select
+                            value={toolNodeShape}
+                            onChange={(event) => setToolNodeShape(event.target.value as NodeShape)}
+                          >
+                            {NODE_SHAPE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    ) : null}
+                    {activeTool === "connect" ? (
+                      <div className="toolbox-group">
+                        <label className="toolbox-field">
+                          <span>Line</span>
+                          <select
+                            value={toolEdgeKind}
+                            onChange={(event) => setToolEdgeKind(event.target.value as EdgeKind)}
+                          >
+                            {LINE_STYLE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="toolbox-toggle">
+                          <input
+                            type="checkbox"
+                            checked={toolEdgeDirected}
+                            onChange={(event) => setToolEdgeDirected(event.target.checked)}
+                          />
+                          <span>Arrow</span>
+                        </label>
+                      </div>
+                    ) : null}
+                    <div className="toolbox-group">
+                      <div className="toolbox-zoom-row">
+                        <button type="button" className="toolbox-button" onClick={() => viewportControls?.zoomOut()}>
+                          -
+                        </button>
+                        <button
+                          type="button"
+                          className="toolbox-button toolbox-zoom-display"
+                          onClick={() => viewportControls?.resetZoom()}
+                        >
+                          {viewportControls ? `${Math.round(viewportControls.getScale() * 100)}%` : "100%"}
+                        </button>
+                        <button type="button" className="toolbox-button" onClick={() => viewportControls?.zoomIn()}>
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                ) : null}
                 {diagram.kind === "gantt" && diagram.gantt ? (
                   <section className="style-section">
                     <header className="section-heading">
@@ -2131,16 +2208,14 @@ return (
                         onChange={handleNodeImageFileChange}
                         hidden
                       />
-                      <span
-                        className={
-                          selectedNode?.image ? "image-control-meta" : "image-control-meta muted"
-                        }
+                  <span
+                        className="image-control-meta"
                       >
                         {selectedNode?.image
                           ? `${selectedNode.image.width}x${selectedNode.image.height}px (padding ${formatPaddingValue(
                             selectedNode.image.padding
                           )}px)`
-                          : "No image attached"}
+                          : ""}
                       </span>
                     </div>
                     <label className="style-control">
@@ -2274,8 +2349,10 @@ return (
                 onEdgeMove={handleEdgeMove}
                 onSvgMarkupChange={setSvgMarkup}
                 selectedNodeId={selectedNodeId}
+                selectedNodeIds={selectedNodeIds}
                 selectedEdgeId={selectedEdgeId}
                 onSelectNode={handleSelectNode}
+                onSelectNodes={handleSelectNodes}
                 onSelectEdge={handleSelectEdge}
                 onDragStateChange={setDragging}
                 onDeleteNode={handleDeleteNodeDirect}
@@ -2283,12 +2360,15 @@ return (
                 codeMapMapping={codeMapMapping}
                 activeTool={activeTool}
                 connectStartNodeId={connectStartNodeId}
+                addNodeSourceId={addNodeSourceId}
                 toolNodeShape={toolNodeShape}
                 toolEdgeKind={toolEdgeKind}
                 toolEdgeDirected={toolEdgeDirected}
                 onCanvasAddNode={handleCanvasAddNode}
+                onAddNodeSourceSelect={setAddNodeSourceId}
                 onConnectNodeClick={handleConnectNodeClick}
                 onContextMenuRequest={handleContextMenuRequest}
+                onViewportControlsChange={setViewportControls}
               />
             )}
             {(codeMapMode || codedownMode) ? (

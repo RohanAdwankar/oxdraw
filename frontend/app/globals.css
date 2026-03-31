@@ -111,14 +111,18 @@ body > div:first-of-type {
 }
 
 .toolbox {
-  position: absolute;
-  left: 1rem;
-  top: 1rem;
-  z-index: 15;
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
-  width: 180px;
+  width: 100%;
+}
+
+.toolbox-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding-bottom: 0.25rem;
+  margin-bottom: 0;
 }
 
 .toolbox-group {
@@ -180,6 +184,19 @@ body > div:first-of-type {
   gap: 0.45rem;
 }
 
+.toolbox-zoom-row {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.toolbox-zoom-row .toolbox-button {
+  flex: 1;
+}
+
+.toolbox-zoom-display {
+  min-width: 4rem;
+}
+
 .diagram-wrapper {
   position: relative;
   flex: 1;
@@ -215,6 +232,14 @@ body > div:first-of-type {
   font-size: 0.82rem;
   font-weight: 700;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.2);
+}
+
+.marquee-selection {
+  position: absolute;
+  border: 1.5px dashed var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  pointer-events: none;
+  z-index: 11;
 }
 
 .diagram-canvas svg {
@@ -870,17 +895,6 @@ body > div:first-of-type {
   margin: 0.25rem 0;
 }
 
-.alignment-guide {
-  stroke: var(--accent-primary);
-  stroke-width: 1.5;
-  stroke-dasharray: 6 6;
-  pointer-events: none;
-}
-
-.alignment-guide-center {
-  stroke: var(--accent-hover);
-}
-
 .code-panel {
   width: 500px;
   max-width: 50%;
@@ -1007,44 +1021,6 @@ body > div:first-of-type {
 .resize-handle:hover,
 .resize-handle:active {
   background: var(--accent-primary);
-}
-
-.zoom-controls {
-  position: absolute;
-  bottom: 1.5rem;
-  right: 1.5rem;
-  display: flex;
-  gap: 0.5rem;
-  background: var(--bg-secondary);
-  padding: 0.5rem;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 4px 12px var(--shadow-color);
-}
-
-.zoom-controls button {
-  min-width: 2.2rem;
-  height: 2.2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  padding: 0 0.5rem;
-  line-height: 1;
-}
-
-.zoom-controls button:hover {
-  background: var(--bg-tertiary);
-  color: var(--accent-primary);
-}
-
-.zoom-controls .zoom-display {
-  min-width: 4rem;
-  font-weight: 600;
 }
 
 .collapse-button {
