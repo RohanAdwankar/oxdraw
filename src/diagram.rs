@@ -5024,7 +5024,9 @@ fn parse_subgraph_header(raw: &str) -> Result<(String, String)> {
             if id_part.is_empty() {
                 bail!("subgraph identifier cannot be empty");
             }
-            let label_part = trimmed[start + 1..trimmed.len() - 1].trim();
+            let label_part = trimmed[start + 1..trimmed.len() - 1]
+                .trim()
+                .trim_matches('"');
             let label = if label_part.is_empty() {
                 id_part
             } else {
@@ -5249,8 +5251,14 @@ fn parse_edge_line(
     node_membership: &mut HashMap<String, Vec<String>>,
     subgraph_stack: &mut Vec<SubgraphBuilder>,
 ) -> Result<Option<Edge>> {
-    const EDGE_PATTERNS: [(&str, EdgeKind, EdgeArrowDirection, Option<&str>); 3] = [
+    const EDGE_PATTERNS: [(&str, EdgeKind, EdgeArrowDirection, Option<&str>); 4] = [
         ("-.->", EdgeKind::Dashed, EdgeArrowDirection::Forward, None),
+        (
+            "<-->",
+            EdgeKind::Solid,
+            EdgeArrowDirection::Both,
+            Some("--"),
+        ),
         (
             "-->",
             EdgeKind::Solid,
@@ -5281,7 +5289,7 @@ fn parse_edge_line(
         };
         let label_text = rest[..end_idx].trim();
         let target = rest[end_idx + 1..].trim();
-        label = Some(label_text.to_string());
+        label = Some(label_text.trim_matches('"').to_string());
         target
     } else {
         if let Some(prefix) = inline_prefix {
@@ -5336,7 +5344,7 @@ fn extract_inline_label(segment: &str, prefix: &str) -> Option<(String, String)>
             if from.is_empty() || label.is_empty() {
                 None
             } else {
-                Some((from.to_string(), label.to_string()))
+                Some((from.to_string(), label.trim_matches('"').to_string()))
             }
         }
         _ => None,
@@ -5427,6 +5435,7 @@ impl NodeSpec {
             (trimmed.to_string(), NodeShape::Rectangle)
         };
 
+        let label = label.trim_matches('"').to_string();
         Ok(NodeSpec {
             id: id.to_string(),
             label: if label.is_empty() {
@@ -5598,6 +5607,18 @@ graph TD
             .expect("expected inline labeled edge");
         assert_eq!(yes_edge.from, "A");
         assert_eq!(yes_edge.to, "B");
+    }
+
+    #[test]
+    fn parses_bidirectional_edges_and_quoted_labels() {
+        let diagram = Diagram::parse("graph TD\nA[\"From\"] <-->|\"sync\"| B[\"To\"]")
+            .expect("diagram parse should succeed");
+
+        assert_eq!(diagram.nodes.len(), 2);
+        assert_eq!(diagram.nodes["A"].label, "From");
+        assert_eq!(diagram.nodes["B"].label, "To");
+        assert_eq!(diagram.edges[0].arrow, EdgeArrowDirection::Both);
+        assert_eq!(diagram.edges[0].label.as_deref(), Some("sync"));
     }
 
     #[test]

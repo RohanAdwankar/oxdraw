@@ -1,0 +1,22 @@
+graph TD
+    User(["User"])
+    App["Client App<br/>(Multi-platform)"]
+    subgraph Cloud["Cloud (Region)"]
+        Auth["Auth Service<br/>(Authentication)"]
+        API["App Server<br/>(.NET API)"]
+        SQL[("SQL Database")]
+        Blob[("Blob Storage<br/>(Images)")]
+        Logging["Logging Service<br/>(Server Logging)"]
+    end
+
+    ErrorTracker["Error Tracker<br/>(Client Errors)"]
+    Repo["Source Repo<br/>(Private)"]
+
+    User -->|"interacts with"| App
+    App <-->|"sign in / token refresh"| Auth
+    App <-->|"authenticated HTTPS"| API
+    API <-->|"reads / writes data"| SQL
+    App <-->|"fetch images (HTTPS)"| Blob
+    API -->|"logs & diagnostics"| Logging
+    App -->|"error reports"| ErrorTracker
+    ErrorTracker -->|"issue tracking links"| Repo
