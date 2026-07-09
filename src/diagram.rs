@@ -1046,7 +1046,7 @@ impl Diagram {
 
     pub fn layout(&self, overrides: Option<&LayoutOverrides>) -> Result<LayoutComputation> {
         let mut auto = self.compute_auto_layout();
-        self.separate_top_level_subgraphs(&mut auto.positions);
+        self.separate_subgraphs(&mut auto.positions);
         auto.size = compute_canvas_size_for_positions(&auto.positions, &self.nodes);
         let mut final_positions = auto.positions.clone();
 
@@ -1163,7 +1163,11 @@ impl Diagram {
         let (width, height) = match self.direction {
             Direction::TopDown | Direction::BottomTop => {
                 let base_horizontal_gap =
-                    (NODE_SPACING - NODE_WIDTH).max(EDGE_COLLISION_MARGIN * 2.0);
+                    (NODE_SPACING - NODE_WIDTH).max(if self.subgraphs.is_empty() {
+                        EDGE_COLLISION_MARGIN * 2.0
+                    } else {
+                        SUBGRAPH_PADDING
+                    });
                 let inner_height = max_node_height + vertical_step * ((level_count - 1) as f32);
 
                 let mut layer_centers: Vec<Vec<(String, f32)>> = Vec::with_capacity(layers.len());
@@ -1355,86 +1359,88 @@ impl Diagram {
             }
         };
 
+        for edge in &self.edges {
+            if self
+                .edges
+                .iter()
+                .filter(|other| other.from == edge.from)
+                .count()
+                == 1
+                && self
+                    .edges
+                    .iter()
+                    .filter(|other| other.to == edge.to)
+                    .count()
+                    == 1
+            {
+                let parent = positions[&edge.from];
+                let mut candidate = positions[&edge.to];
+                match self.direction {
+                    Direction::TopDown | Direction::BottomTop => candidate.x = parent.x,
+                    Direction::LeftRight | Direction::RightLeft => candidate.y = parent.y,
+                }
+                let node = &self.nodes[&edge.to];
+                let candidate_bounds =
+                    node_rect(candidate, node.width, node.height).inflate(EDGE_COLLISION_MARGIN);
+                let blocked = positions.iter().any(|(id, position)| {
+                    id != &edge.from
+                        && id != &edge.to
+                        && self.nodes.get(id).is_some_and(|other| {
+                            candidate_bounds.intersects(&node_rect(
+                                *position,
+                                other.width,
+                                other.height,
+                            ))
+                        })
+                });
+                if !blocked {
+                    positions.insert(edge.to.clone(), candidate);
+                }
+            }
+        }
+
         AutoLayout {
             positions,
             size: CanvasSize { width, height },
         }
     }
 
-    fn separate_top_level_subgraphs(&self, positions: &mut HashMap<String, Point>) {
-        if self.subgraphs.is_empty() {
-            return;
-        }
-
-        let mut placed_bounds: Vec<Rect> = Vec::new();
-        let outside_nodes: Vec<(String, Rect)> = positions
-            .iter()
-            .filter_map(|(id, point)| {
-                let membership = self.node_membership.get(id);
-                if membership.map_or(true, |path| path.is_empty()) {
-                    self.nodes
-                        .get(id)
-                        .map(|node| (id.clone(), node_rect(*point, node.width, node.height)))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
+    fn separate_subgraphs(&self, positions: &mut HashMap<String, Point>) {
+        let mut placed = Vec::new();
         for subgraph in &self.subgraphs {
-            let nodes = gather_subgraph_nodes(subgraph);
-            if nodes.is_empty() {
+            let members = subgraph_nodes(subgraph);
+            let Some(bounds) = group_bounds(&members, positions, &self.nodes) else {
                 continue;
-            }
-
-            let mut bounds = match compute_group_bounds(&nodes, positions, &self.nodes) {
-                Some(bounds) => bounds,
-                None => continue,
             };
-
-            let mut required_shift = 0.0_f32;
-
+            let mut frame = Rect {
+                min_x: bounds.min_x - SUBGRAPH_PADDING,
+                max_x: bounds.max_x + SUBGRAPH_PADDING,
+                min_y: bounds.min_y - SUBGRAPH_PADDING - SUBGRAPH_LABEL_AREA,
+                max_y: bounds.max_y + SUBGRAPH_PADDING,
+            };
+            let mut shift_y = 0.0;
             loop {
-                let shifted = Rect {
-                    min_x: bounds.min_x + required_shift,
-                    max_x: bounds.max_x + required_shift,
-                    min_y: bounds.min_y,
-                    max_y: bounds.max_y,
-                };
-
-                let mut next_shift = required_shift;
-
-                for placed in &placed_bounds {
-                    if rects_intersect_with_margin(&shifted, placed, SUBGRAPH_SEPARATION) {
-                        let candidate = placed.max_x + SUBGRAPH_SEPARATION - bounds.min_x;
-                        next_shift = next_shift.max(candidate);
-                    }
+                let target_y = placed
+                    .iter()
+                    .filter(|previous: &&Rect| frame.intersects(previous))
+                    .map(|previous| previous.max_y + SUBGRAPH_PADDING * 2.0)
+                    .fold(frame.min_y, f32::max);
+                let step = target_y - frame.min_y;
+                if step <= 0.0 {
+                    break;
                 }
-
-                for (node_id, node_rect) in &outside_nodes {
-                    if nodes.contains(node_id) {
-                        continue;
-                    }
-                    if rects_intersect_with_margin(&shifted, node_rect, SUBGRAPH_SEPARATION) {
-                        let candidate = node_rect.max_x + SUBGRAPH_SEPARATION - bounds.min_x;
-                        next_shift = next_shift.max(candidate);
-                    }
-                }
-
-                if next_shift > required_shift + 1e-3_f32 {
-                    required_shift = next_shift;
-                    continue;
-                }
-
-                if required_shift.abs() > f32::EPSILON {
-                    offset_nodes(positions, &nodes, required_shift, 0.0);
-                    bounds.min_x += required_shift;
-                    bounds.max_x += required_shift;
-                }
-
-                placed_bounds.push(bounds);
-                break;
+                frame.min_y += step;
+                frame.max_y += step;
+                shift_y += step;
             }
+            if shift_y > 0.0 {
+                for id in &members {
+                    if let Some(position) = positions.get_mut(id) {
+                        position.y += shift_y;
+                    }
+                }
+            }
+            placed.push(frame);
         }
     }
 
@@ -1606,6 +1612,15 @@ impl Diagram {
                     }
                     false
                 };
+
+            if !has_custom_override && middle_points.is_empty() && edge.label.is_some() {
+                if matches!(self.direction, Direction::TopDown | Direction::BottomTop) {
+                    middle_points.push(Point {
+                        x: to.x,
+                        y: from.y + (to.y - from.y) * 0.65,
+                    });
+                }
+            }
 
             let mut path = build_route(from, &middle_points, to);
 
@@ -4053,6 +4068,14 @@ fn compute_subgraph_visuals(
         );
     }
 
+    if subgraphs.len() > 1 {
+        for visual in visuals.iter_mut().filter(|visual| visual.depth == 0) {
+            visual.label_x = visual.x + visual.width
+                - SUBGRAPH_LABEL_INSET_X
+                - NODE_TEXT_CHAR_WIDTH * visual.label.chars().count() as f32;
+        }
+    }
+
     visuals.sort_by(|a, b| {
         a.depth
             .cmp(&b.depth)
@@ -4203,49 +4226,26 @@ fn compute_canvas_size_for_positions(
     CanvasSize { width, height }
 }
 
-fn gather_subgraph_nodes(subgraph: &Subgraph) -> HashSet<String> {
-    let mut nodes = HashSet::new();
-    collect_nodes_recursive(subgraph, &mut nodes);
+fn subgraph_nodes(subgraph: &Subgraph) -> HashSet<String> {
+    let mut nodes: HashSet<_> = subgraph.nodes.iter().cloned().collect();
+    for child in &subgraph.children {
+        nodes.extend(subgraph_nodes(child));
+    }
     nodes
 }
 
-fn collect_nodes_recursive(subgraph: &Subgraph, nodes: &mut HashSet<String>) {
-    for id in &subgraph.nodes {
-        nodes.insert(id.clone());
-    }
-    for child in &subgraph.children {
-        collect_nodes_recursive(child, nodes);
-    }
-}
-
-fn compute_group_bounds(
-    nodes: &HashSet<String>,
+fn group_bounds(
+    ids: &HashSet<String>,
     positions: &HashMap<String, Point>,
-    definitions: &HashMap<String, Node>,
+    nodes: &HashMap<String, Node>,
 ) -> Option<Rect> {
-    let mut bounds: Option<Rect> = None;
-    for id in nodes {
-        if let (Some(position), Some(node)) = (positions.get(id), definitions.get(id)) {
+    let mut bounds = None;
+    for id in ids {
+        if let (Some(position), Some(node)) = (positions.get(id), nodes.get(id)) {
             expand_bounds(&mut bounds, node_rect(*position, node.width, node.height));
         }
     }
     bounds
-}
-
-fn offset_nodes(positions: &mut HashMap<String, Point>, nodes: &HashSet<String>, dx: f32, dy: f32) {
-    for id in nodes {
-        if let Some(point) = positions.get_mut(id) {
-            point.x += dx;
-            point.y += dy;
-        }
-    }
-}
-
-fn rects_intersect_with_margin(a: &Rect, b: &Rect, margin: f32) -> bool {
-    (a.min_x - margin) < (b.max_x + margin)
-        && (a.max_x + margin) > (b.min_x - margin)
-        && (a.min_y - margin) < (b.max_y + margin)
-        && (a.max_y + margin) > (b.min_y - margin)
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

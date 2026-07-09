@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1817" height="634" viewBox="0 0 1817 634" font-family="Inter, system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1234" height="905" viewBox="0 0 1234 905" font-family="Inter, system-ui, sans-serif">
   <defs>
         <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
             <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
@@ -10,81 +10,81 @@
   </defs>
   <rect width="100%" height="100%" fill="white" />
   <g class="subgraph" data-id="RenderingPipeline">
-    <rect x="487.5" y="80.0" width="762.5" height="307.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
-    <text x="507.5" y="100.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">RenderingPipeline</text>
+    <rect x="80.0" y="80.0" width="762.5" height="307.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <text x="696.7" y="100.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">RenderingPipeline</text>
   </g>
   <g class="subgraph" data-id="ErrorHandling">
-    <rect x="1294.0" y="80.0" width="443.2" height="342.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
-    <text x="1314.0" y="100.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">ErrorHandling</text>
+    <rect x="598.4" y="483.0" width="443.2" height="342.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <text x="925.4" y="503.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">ErrorHandling</text>
   </g>
   <g class="edge" data-id="API --&gt; Queue">
-  <line x1="675.5" y1="269.0" x2="694.5" y2="269.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="268.0" y1="269.0" x2="287.0" y2="269.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Queue --&gt; Renderer">
-  <line x1="835.5" y1="269.0" x2="854.5" y2="269.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="428.0" y1="269.0" x2="447.0" y2="269.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Renderer --&gt; Storage">
-  <line x1="1003.2" y1="244.0" x2="1072.5" y2="214.4" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="595.7" y1="244.0" x2="665.0" y2="214.4" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Renderer --&gt; Retry">
-  <line x1="1033.9" y1="284.0" x2="1367.9" y2="340.2" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="546.9" y1="294.0" x2="715.5" y2="728.8" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="1167.0" y="288.1" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="1200.9" y="302.1" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">failure</text>
+    <rect x="597.3" y="487.4" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="631.2" y="501.4" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">failure</text>
   </g>
   </g>
   <g class="edge" data-id="Retry --&gt; Alert">
-  <line x1="1441.1" y1="330.7" x2="1574.3" y2="214.7" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="745.5" y1="733.7" x2="878.7" y2="617.7" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="1466.4" y="248.7" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="1507.7" y="262.7" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">exhausted</text>
+    <rect x="770.8" y="651.7" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="812.1" y="665.7" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">exhausted</text>
   </g>
   </g>
   <g class="edge" data-id="Retry --&gt; Queue">
-  <polyline points="1404.0,329.1 1258.3,149.0 1114.5,131.5 970.7,113.9 822.1,226.2" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="709.2" y1="731.9" x2="400.9" y2="325.6" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="1073.2" y="117.5" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="1114.5" y="131.5" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">available</text>
+    <rect x="513.8" y="504.7" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="555.1" y="518.7" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">available</text>
   </g>
   </g>
   <g class="edge" data-id="Storage --&gt; CDN">
-  <polyline points="1114.0,214.0 926.5,474.5 681.0,514.5 435.5,554.5 185.5,374.6" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="753.2" y1="214.0" x2="878.7" y2="323.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="CDN --&gt; User">
-  <line x1="204.8" y1="324.0" x2="269.7" y2="294.4" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="978.1" y1="349.0" x2="1012.6" y2="349.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="node" data-id="API">
-  <path d="M535.5,252.3 A70.0,8.3 0 0 1 675.5,252.3 L675.5,285.7 A70.0,8.3 0 0 1 535.5,285.7 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
-  <path d="M535.5,252.3 A70.0,8.3 0 0 1 675.5,252.3" fill="none" stroke="#2d3748" stroke-width="2" />
-  <text x="605.5" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">HTTP API</text>
+  <path d="M128.0,252.3 A70.0,8.3 0 0 1 268.0,252.3 L268.0,285.7 A70.0,8.3 0 0 1 128.0,285.7 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
+  <path d="M128.0,252.3 A70.0,8.3 0 0 1 268.0,252.3" fill="none" stroke="#2d3748" stroke-width="2" />
+  <text x="198.0" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">HTTP API</text>
   </g>
   <g class="node" data-id="Queue">
-  <ellipse cx="765.5" cy="269.0" rx="70.0" ry="70.0" fill="#e9d8fd" stroke="#2d3748" stroke-width="2" />
-  <text x="765.5" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Task Queue</text>
+  <ellipse cx="358.0" cy="269.0" rx="70.0" ry="70.0" fill="#e9d8fd" stroke="#2d3748" stroke-width="2" />
+  <text x="358.0" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Task Queue</text>
   </g>
   <g class="node" data-id="Renderer">
-  <polygon points="855.5,244.0 1011.4,244.0 1033.9,269.0 1011.4,294.0 855.5,294.0" fill="#f5d0fe" stroke="#2d3748" stroke-width="2" />
-  <text x="944.7" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Renderer Service</text>
+  <polygon points="448.0,244.0 603.9,244.0 626.4,269.0 603.9,294.0 448.0,294.0" fill="#f5d0fe" stroke="#2d3748" stroke-width="2" />
+  <text x="537.2" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Renderer Service</text>
   </g>
   <g class="node" data-id="Storage">
-  <path d="M1062.0,172.3 A70.0,8.3 0 0 1 1202.0,172.3 L1202.0,205.7 A70.0,8.3 0 0 1 1062.0,205.7 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
-  <path d="M1062.0,172.3 A70.0,8.3 0 0 1 1202.0,172.3" fill="none" stroke="#2d3748" stroke-width="2" />
-  <text x="1132.0" y="189.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">S3 Bucket</text>
+  <path d="M654.5,172.3 A70.0,8.3 0 0 1 794.5,172.3 L794.5,205.7 A70.0,8.3 0 0 1 654.5,205.7 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
+  <path d="M654.5,172.3 A70.0,8.3 0 0 1 794.5,172.3" fill="none" stroke="#2d3748" stroke-width="2" />
+  <text x="724.5" y="189.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">S3 Bucket</text>
   </g>
   <g class="node" data-id="Retry">
-  <polygon points="1420.1,324.0 1498.2,349.0 1420.1,374.0 1342.0,349.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="1420.1" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Retry Budget?</text>
+  <polygon points="724.5,727.0 802.6,752.0 724.5,777.0 646.4,752.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="724.5" y="752.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Retry Budget?</text>
   </g>
   <g class="node" data-id="Alert">
-  <rect x="1518.2" y="164.0" width="171.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1603.7" y="189.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">PagerDuty Alert</text>
+  <rect x="822.6" y="567.0" width="171.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="908.1" y="592.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">PagerDuty Alert</text>
   </g>
   <g class="node" data-id="CDN">
-  <rect x="80.0" y="324.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="150.0" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">CDN</text>
+  <rect x="838.1" y="324.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="908.1" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">CDN</text>
   </g>
   <g class="node" data-id="User">
-  <rect x="255.5" y="244.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="325.5" y="269.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">User</text>
+  <rect x="1013.6" y="324.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1083.6" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">User</text>
   </g>
 </svg>
