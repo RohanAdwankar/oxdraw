@@ -1145,11 +1145,18 @@ impl Diagram {
             layers_map.entry(level).or_default().push(id.clone());
         }
 
-        if layers_map.is_empty() {
-            layers_map.insert(0, self.order.clone());
+        let mut layers: Vec<Vec<String>> = layers_map.into_values().collect();
+        let mut rank = HashMap::new();
+        for layer in &mut layers {
+            layer.sort_by_key(|id| {
+                self.edges
+                    .iter()
+                    .filter(|edge| edge.to == *id)
+                    .filter_map(|edge| rank.get(&edge.from))
+                    .min()
+            });
+            rank.extend(layer.iter().cloned().zip(0..));
         }
-
-        let layers: Vec<Vec<String>> = layers_map.into_values().collect();
         let level_count = layers.len().max(1);
         let max_node_height = self
             .nodes
@@ -1374,27 +1381,21 @@ impl Diagram {
                     == 1
             {
                 let parent = positions[&edge.from];
-                let mut candidate = positions[&edge.to];
+                let mut target = positions[&edge.to];
                 match self.direction {
-                    Direction::TopDown | Direction::BottomTop => candidate.x = parent.x,
-                    Direction::LeftRight | Direction::RightLeft => candidate.y = parent.y,
+                    Direction::TopDown | Direction::BottomTop => target.x = parent.x,
+                    Direction::LeftRight | Direction::RightLeft => target.y = parent.y,
                 }
                 let node = &self.nodes[&edge.to];
-                let candidate_bounds =
-                    node_rect(candidate, node.width, node.height).inflate(EDGE_COLLISION_MARGIN);
-                let blocked = positions.iter().any(|(id, position)| {
-                    id != &edge.from
-                        && id != &edge.to
-                        && self.nodes.get(id).is_some_and(|other| {
-                            candidate_bounds.intersects(&node_rect(
-                                *position,
-                                other.width,
-                                other.height,
-                            ))
+                let bounds = node_rect(target, node.width, node.height);
+                if positions.iter().all(|(id, position)| {
+                    id == &edge.from
+                        || id == &edge.to
+                        || !self.nodes.get(id).is_some_and(|other| {
+                            bounds.intersects(&node_rect(*position, other.width, other.height))
                         })
-                });
-                if !blocked {
-                    positions.insert(edge.to.clone(), candidate);
+                }) {
+                    positions.insert(edge.to.clone(), target);
                 }
             }
         }
@@ -1406,7 +1407,8 @@ impl Diagram {
     }
 
     fn separate_subgraphs(&self, positions: &mut HashMap<String, Point>) {
-        let mut placed = Vec::new();
+        let mut placed: Vec<(Rect, HashSet<String>)> = Vec::new();
+        let top_down = matches!(self.direction, Direction::TopDown | Direction::BottomTop);
         for subgraph in &self.subgraphs {
             let members = subgraph_nodes(subgraph);
             let Some(bounds) = group_bounds(&members, positions, &self.nodes) else {
@@ -1418,29 +1420,38 @@ impl Diagram {
                 min_y: bounds.min_y - SUBGRAPH_PADDING - SUBGRAPH_LABEL_AREA,
                 max_y: bounds.max_y + SUBGRAPH_PADDING,
             };
-            let mut shift_y = 0.0;
-            loop {
-                let target_y = placed
-                    .iter()
-                    .filter(|previous: &&Rect| frame.intersects(previous))
-                    .map(|previous| previous.max_y + SUBGRAPH_PADDING * 2.0)
-                    .fold(frame.min_y, f32::max);
-                let step = target_y - frame.min_y;
-                if step <= 0.0 {
-                    break;
+            let mut shift = Point { x: 0.0, y: 0.0 };
+            while let Some((previous, previous_members)) = placed
+                .iter()
+                .find(|(previous, _)| frame.intersects(previous))
+            {
+                let connects = |from: &HashSet<String>, to: &HashSet<String>| {
+                    self.edges
+                        .iter()
+                        .any(|edge| from.contains(&edge.from) && to.contains(&edge.to))
+                };
+                let serial =
+                    connects(previous_members, &members) != connects(&members, previous_members);
+                let horizontal = top_down != serial;
+                if horizontal {
+                    let step = previous.max_x + SUBGRAPH_PADDING * 2.0 - frame.min_x;
+                    frame.min_x += step;
+                    frame.max_x += step;
+                    shift.x += step;
+                } else {
+                    let step = previous.max_y + SUBGRAPH_PADDING * 2.0 - frame.min_y;
+                    frame.min_y += step;
+                    frame.max_y += step;
+                    shift.y += step;
                 }
-                frame.min_y += step;
-                frame.max_y += step;
-                shift_y += step;
             }
-            if shift_y > 0.0 {
-                for id in &members {
-                    if let Some(position) = positions.get_mut(id) {
-                        position.y += shift_y;
-                    }
+            for id in &members {
+                if let Some(position) = positions.get_mut(id) {
+                    position.x += shift.x;
+                    position.y += shift.y;
                 }
             }
-            placed.push(frame);
+            placed.push((frame, members));
         }
     }
 
@@ -2014,7 +2025,9 @@ impl Diagram {
             let a = route[segment_idx];
             let b = route[segment_idx + 1];
 
-            for (node_id, bounds) in node_bounds {
+            let mut nodes: Vec<_> = node_bounds.iter().collect();
+            nodes.sort_by(|(a, _), (b, _)| a.cmp(b));
+            for (node_id, bounds) in nodes {
                 if node_id == &edge.from || node_id == &edge.to {
                     continue;
                 }
@@ -5188,20 +5201,21 @@ fn parse_png_dimensions(data: &[u8]) -> Result<(u32, u32)> {
 
 fn record_node_membership(
     node_id: &str,
-    subgraph_stack: &mut Vec<SubgraphBuilder>,
+    subgraph_stack: &mut [SubgraphBuilder],
     node_membership: &mut HashMap<String, Vec<String>>,
 ) {
     let node_id_string = node_id.to_string();
-
-    // Record membership path using current stack ordering.
-    let path: Vec<String> = subgraph_stack.iter().map(|sg| sg.id.clone()).collect();
-    node_membership.insert(node_id_string.clone(), path);
-
-    if let Some(current) = subgraph_stack.last_mut() {
-        if !current.nodes.contains(&node_id_string) {
-            current.nodes.push(node_id_string);
-        }
+    let membership = node_membership.entry(node_id_string.clone()).or_default();
+    if subgraph_stack.is_empty() || !membership.is_empty() {
+        return;
     }
+    membership.extend(subgraph_stack.iter().map(|sg| sg.id.clone()));
+
+    subgraph_stack
+        .last_mut()
+        .unwrap()
+        .nodes
+        .push(node_id_string);
 }
 
 fn prune_node_from_subgraphs(subgraphs: &mut Vec<Subgraph>, node_id: &str) -> bool {
@@ -5229,17 +5243,8 @@ fn parse_node_line(
         Err(_) => return Ok(false),
     };
 
-    let (id, inserted) = insert_node_spec(spec, nodes, order);
-    if inserted {
-        record_node_membership(&id, subgraph_stack, node_membership);
-    } else if !node_membership.contains_key(&id) {
-        if subgraph_stack.is_empty() {
-            node_membership.insert(id.clone(), Vec::new());
-        } else {
-            // Preserve membership for nodes first declared outside any subgraph when later wrapped.
-            record_node_membership(&id, subgraph_stack, node_membership);
-        }
-    }
+    let (id, _) = insert_node_spec(spec, nodes, order);
+    record_node_membership(&id, subgraph_stack, node_membership);
 
     Ok(true)
 }
@@ -5304,19 +5309,11 @@ fn parse_edge_line(
         rhs
     };
 
-    let (from_id, from_new) = intern_node(from_segment, nodes, order)?;
-    if from_new {
-        record_node_membership(&from_id, subgraph_stack, node_membership);
-    } else if !node_membership.contains_key(&from_id) && subgraph_stack.is_empty() {
-        node_membership.insert(from_id.clone(), Vec::new());
-    }
+    let (from_id, _) = intern_node(from_segment, nodes, order)?;
+    record_node_membership(&from_id, subgraph_stack, node_membership);
 
-    let (to_id, to_new) = intern_node(rhs_clean, nodes, order)?;
-    if to_new {
-        record_node_membership(&to_id, subgraph_stack, node_membership);
-    } else if !node_membership.contains_key(&to_id) && subgraph_stack.is_empty() {
-        node_membership.insert(to_id.clone(), Vec::new());
-    }
+    let (to_id, _) = intern_node(rhs_clean, nodes, order)?;
+    record_node_membership(&to_id, subgraph_stack, node_membership);
 
     Ok(Some(Edge {
         from: from_id,
