@@ -1087,10 +1087,13 @@ impl Diagram {
 
         let mut indegree: HashMap<String, usize> =
             self.nodes.keys().cloned().map(|id| (id, 0_usize)).collect();
+        let mut outdegree = indegree.clone();
 
         for edge in &self.edges {
             *indegree.entry(edge.to.clone()).or_insert(0) += 1;
+            *outdegree.entry(edge.from.clone()).or_insert(0) += 1;
         }
+        let initial_indegree = indegree.clone();
 
         let mut queue: VecDeque<String> = VecDeque::new();
         for id in &self.order {
@@ -1367,34 +1370,14 @@ impl Diagram {
         };
 
         for edge in &self.edges {
-            if self
-                .edges
-                .iter()
-                .filter(|other| other.from == edge.from)
-                .count()
-                == 1
-                && self
-                    .edges
-                    .iter()
-                    .filter(|other| other.to == edge.to)
-                    .count()
-                    == 1
-            {
+            if outdegree[&edge.from] == 1 && initial_indegree[&edge.to] == 1 {
                 let parent = positions[&edge.from];
                 let mut target = positions[&edge.to];
                 match self.direction {
                     Direction::TopDown | Direction::BottomTop => target.x = parent.x,
                     Direction::LeftRight | Direction::RightLeft => target.y = parent.y,
                 }
-                let node = &self.nodes[&edge.to];
-                let bounds = node_rect(target, node.width, node.height);
-                if positions.iter().all(|(id, position)| {
-                    id == &edge.from
-                        || id == &edge.to
-                        || !self.nodes.get(id).is_some_and(|other| {
-                            bounds.intersects(&node_rect(*position, other.width, other.height))
-                        })
-                }) {
+                if position_is_clear(&edge.to, target, &positions, &self.nodes) {
                     positions.insert(edge.to.clone(), target);
                 }
             }
@@ -1452,6 +1435,47 @@ impl Diagram {
                 }
             }
             placed.push((frame, members));
+        }
+
+        let mut aligned = HashSet::new();
+        for id in self.order.iter().rev() {
+            if self
+                .node_membership
+                .get(id)
+                .is_some_and(|path| !path.is_empty())
+            {
+                continue;
+            }
+            let children: Vec<_> = self
+                .edges
+                .iter()
+                .filter(|edge| edge.from == **id)
+                .map(|edge| edge.to.as_str())
+                .collect();
+            let mut child_groups = children
+                .iter()
+                .filter_map(|child| self.node_membership.get(*child)?.first());
+            let spans_groups = child_groups
+                .next()
+                .is_some_and(|first| child_groups.any(|group| group != first));
+            if !spans_groups && !children.iter().any(|child| aligned.contains(*child)) {
+                continue;
+            }
+            let mut target = positions[id];
+            let center = centroid(
+                &children
+                    .iter()
+                    .filter_map(|child| positions.get(*child).copied())
+                    .collect::<Vec<_>>(),
+            );
+            match self.direction {
+                Direction::TopDown | Direction::BottomTop => target.x = center.x,
+                Direction::LeftRight | Direction::RightLeft => target.y = center.y,
+            }
+            if position_is_clear(id, target, positions, &self.nodes) {
+                positions.insert(id.clone(), target);
+                aligned.insert(id.as_str());
+            }
         }
     }
 
@@ -2394,21 +2418,15 @@ impl Diagram {
 }
 
 fn route_intersects_label_rects(route: &[Point], label_bounds: &HashMap<String, Rect>) -> bool {
-    if label_bounds.is_empty() || route.len() < 2 {
-        return false;
-    }
+    label_bounds
+        .values()
+        .any(|rect| route_intersects_rect(route, *rect))
+}
 
-    for segment in route.windows(2) {
-        let a = segment[0];
-        let b = segment[1];
-        for rect in label_bounds.values() {
-            if rect.intersects_segment(a, b) {
-                return true;
-            }
-        }
-    }
-
-    false
+fn route_intersects_rect(route: &[Point], rect: Rect) -> bool {
+    route
+        .windows(2)
+        .any(|segment| rect.intersects_segment(segment[0], segment[1]))
 }
 
 fn label_overlaps_existing(
@@ -3474,6 +3492,22 @@ fn node_rect(center: Point, width: f32, height: f32) -> Rect {
     }
 }
 
+fn position_is_clear(
+    id: &str,
+    target: Point,
+    positions: &HashMap<String, Point>,
+    nodes: &HashMap<String, Node>,
+) -> bool {
+    let node = &nodes[id];
+    let bounds = node_rect(target, node.width, node.height);
+    positions.iter().all(|(other_id, position)| {
+        other_id == id
+            || !nodes.get(other_id).is_some_and(|other| {
+                bounds.intersects(&node_rect(*position, other.width, other.height))
+            })
+    })
+}
+
 #[derive(Clone, Copy, Debug)]
 struct Rect {
     min_x: f32,
@@ -3998,7 +4032,7 @@ pub fn align_geometry(
         }
     }
 
-    let unshifted_subgraphs = compute_subgraph_visuals(subgraphs, positions, nodes);
+    let unshifted_subgraphs = compute_subgraph_visuals(subgraphs, positions, nodes, routes);
     for sg in &unshifted_subgraphs {
         min_x = min_x.min(sg.x);
         max_x = max_x.max(sg.x + sg.width);
@@ -4063,6 +4097,7 @@ fn compute_subgraph_visuals(
     subgraphs: &[Subgraph],
     positions: &HashMap<String, Point>,
     definitions: &HashMap<String, Node>,
+    routes: &HashMap<String, Vec<Point>>,
 ) -> Vec<SubgraphVisual> {
     let mut visuals = Vec::new();
     let fallback_height = definitions
@@ -4081,11 +4116,19 @@ fn compute_subgraph_visuals(
         );
     }
 
-    if subgraphs.len() > 1 {
-        for visual in visuals.iter_mut().filter(|visual| visual.depth == 0) {
-            visual.label_x = visual.x + visual.width
-                - SUBGRAPH_LABEL_INSET_X
-                - NODE_TEXT_CHAR_WIDTH * visual.label.chars().count() as f32;
+    for visual in visuals.iter_mut().filter(|visual| visual.depth == 0) {
+        let label_width = NODE_TEXT_CHAR_WIDTH * visual.label.chars().count() as f32;
+        let label_bounds = Rect {
+            min_x: visual.label_x,
+            max_x: visual.label_x + label_width,
+            min_y: visual.y,
+            max_y: visual.y + SUBGRAPH_LABEL_AREA,
+        };
+        if routes
+            .values()
+            .any(|route| route_intersects_rect(route, label_bounds))
+        {
+            visual.label_x = visual.x + visual.width - SUBGRAPH_LABEL_INSET_X - label_width;
         }
     }
 

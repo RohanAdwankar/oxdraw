@@ -11,15 +11,15 @@
   <rect width="100%" height="100%" fill="white" />
   <g class="subgraph" data-id="Ingestion">
     <rect x="235.3" y="80.0" width="424.0" height="502.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
-    <text x="572.7" y="100.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Ingestion</text>
+    <text x="255.3" y="100.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Ingestion</text>
   </g>
   <g class="subgraph" data-id="Processing">
     <rect x="80.0" y="678.0" width="734.6" height="342.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
-    <text x="720.6" y="698.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Processing</text>
+    <text x="100.0" y="698.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Processing</text>
   </g>
   <g class="subgraph" data-id="Outputs">
     <rect x="121.4" y="1116.0" width="700.6" height="342.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
-    <text x="750.2" y="1136.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Outputs</text>
+    <text x="141.4" y="1136.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Outputs</text>
   </g>
   <g class="edge" data-id="SourceA --&gt; ParserA">
   <line x1="353.3" y1="214.0" x2="353.3" y2="323.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />

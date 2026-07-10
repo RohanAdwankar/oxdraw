@@ -11,7 +11,7 @@
   <rect width="100%" height="100%" fill="white" />
   <g class="subgraph" data-id="RenderingPipeline">
     <rect x="80.0" y="80.0" width="762.5" height="307.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
-    <text x="696.7" y="100.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">RenderingPipeline</text>
+    <text x="100.0" y="100.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">RenderingPipeline</text>
   </g>
   <g class="subgraph" data-id="ErrorHandling">
     <rect x="598.4" y="438.0" width="443.2" height="272.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
