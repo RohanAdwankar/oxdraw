@@ -1082,18 +1082,19 @@ impl Diagram {
             };
         }
 
+        let top_down = matches!(self.direction, Direction::TopDown | Direction::BottomTop);
         let mut levels: HashMap<String, usize> =
             self.nodes.keys().cloned().map(|id| (id, 0_usize)).collect();
 
         let mut indegree: HashMap<String, usize> =
             self.nodes.keys().cloned().map(|id| (id, 0_usize)).collect();
-        let mut outdegree = indegree.clone();
+        let mut outgoing = indegree.clone();
 
         for edge in &self.edges {
             *indegree.entry(edge.to.clone()).or_insert(0) += 1;
-            *outdegree.entry(edge.from.clone()).or_insert(0) += 1;
+            *outgoing.entry(edge.from.clone()).or_insert(0) += 1;
         }
-        let initial_indegree = indegree.clone();
+        let mut incoming = indegree.clone();
 
         let mut queue: VecDeque<String> = VecDeque::new();
         for id in &self.order {
@@ -1370,14 +1371,21 @@ impl Diagram {
         };
 
         for edge in &self.edges {
-            if outdegree[&edge.from] == 1 && initial_indegree[&edge.to] == 1 {
+            if top_down && levels[&edge.from] >= levels[&edge.to] {
+                incoming.entry(edge.to.clone()).and_modify(|n| *n -= 1);
+                outgoing.entry(edge.from.clone()).and_modify(|n| *n -= 1);
+            }
+        }
+
+        for edge in &self.edges {
+            if outgoing[&edge.from] == 1 && incoming[&edge.to] == 1 {
                 let parent = positions[&edge.from];
                 let mut target = positions[&edge.to];
                 match self.direction {
                     Direction::TopDown | Direction::BottomTop => target.x = parent.x,
                     Direction::LeftRight | Direction::RightLeft => target.y = parent.y,
                 }
-                if position_is_clear(&edge.to, target, &positions, &self.nodes) {
+                if self.position_clear(&edge.to, target, &positions, true) {
                     positions.insert(edge.to.clone(), target);
                 }
             }
@@ -1472,11 +1480,32 @@ impl Diagram {
                 Direction::TopDown | Direction::BottomTop => target.x = center.x,
                 Direction::LeftRight | Direction::RightLeft => target.y = center.y,
             }
-            if position_is_clear(id, target, positions, &self.nodes) {
+            if self.position_clear(id, target, positions, false) {
                 positions.insert(id.clone(), target);
                 aligned.insert(id.as_str());
             }
         }
+    }
+
+    fn position_clear(
+        &self,
+        id: &str,
+        target: Point,
+        positions: &HashMap<String, Point>,
+        within_group: bool,
+    ) -> bool {
+        let node = &self.nodes[id];
+        let bounds = node_rect(target, node.width, node.height);
+        let group = |id: &str| self.node_membership.get(id).and_then(|path| path.first());
+        positions
+            .iter()
+            .filter(|(other_id, _)| !within_group || group(other_id) == group(id))
+            .all(|(other_id, position)| {
+                other_id == id
+                    || !self.nodes.get(other_id).is_some_and(|other| {
+                        bounds.intersects(&node_rect(*position, other.width, other.height))
+                    })
+            })
     }
 
     fn compute_routes(
@@ -3490,22 +3519,6 @@ fn node_rect(center: Point, width: f32, height: f32) -> Rect {
         min_y: center.y - height / 2.0,
         max_y: center.y + height / 2.0,
     }
-}
-
-fn position_is_clear(
-    id: &str,
-    target: Point,
-    positions: &HashMap<String, Point>,
-    nodes: &HashMap<String, Node>,
-) -> bool {
-    let node = &nodes[id];
-    let bounds = node_rect(target, node.width, node.height);
-    positions.iter().all(|(other_id, position)| {
-        other_id == id
-            || !nodes.get(other_id).is_some_and(|other| {
-                bounds.intersects(&node_rect(*position, other.width, other.height))
-            })
-    })
 }
 
 #[derive(Clone, Copy, Debug)]
