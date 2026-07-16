@@ -28,14 +28,14 @@
   </g>
   </g>
   <g class="edge" data-id="App --&gt; API">
-  <polyline points="494.5,292.0 424.4,369.0 424.4,397.0" fill="none" stroke="#2d3748" stroke-width="2" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+  <polyline points="492.6,292.0 417.0,369.0 417.0,397.0" fill="none" stroke="#2d3748" stroke-width="2" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="346.1" y="355.0" width="156.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="424.4" y="369.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">authenticated HTTPS</text>
+    <rect x="338.7" y="355.0" width="156.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="417.0" y="369.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">authenticated HTTPS</text>
   </g>
   </g>
   <g class="edge" data-id="API --&gt; SQL">
-  <polyline points="395.0,452.0 311.2,529.0 311.2,559.0" fill="none" stroke="#2d3748" stroke-width="2" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+  <polyline points="389.5,452.0 311.2,529.0 311.2,559.0" fill="none" stroke="#2d3748" stroke-width="2" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="232.9" y="515.0" width="156.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="311.2" y="529.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">reads / writes data</text>
@@ -49,17 +49,17 @@
   </g>
   </g>
   <g class="edge" data-id="API --&gt; Logging">
-  <polyline points="449.9,452.0 522.8,529.0 522.8,557.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="444.5,452.0 522.8,529.0 522.8,557.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="448.2" y="515.0" width="149.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="522.8" y="529.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">logs &amp; diagnostics</text>
   </g>
   </g>
   <g class="edge" data-id="App --&gt; ErrorTracker">
-  <polyline points="598.4,292.0 824.7,369.0 824.7,397.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="608.3,265.0 745.2,265.0 745.2,345.0 745.2,425.0 824.7,425.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="768.6" y="355.0" width="112.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="824.7" y="369.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">error reports</text>
+    <rect x="689.1" y="331.0" width="112.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="745.2" y="345.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">error reports</text>
   </g>
   </g>
   <g class="edge" data-id="ErrorTracker --&gt; Repo">
@@ -88,10 +88,10 @@
   </text>
   </g>
   <g class="node" data-id="API">
-  <rect x="354.4" y="398.0" width="140.0" height="54.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="424.4" fill="#1a202c" font-size="14" text-anchor="middle">
-    <tspan x="424.4" y="417.0" dominant-baseline="middle">App Server</tspan>
-    <tspan x="424.4" y="433.0" dominant-baseline="middle">(.NET API)</tspan>
+  <rect x="347.0" y="398.0" width="140.0" height="54.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="417.0" fill="#1a202c" font-size="14" text-anchor="middle">
+    <tspan x="417.0" y="417.0" dominant-baseline="middle">App Server</tspan>
+    <tspan x="417.0" y="433.0" dominant-baseline="middle">(.NET API)</tspan>
   </text>
   </g>
   <g class="node" data-id="SQL">

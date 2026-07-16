@@ -1405,12 +1405,7 @@ impl Diagram {
             let Some(bounds) = group_bounds(&members, positions, &self.nodes) else {
                 continue;
             };
-            let mut frame = Rect {
-                min_x: bounds.min_x - SUBGRAPH_PADDING,
-                max_x: bounds.max_x + SUBGRAPH_PADDING,
-                min_y: bounds.min_y - SUBGRAPH_PADDING - SUBGRAPH_LABEL_AREA,
-                max_y: bounds.max_y + SUBGRAPH_PADDING,
-            };
+            let mut frame = padded_group_bounds(bounds);
             let mut shift = Point { x: 0.0, y: 0.0 };
             while let Some((previous, previous_members)) = placed
                 .iter()
@@ -1447,18 +1442,24 @@ impl Diagram {
 
         let mut aligned = HashSet::new();
         for id in self.order.iter().rev() {
-            if self
-                .node_membership
-                .get(id)
-                .is_some_and(|path| !path.is_empty())
-            {
-                continue;
-            }
+            let group = self.node_membership.get(id).and_then(|path| path.first());
             let children: Vec<_> = self
                 .edges
                 .iter()
                 .filter(|edge| edge.from == **id)
                 .map(|edge| edge.to.as_str())
+                .collect();
+            let centered: Vec<_> = children
+                .iter()
+                .copied()
+                .filter(|child| {
+                    group.is_none()
+                        || self
+                            .node_membership
+                            .get(*child)
+                            .and_then(|path| path.first())
+                            == group
+                })
                 .collect();
             let mut child_groups = children
                 .iter()
@@ -1466,23 +1467,28 @@ impl Diagram {
             let spans_groups = child_groups
                 .next()
                 .is_some_and(|first| child_groups.any(|group| group != first));
-            if !spans_groups && !children.iter().any(|child| aligned.contains(*child)) {
+            let points: Vec<_> = centered
+                .iter()
+                .filter_map(|child| positions.get(*child).copied())
+                .collect();
+            if group.is_some() && points.len() < 2
+                || group.is_none()
+                    && !spans_groups
+                    && !children.iter().any(|child| aligned.contains(*child))
+            {
                 continue;
             }
             let mut target = positions[id];
-            let center = centroid(
-                &children
-                    .iter()
-                    .filter_map(|child| positions.get(*child).copied())
-                    .collect::<Vec<_>>(),
-            );
+            let center = centroid(&points);
             match self.direction {
                 Direction::TopDown | Direction::BottomTop => target.x = center.x,
                 Direction::LeftRight | Direction::RightLeft => target.y = center.y,
             }
-            if self.position_clear(id, target, positions, false) {
+            if self.position_clear(id, target, positions, group.is_some()) {
                 positions.insert(id.clone(), target);
-                aligned.insert(id.as_str());
+                if group.is_none() {
+                    aligned.insert(id.as_str());
+                }
             }
         }
     }
@@ -1526,6 +1532,15 @@ impl Diagram {
                 .ok_or_else(|| anyhow!("node '{id}' missing definition"))?;
             node_bounds.insert(id.clone(), NodeBoundary::new(*point, node));
         }
+        let group_frames: Vec<_> = self
+            .subgraphs
+            .iter()
+            .filter_map(|subgraph| {
+                let members = subgraph_nodes(subgraph);
+                let bounds = group_bounds(&members, positions, &self.nodes)?;
+                Some((members, padded_group_bounds(bounds)))
+            })
+            .collect();
 
         for (idx, edge) in self.edges.iter().enumerate() {
             let edge_id = edge_identifier(edge);
@@ -1677,16 +1692,53 @@ impl Diagram {
                     false
                 };
 
-            if !has_custom_override && middle_points.is_empty() && edge.label.is_some() {
-                if matches!(self.direction, Direction::TopDown | Direction::BottomTop) {
-                    middle_points.push(Point {
-                        x: to.x,
-                        y: from.y + (to.y - from.y) * 0.65,
-                    });
+            if !has_custom_override && middle_points.is_empty() {
+                if let Some(label) = &edge.label
+                    && matches!(self.direction, Direction::TopDown | Direction::BottomTop)
+                {
+                    let backward = matches!(self.direction, Direction::TopDown) && to.y < from.y
+                        || matches!(self.direction, Direction::BottomTop) && to.y > from.y;
+                    if backward {
+                        let label_width = measure_label_box(&normalize_label_lines(label)).0;
+                        let x = node_bounds[&edge.from]
+                            .rect
+                            .min_x
+                            .min(node_bounds[&edge.to].rect.min_x)
+                            - EDGE_COLLISION_MARGIN
+                            - label_width / 2.0;
+                        middle_points.extend(side_points(from, to, x));
+                    } else {
+                        middle_points.push(Point {
+                            x: to.x,
+                            y: from.y + (to.y - from.y) * 0.65,
+                        });
+                    }
                 }
             }
 
             let mut path = build_route(from, &middle_points, to);
+            if !has_custom_override {
+                let blockers = group_frames
+                    .iter()
+                    .filter(|(members, frame)| {
+                        !members.contains(&edge.from)
+                            && !members.contains(&edge.to)
+                            && route_intersects_rect(&path, *frame)
+                    })
+                    .map(|(_, frame)| (frame.min_x, frame.max_x))
+                    .reduce(|a, b| (a.0.min(b.0), a.1.max(b.1)));
+                if let Some((left, right)) = blockers {
+                    let left = left - EDGE_COLLISION_MARGIN;
+                    let right = right + EDGE_COLLISION_MARGIN;
+                    let distance = |x: f32| (from.x - x).abs() + (to.x - x).abs();
+                    let x = if distance(left) <= distance(right) {
+                        left
+                    } else {
+                        right
+                    };
+                    path = build_route(from, &side_points(from, to, x), to);
+                }
+            }
 
             let mut base_label_collision =
                 self.label_collides_with_nodes(edge, &path, &node_bounds);
@@ -3462,6 +3514,17 @@ fn build_route(start: Point, middle: &[Point], end: Point) -> Vec<Point> {
     route
 }
 
+fn side_points(from: Point, to: Point, x: f32) -> [Point; 3] {
+    [
+        Point { x, y: from.y },
+        Point {
+            x,
+            y: (from.y + to.y) / 2.0,
+        },
+        Point { x, y: to.y },
+    ]
+}
+
 fn simplify_route(route: &mut Vec<Point>) {
     if route.is_empty() {
         return;
@@ -4315,6 +4378,15 @@ fn group_bounds(
         }
     }
     bounds
+}
+
+fn padded_group_bounds(bounds: Rect) -> Rect {
+    Rect {
+        min_x: bounds.min_x - SUBGRAPH_PADDING,
+        max_x: bounds.max_x + SUBGRAPH_PADDING,
+        min_y: bounds.min_y - SUBGRAPH_PADDING - SUBGRAPH_LABEL_AREA,
+        max_y: bounds.max_y + SUBGRAPH_PADDING,
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

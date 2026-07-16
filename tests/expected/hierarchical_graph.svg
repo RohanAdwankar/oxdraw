@@ -34,24 +34,24 @@
   <line x1="526.6" y1="374.0" x2="462.5" y2="483.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Normalizer --&gt; Router">
-  <line x1="447.3" y1="534.0" x2="447.3" y2="761.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="449.3" y1="534.0" x2="467.5" y2="761.6" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Router --&gt; Analytics">
-  <polyline points="416.8,802.2 239.4,891.0 239.4,921.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="437.1,801.6 239.4,891.0 239.4,921.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="198.1" y="877.0" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="239.4" y="891.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">analytics</text>
   </g>
   </g>
   <g class="edge" data-id="Router --&gt; Alerts">
-  <polyline points="454.6,809.7 480.6,891.0 480.6,921.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="472.1,811.2 480.6,891.0 480.6,921.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="450.4" y="877.0" width="60.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="480.6" y="891.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">alerts</text>
   </g>
   </g>
   <g class="edge" data-id="Router --&gt; Archive">
-  <polyline points="480.6,801.3 688.5,891.0 688.5,921.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="500.9,801.9 688.5,891.0 688.5,921.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="654.6" y="877.0" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="688.5" y="891.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">archive</text>
@@ -94,8 +94,8 @@
   <text x="447.3" y="509.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Normalize Events</text>
   </g>
   <g class="node" data-id="Router">
-  <polygon points="447.3,762.0 525.4,787.0 447.3,812.0 369.2,787.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="447.3" y="787.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Route By Type</text>
+  <polygon points="469.5,762.0 547.6,787.0 469.5,812.0 391.4,787.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="469.5" y="787.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Route By Type</text>
   </g>
   <g class="node" data-id="Analytics">
   <rect x="128.0" y="922.0" width="222.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
