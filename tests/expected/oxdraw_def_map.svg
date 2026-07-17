@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="2253" height="1538" viewBox="0 0 2253 1538" font-family="Inter, system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="2092" height="1538" viewBox="0 0 2092 1538" font-family="Inter, system-ui, sans-serif">
   <defs>
         <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
             <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
@@ -14,60 +14,60 @@
     <text x="125.8" y="336.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">LLM Code Map Generation</text>
   </g>
   <g class="subgraph" data-id="Edit_Mode">
-    <rect x="698.2" y="476.0" width="815.3" height="502.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <rect x="698.2" y="476.0" width="681.6" height="342.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
     <text x="718.2" y="496.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Edit Mode</text>
   </g>
   <g class="subgraph" data-id="New_Diagram">
-    <rect x="698.2" y="1074.0" width="801.2" height="342.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
-    <text x="718.2" y="1094.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">New Diagram</text>
+    <rect x="698.2" y="914.0" width="767.4" height="342.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <text x="718.2" y="934.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">New Diagram</text>
   </g>
   <g class="subgraph" data-id="Render_Diagram">
-    <rect x="1609.5" y="636.0" width="563.7" height="822.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
-    <text x="2049.6" y="656.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Render Diagram</text>
+    <rect x="1475.8" y="636.0" width="535.7" height="822.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <text x="1887.9" y="656.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Render Diagram</text>
   </g>
   <g class="edge" data-id="A --&gt; B">
-  <line x1="901.3" y1="130.0" x2="901.3" y2="239.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="782.9" y1="130.0" x2="782.9" y2="239.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="B --&gt; C">
-  <polyline points="852.2,274.3 354.0,369.0 354.0,399.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="738.4,275.8 354.0,369.0 354.0,399.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="334.9" y="355.0" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="354.0" y="369.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
   </g>
   </g>
   <g class="edge" data-id="B --&gt; D">
-  <polyline points="950.3,274.3 1448.5,369.0 1448.5,399.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="827.3,275.8 1211.7,369.0 1211.7,399.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="1430.5" y="355.0" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="1448.5" y="369.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
+    <rect x="1193.7" y="355.0" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="1211.7" y="369.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
   </g>
   </g>
   <g class="edge" data-id="D --&gt; E">
-  <polyline points="1409.9,436.2 1090.7,529.0 1090.7,559.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="1186.2,440.9 1044.9,529.0 1044.9,559.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="1071.6" y="515.0" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="1090.7" y="529.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
+    <rect x="1025.8" y="515.0" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="1044.9" y="529.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
   </g>
   </g>
   <g class="edge" data-id="D --&gt; F">
-  <polyline points="1470.6,442.1 1582.9,529.0 1582.9,559.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="1237.2,440.9 1378.6,529.0 1378.6,559.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="1564.9" y="515.0" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="1582.9" y="529.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
+    <rect x="1360.6" y="515.0" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="1378.6" y="529.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
   </g>
   </g>
   <g class="edge" data-id="F --&gt; G">
-  <polyline points="1582.9,585.0 1519.5,585.0 1519.5,884.0 1519.5,1183.0 1159.4,1183.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="1378.6,610.0 1378.6,796.0 1070.8,796.0 1070.8,997.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="1500.4" y="870.0" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="1519.5" y="884.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
+    <rect x="1359.5" y="782.0" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="1378.6" y="796.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
   </g>
   </g>
   <g class="edge" data-id="F --&gt; H">
-  <polyline points="1615.3,598.4 1834.0,689.0 1834.0,719.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="1414.5,597.2 1686.3,689.0 1686.3,719.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="1816.0" y="675.0" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="1834.0" y="689.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
+    <rect x="1668.3" y="675.0" width="36.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="1686.3" y="689.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">No</text>
   </g>
   </g>
   <g class="edge" data-id="C --&gt; I">
@@ -100,72 +100,72 @@
   </g>
   </g>
   <g class="edge" data-id="E --&gt; O">
-  <line x1="1093.0" y1="610.0" x2="1103.1" y2="719.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1011.0" y1="610.0" x2="862.7" y2="719.4" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="E --&gt; P">
-  <line x1="1131.3" y1="610.0" x2="1309.0" y2="719.5" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1044.9" y1="610.0" x2="1044.9" y2="719.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="E --&gt; Q">
-  <line x1="1069.3" y1="610.0" x2="838.3" y2="879.2" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1078.8" y1="610.0" x2="1227.1" y2="719.4" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="G --&gt; R">
-  <line x1="1045.7" y1="1208.0" x2="878.2" y2="1317.5" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1034.6" y1="1048.0" x2="876.1" y2="1157.4" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="G --&gt; S">
-  <line x1="1082.8" y1="1208.0" x2="1077.8" y2="1317.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1070.8" y1="1048.0" x2="1070.8" y2="1157.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="G --&gt; T">
-  <line x1="1123.4" y1="1208.0" x2="1296.0" y2="1317.5" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1107.0" y1="1048.0" x2="1265.5" y2="1157.4" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="G --&gt; Q">
-  <line x1="1059.9" y1="1158.0" x2="841.0" y2="930.7" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="1145.2,1023.0 1471.6,1023.0 1471.6,884.0 1471.6,745.0 1332.8,745.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="H --&gt; U">
-  <line x1="1817.5" y1="770.0" x2="1745.3" y2="879.2" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1672.0" y1="770.0" x2="1609.3" y2="879.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="H --&gt; V">
-  <line x1="1850.5" y1="770.0" x2="1922.7" y2="879.2" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1700.6" y1="770.0" x2="1763.3" y2="879.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="V --&gt; W">
-  <line x1="1939.8" y1="930.0" x2="1939.8" y2="1039.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1778.1" y1="930.0" x2="1778.1" y2="1039.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="W --&gt; X">
-  <line x1="1939.8" y1="1090.0" x2="1939.8" y2="1199.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1778.1" y1="1090.0" x2="1778.1" y2="1199.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="X --&gt; Y">
-  <line x1="1939.8" y1="1250.0" x2="1939.8" y2="1359.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="1778.1" y1="1250.0" x2="1778.1" y2="1359.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="node" data-id="A">
-  <rect x="786.2" y="80.0" width="230.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="901.3" y="105.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_render_or_edit</text>
+  <rect x="667.8" y="80.0" width="230.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="782.9" y="105.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_render_or_edit</text>
   </g>
   <g class="node" data-id="B">
-  <polygon points="901.3,240.0 979.4,265.0 901.3,290.0 823.2,265.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="901.3" y="265.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli.code_map?</text>
+  <polygon points="782.9,240.0 861.0,265.0 782.9,290.0 704.8,265.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="782.9" y="265.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli.code_map?</text>
   </g>
   <g class="node" data-id="C">
   <rect x="261.1" y="400.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="354.0" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_code_map</text>
   </g>
   <g class="node" data-id="D">
-  <polygon points="1448.5,400.0 1518.5,425.0 1448.5,450.0 1378.5,425.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="1448.5" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli.edit?</text>
+  <polygon points="1211.7,400.0 1281.7,425.0 1211.7,450.0 1141.7,425.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="1211.7" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli.edit?</text>
   </g>
   <g class="node" data-id="E">
-  <rect x="1012.6" y="560.0" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1090.7" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_edit</text>
+  <rect x="966.8" y="560.0" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1044.9" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_edit</text>
   </g>
   <g class="node" data-id="F">
-  <polygon points="1582.9,560.0 1652.9,585.0 1582.9,610.0 1512.9,585.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="1582.9" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli.new?</text>
+  <polygon points="1378.6,560.0 1448.6,585.0 1378.6,610.0 1308.6,585.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="1378.6" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli.new?</text>
   </g>
   <g class="node" data-id="G">
-  <rect x="1009.6" y="1158.0" width="148.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1084.0" y="1183.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_new</text>
+  <rect x="996.4" y="998.0" width="148.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1070.8" y="1023.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_new</text>
   </g>
   <g class="node" data-id="H">
-  <rect x="1748.5" y="720.0" width="171.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1834.0" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_render</text>
+  <rect x="1600.8" y="720.0" width="171.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1686.3" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">cli::run_render</text>
   </g>
   <g class="node" data-id="I">
   <rect x="227.8" y="560.0" width="252.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
@@ -192,47 +192,47 @@
   <text x="354.0" y="1385.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Return Mermaid and Mapping</text>
   </g>
   <g class="node" data-id="O">
-  <rect x="1023.7" y="720.0" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1105.5" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">locate_ui_dist</text>
+  <rect x="746.2" y="720.0" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="828.0" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">locate_ui_dist</text>
   </g>
   <g class="node" data-id="P">
-  <rect x="1235.3" y="720.0" width="230.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1350.4" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">ServeArgs Configuration</text>
+  <rect x="929.8" y="720.0" width="230.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1044.9" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">ServeArgs Configuration</text>
   </g>
   <g class="node" data-id="Q">
-  <rect x="746.2" y="880.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="816.2" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">run_serve</text>
+  <rect x="1191.8" y="720.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1261.8" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">run_serve</text>
   </g>
   <g class="node" data-id="R">
-  <rect x="746.2" y="1318.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="839.1" y="1343.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">select_graph_type</text>
+  <rect x="746.2" y="1158.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="839.1" y="1183.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">select_graph_type</text>
   </g>
   <g class="node" data-id="S">
-  <rect x="980.0" y="1318.0" width="193.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1076.6" y="1343.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">ensure_unique_path</text>
+  <rect x="974.2" y="1158.0" width="193.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1070.8" y="1183.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">ensure_unique_path</text>
   </g>
   <g class="node" data-id="T">
-  <rect x="1221.2" y="1318.0" width="230.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1336.3" y="1343.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">ServeArgs Configuration</text>
+  <rect x="1187.4" y="1158.0" width="230.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1302.5" y="1183.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">ServeArgs Configuration</text>
   </g>
   <g class="node" data-id="U">
-  <rect x="1657.5" y="880.0" width="141.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1728.2" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">parse_input</text>
+  <rect x="1523.8" y="880.0" width="141.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1594.5" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">parse_input</text>
   </g>
   <g class="node" data-id="V">
-  <rect x="1846.9" y="880.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1939.8" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">read input source</text>
+  <rect x="1685.2" y="880.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1778.1" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">read input source</text>
   </g>
   <g class="node" data-id="W">
-  <rect x="1858.0" y="1040.0" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1939.8" y="1065.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Diagram::parse</text>
+  <rect x="1696.3" y="1040.0" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1778.1" y="1065.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Diagram::parse</text>
   </g>
   <g class="node" data-id="X">
-  <rect x="1754.4" y="1200.0" width="370.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1939.8" y="1225.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Diagram::render_svg or Diagram::render_png</text>
+  <rect x="1592.7" y="1200.0" width="370.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1778.1" y="1225.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Diagram::render_svg or Diagram::render_png</text>
   </g>
   <g class="node" data-id="Y">
-  <rect x="1854.3" y="1360.0" width="171.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="1939.8" y="1385.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Write to output</text>
+  <rect x="1692.6" y="1360.0" width="171.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1778.1" y="1385.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Write to output</text>
   </g>
 </svg>
