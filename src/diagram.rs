@@ -1045,8 +1045,9 @@ impl Diagram {
     }
 
     pub fn layout(&self, overrides: Option<&LayoutOverrides>) -> Result<LayoutComputation> {
-        let mut auto = self.compute_auto_layout();
-        self.separate_subgraphs(&mut auto.positions);
+        let tree_components = self.tree_components();
+        let mut auto = self.compute_auto_layout(tree_components.as_deref());
+        self.separate_subgraphs(&mut auto.positions, tree_components.is_some());
         auto.size = compute_canvas_size_for_positions(&auto.positions, &self.nodes);
         let mut final_positions = auto.positions.clone();
 
@@ -1070,7 +1071,7 @@ impl Diagram {
         })
     }
 
-    fn compute_auto_layout(&self) -> AutoLayout {
+    fn compute_auto_layout(&self, tree_components: Option<&[Vec<String>]>) -> AutoLayout {
         if self.order.is_empty() {
             let size = CanvasSize {
                 width: START_OFFSET * 2.0 + NODE_WIDTH,
@@ -1370,23 +1371,27 @@ impl Diagram {
             }
         };
 
-        for edge in &self.edges {
-            if top_down && levels[&edge.from] >= levels[&edge.to] {
-                incoming.entry(edge.to.clone()).and_modify(|n| *n -= 1);
-                outgoing.entry(edge.from.clone()).and_modify(|n| *n -= 1);
-            }
-        }
-
-        for edge in &self.edges {
-            if outgoing[&edge.from] == 1 && incoming[&edge.to] == 1 {
-                let parent = positions[&edge.from];
-                let mut target = positions[&edge.to];
-                match self.direction {
-                    Direction::TopDown | Direction::BottomTop => target.x = parent.x,
-                    Direction::LeftRight | Direction::RightLeft => target.y = parent.y,
+        if let Some(components) = tree_components {
+            self.align_tree_components(&layers, &components, &incoming, &outgoing, &mut positions);
+        } else {
+            for edge in &self.edges {
+                if top_down && levels[&edge.from] >= levels[&edge.to] {
+                    incoming.entry(edge.to.clone()).and_modify(|n| *n -= 1);
+                    outgoing.entry(edge.from.clone()).and_modify(|n| *n -= 1);
                 }
-                if self.position_clear(&edge.to, target, &positions, true) {
-                    positions.insert(edge.to.clone(), target);
+            }
+
+            for edge in &self.edges {
+                if outgoing[&edge.from] == 1 && incoming[&edge.to] == 1 {
+                    let parent = positions[&edge.from];
+                    let mut target = positions[&edge.to];
+                    match self.direction {
+                        Direction::TopDown | Direction::BottomTop => target.x = parent.x,
+                        Direction::LeftRight | Direction::RightLeft => target.y = parent.y,
+                    }
+                    if self.position_clear(&edge.to, target, &positions, true) {
+                        positions.insert(edge.to.clone(), target);
+                    }
                 }
             }
         }
@@ -1397,7 +1402,180 @@ impl Diagram {
         }
     }
 
-    fn separate_subgraphs(&self, positions: &mut HashMap<String, Point>) {
+    fn tree_components(&self) -> Option<Vec<Vec<String>>> {
+        let mut adjacent: HashMap<&str, Vec<&str>> = self
+            .nodes
+            .keys()
+            .map(|id| (id.as_str(), Vec::new()))
+            .collect();
+        let mut pairs = HashSet::new();
+        for edge in &self.edges {
+            let pair = if edge.from < edge.to {
+                (edge.from.as_str(), edge.to.as_str())
+            } else {
+                (edge.to.as_str(), edge.from.as_str())
+            };
+            if pair.0 == pair.1 || !pairs.insert(pair) {
+                return None;
+            }
+            adjacent.get_mut(pair.0)?.push(pair.1);
+            adjacent.get_mut(pair.1)?.push(pair.0);
+        }
+
+        let mut seen = HashSet::new();
+        let mut components = Vec::new();
+        for root in &self.order {
+            if !seen.insert(root.as_str()) {
+                continue;
+            }
+            let mut component = Vec::new();
+            let mut stack = vec![root.as_str()];
+            let mut degree_sum = 0;
+            while let Some(id) = stack.pop() {
+                component.push(id.to_string());
+                degree_sum += adjacent[id].len();
+                for &neighbor in &adjacent[id] {
+                    if seen.insert(neighbor) {
+                        stack.push(neighbor);
+                    }
+                }
+            }
+            if degree_sum / 2 + 1 != component.len() {
+                return None;
+            }
+            components.push(component);
+        }
+        Some(components)
+    }
+
+    fn align_tree_components(
+        &self,
+        layers: &[Vec<String>],
+        components: &[Vec<String>],
+        incoming: &HashMap<String, usize>,
+        outgoing: &HashMap<String, usize>,
+        positions: &mut HashMap<String, Point>,
+    ) {
+        let top_down = matches!(self.direction, Direction::TopDown | Direction::BottomTop);
+        let cross_size = |id: &str| {
+            let node = &self.nodes[id];
+            if top_down { node.width } else { node.height }
+        };
+        let base_gap = if top_down {
+            (NODE_SPACING - NODE_WIDTH).max(EDGE_COLLISION_MARGIN * 2.0)
+        } else {
+            (NODE_SPACING - NODE_HEIGHT).max(EDGE_COLLISION_MARGIN * 2.0)
+        };
+        let mut cursor = START_OFFSET;
+
+        for component in components {
+            let members: HashSet<_> = component.iter().map(String::as_str).collect();
+            let rows: Vec<Vec<&str>> = layers
+                .iter()
+                .map(|layer| {
+                    layer
+                        .iter()
+                        .map(String::as_str)
+                        .filter(|id| members.contains(id))
+                        .collect()
+                })
+                .collect();
+            let anchor = rows
+                .iter()
+                .enumerate()
+                .max_by_key(|(_, row)| row.len())
+                .map(|(index, _)| index)
+                .unwrap_or(0);
+            let mut slots = HashMap::new();
+            for row in &rows {
+                let center = (row.len().saturating_sub(1)) as f32 / 2.0;
+                for (index, &id) in row.iter().enumerate() {
+                    slots.insert(id, index as f32 - center);
+                }
+            }
+
+            for row in rows[..anchor].iter().rev() {
+                for &id in row {
+                    let children: Vec<_> = self
+                        .edges
+                        .iter()
+                        .filter(|edge| edge.from == id && members.contains(edge.to.as_str()))
+                        .map(|edge| edge.to.as_str())
+                        .collect();
+                    if children.len() > 1
+                        || children.first().is_some_and(|child| incoming[*child] == 1)
+                    {
+                        slots.insert(id, slot_center(&children, &slots));
+                    }
+                }
+            }
+            for row in rows.iter().skip(anchor + 1) {
+                for &id in row {
+                    let parents: Vec<_> = self
+                        .edges
+                        .iter()
+                        .filter(|edge| edge.to == id && members.contains(edge.from.as_str()))
+                        .map(|edge| edge.from.as_str())
+                        .collect();
+                    if parents.len() > 1
+                        || parents.first().is_some_and(|parent| outgoing[*parent] == 1)
+                    {
+                        slots.insert(id, slot_center(&parents, &slots));
+                    }
+                }
+            }
+
+            if rows
+                .iter()
+                .any(|row| row.windows(2).any(|pair| slots[pair[0]] >= slots[pair[1]]))
+            {
+                continue;
+            }
+
+            let scale = rows
+                .iter()
+                .flat_map(|row| row.windows(2))
+                .map(|pair| {
+                    let separated_groups = self
+                        .node_membership
+                        .get(pair[0])
+                        .and_then(|path| path.first())
+                        != self
+                            .node_membership
+                            .get(pair[1])
+                            .and_then(|path| path.first());
+                    let gap = if separated_groups {
+                        SUBGRAPH_PADDING * 2.0 + EDGE_COLLISION_MARGIN
+                    } else {
+                        base_gap
+                    };
+                    (cross_size(pair[0]) / 2.0 + gap + cross_size(pair[1]) / 2.0)
+                        / (slots[pair[1]] - slots[pair[0]])
+                })
+                .fold(NODE_SPACING, f32::max);
+            let (min, max) =
+                component
+                    .iter()
+                    .fold((f32::INFINITY, f32::NEG_INFINITY), |(min, max), id| {
+                        let center = slots[id.as_str()] * scale;
+                        let half = cross_size(id) / 2.0;
+                        (min.min(center - half), max.max(center + half))
+                    });
+            let origin = cursor - min;
+            for id in component {
+                let position = positions.get_mut(id).expect("tree node has a position");
+                let cross = origin + slots[id.as_str()] * scale;
+                if top_down {
+                    position.x = cross;
+                } else {
+                    position.y = cross;
+                }
+            }
+            cursor += max - min + SUBGRAPH_PADDING * 2.0;
+        }
+    }
+
+    fn separate_subgraphs(&self, positions: &mut HashMap<String, Point>, preserve_tree: bool) {
         let mut placed: Vec<(Rect, HashSet<String>)> = Vec::new();
         let top_down = matches!(self.direction, Direction::TopDown | Direction::BottomTop);
         for subgraph in &self.subgraphs {
@@ -1440,26 +1618,24 @@ impl Diagram {
             placed.push((frame, members));
         }
 
+        if preserve_tree {
+            return;
+        }
+
         let mut aligned = HashSet::new();
         for id in self.order.iter().rev() {
-            let group = self.node_membership.get(id).and_then(|path| path.first());
+            if self
+                .node_membership
+                .get(id)
+                .is_some_and(|path| !path.is_empty())
+            {
+                continue;
+            }
             let children: Vec<_> = self
                 .edges
                 .iter()
                 .filter(|edge| edge.from == **id)
                 .map(|edge| edge.to.as_str())
-                .collect();
-            let centered: Vec<_> = children
-                .iter()
-                .copied()
-                .filter(|child| {
-                    group.is_none()
-                        || self
-                            .node_membership
-                            .get(*child)
-                            .and_then(|path| path.first())
-                            == group
-                })
                 .collect();
             let mut child_groups = children
                 .iter()
@@ -1467,28 +1643,54 @@ impl Diagram {
             let spans_groups = child_groups
                 .next()
                 .is_some_and(|first| child_groups.any(|group| group != first));
-            let points: Vec<_> = centered
-                .iter()
-                .filter_map(|child| positions.get(*child).copied())
-                .collect();
-            if group.is_some() && points.len() < 2
-                || group.is_none()
-                    && !spans_groups
-                    && !children.iter().any(|child| aligned.contains(*child))
-            {
+            if !spans_groups && !children.iter().any(|child| aligned.contains(*child)) {
                 continue;
             }
             let mut target = positions[id];
-            let center = centroid(&points);
+            let center = centroid(
+                &children
+                    .iter()
+                    .filter_map(|child| positions.get(*child).copied())
+                    .collect::<Vec<_>>(),
+            );
             match self.direction {
                 Direction::TopDown | Direction::BottomTop => target.x = center.x,
                 Direction::LeftRight | Direction::RightLeft => target.y = center.y,
             }
-            if self.position_clear(id, target, positions, group.is_some()) {
+            if self.position_clear(id, target, positions, false) {
                 positions.insert(id.clone(), target);
-                if group.is_none() {
-                    aligned.insert(id.as_str());
-                }
+                aligned.insert(id.as_str());
+            }
+        }
+
+        for id in self.order.iter().rev() {
+            let Some(group) = self.node_membership.get(id).and_then(|path| path.first()) else {
+                continue;
+            };
+            let children: Vec<_> = self
+                .edges
+                .iter()
+                .filter(|edge| {
+                    edge.from == **id
+                        && self
+                            .node_membership
+                            .get(&edge.to)
+                            .and_then(|path| path.first())
+                            == Some(group)
+                })
+                .filter_map(|edge| positions.get(&edge.to).copied())
+                .collect();
+            if children.len() < 2 {
+                continue;
+            }
+            let mut target = positions[id];
+            let center = centroid(&children);
+            match self.direction {
+                Direction::TopDown | Direction::BottomTop => target.x = center.x,
+                Direction::LeftRight | Direction::RightLeft => target.y = center.y,
+            }
+            if self.position_clear(id, target, positions, true) {
+                positions.insert(id.clone(), target);
             }
         }
     }
@@ -1718,25 +1920,55 @@ impl Diagram {
 
             let mut path = build_route(from, &middle_points, to);
             if !has_custom_override {
-                let blockers = group_frames
+                let unrelated: Vec<_> = group_frames
                     .iter()
-                    .filter(|(members, frame)| {
-                        !members.contains(&edge.from)
-                            && !members.contains(&edge.to)
-                            && route_intersects_rect(&path, *frame)
+                    .filter(|(members, _)| {
+                        !members.contains(&edge.from) && !members.contains(&edge.to)
                     })
-                    .map(|(_, frame)| (frame.min_x, frame.max_x))
-                    .reduce(|a, b| (a.0.min(b.0), a.1.max(b.1)));
-                if let Some((left, right)) = blockers {
-                    let left = left - EDGE_COLLISION_MARGIN;
-                    let right = right + EDGE_COLLISION_MARGIN;
-                    let distance = |x: f32| (from.x - x).abs() + (to.x - x).abs();
-                    let x = if distance(left) <= distance(right) {
-                        left
-                    } else {
-                        right
-                    };
-                    path = build_route(from, &side_points(from, to, x), to);
+                    .map(|(_, frame)| *frame)
+                    .collect();
+                let blockers: Vec<_> = unrelated
+                    .iter()
+                    .copied()
+                    .filter(|frame| route_intersects_rect(&path, *frame))
+                    .collect();
+                if !blockers.is_empty() {
+                    let bounds = blockers.iter().fold(blockers[0], |bounds, frame| Rect {
+                        min_x: bounds.min_x.min(frame.min_x),
+                        max_x: bounds.max_x.max(frame.max_x),
+                        min_y: bounds.min_y.min(frame.min_y),
+                        max_y: bounds.max_y.max(frame.max_y),
+                    });
+                    path = [
+                        build_route(
+                            from,
+                            &side_points(from, to, bounds.min_x - EDGE_COLLISION_MARGIN),
+                            to,
+                        ),
+                        build_route(
+                            from,
+                            &side_points(from, to, bounds.max_x + EDGE_COLLISION_MARGIN),
+                            to,
+                        ),
+                        build_route(
+                            from,
+                            &row_points(from, to, bounds.min_y - EDGE_COLLISION_MARGIN),
+                            to,
+                        ),
+                        build_route(
+                            from,
+                            &row_points(from, to, bounds.max_y + EDGE_COLLISION_MARGIN),
+                            to,
+                        ),
+                    ]
+                    .into_iter()
+                    .filter(|candidate| {
+                        !unrelated
+                            .iter()
+                            .any(|frame| route_intersects_rect(candidate, *frame))
+                    })
+                    .min_by(|a, b| route_length(a).total_cmp(&route_length(b)))
+                    .unwrap_or(path);
                 }
             }
 
@@ -3525,6 +3757,24 @@ fn side_points(from: Point, to: Point, x: f32) -> [Point; 3] {
     ]
 }
 
+fn row_points(from: Point, to: Point, y: f32) -> [Point; 3] {
+    [
+        Point { x: from.x, y },
+        Point {
+            x: (from.x + to.x) / 2.0,
+            y,
+        },
+        Point { x: to.x, y },
+    ]
+}
+
+fn route_length(route: &[Point]) -> f32 {
+    route
+        .windows(2)
+        .map(|points| (points[1].x - points[0].x).abs() + (points[1].y - points[0].y).abs())
+        .sum()
+}
+
 fn simplify_route(route: &mut Vec<Point>) {
     if route.is_empty() {
         return;
@@ -4393,6 +4643,16 @@ fn padded_group_bounds(bounds: Rect) -> Rect {
 pub struct Point {
     pub x: f32,
     pub y: f32,
+}
+
+fn slot_center(ids: &[&str], slots: &HashMap<&str, f32>) -> f32 {
+    let (min, max) = ids
+        .iter()
+        .map(|id| slots[id])
+        .fold((f32::INFINITY, f32::NEG_INFINITY), |(min, max), slot| {
+            (min.min(slot), max.max(slot))
+        });
+    (min + max) / 2.0
 }
 
 pub fn centroid(points: &[Point]) -> Point {
@@ -5760,5 +6020,28 @@ graph TD
             .get("I")
             .expect("expected node I to be present");
         assert_eq!(node.label, "Official Node");
+    }
+
+    #[test]
+    fn lays_out_polytrees_on_symmetric_columns() {
+        let diagram = Diagram::parse(
+            "graph TD\nA --> C\nB --> C\nC --> D\nD --> E\nD --> F\nD --> G\nE --> H\nF --> I\nG --> J",
+        )
+        .expect("diagram parse should succeed");
+        let positions = diagram
+            .layout(None)
+            .expect("layout should succeed")
+            .auto_positions;
+        let close = |a: f32, b: f32| assert!((a - b).abs() < 0.01, "{a} != {b}");
+
+        close(
+            (positions["A"].x + positions["B"].x) / 2.0,
+            positions["C"].x,
+        );
+        close(positions["C"].x, positions["D"].x);
+        close(positions["D"].x, positions["F"].x);
+        close(positions["E"].x, positions["H"].x);
+        close(positions["F"].x, positions["I"].x);
+        close(positions["G"].x, positions["J"].x);
     }
 }

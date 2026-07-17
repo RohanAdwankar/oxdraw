@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="902" height="1538" viewBox="0 0 902 1538" font-family="Inter, system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="879" height="1538" viewBox="0 0 879 1538" font-family="Inter, system-ui, sans-serif">
   <defs>
         <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
             <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
@@ -10,117 +10,117 @@
   </defs>
   <rect width="100%" height="100%" fill="white" />
   <g class="subgraph" data-id="Ingestion">
-    <rect x="235.3" y="80.0" width="424.0" height="502.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
-    <text x="255.3" y="100.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Ingestion</text>
+    <rect x="228.0" y="80.0" width="449.2" height="502.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <text x="248.0" y="100.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Ingestion</text>
   </g>
   <g class="subgraph" data-id="Processing">
-    <rect x="80.0" y="678.0" width="734.6" height="342.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <rect x="80.0" y="678.0" width="711.9" height="342.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
     <text x="100.0" y="698.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Processing</text>
   </g>
   <g class="subgraph" data-id="Outputs">
-    <rect x="121.4" y="1116.0" width="700.6" height="342.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <rect x="121.4" y="1116.0" width="677.9" height="342.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
     <text x="141.4" y="1136.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Outputs</text>
   </g>
   <g class="edge" data-id="SourceA --&gt; ParserA">
-  <line x1="353.3" y1="214.0" x2="353.3" y2="323.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="346.0" y1="214.0" x2="346.0" y2="323.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="SourceB --&gt; ParserB">
-  <line x1="541.3" y1="214.0" x2="541.3" y2="323.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="559.2" y1="214.0" x2="559.2" y2="323.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="ParserA --&gt; Normalizer">
-  <line x1="368.0" y1="374.0" x2="432.1" y2="483.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="362.7" y1="374.0" x2="435.4" y2="483.2" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="ParserB --&gt; Normalizer">
-  <line x1="526.6" y1="374.0" x2="462.5" y2="483.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="542.5" y1="374.0" x2="469.8" y2="483.2" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Normalizer --&gt; Router">
-  <line x1="449.3" y1="534.0" x2="467.5" y2="761.6" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="452.6" y1="534.0" x2="452.6" y2="761.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Router --&gt; Analytics">
-  <polyline points="437.1,801.6 239.4,891.0 239.4,921.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="421.7,802.1 239.4,891.0 239.4,921.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
     <rect x="198.1" y="877.0" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="239.4" y="891.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">analytics</text>
   </g>
   </g>
   <g class="edge" data-id="Router --&gt; Alerts">
-  <polyline points="472.1,811.2 480.6,891.0 480.6,921.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="452.6,812.0 452.6,891.0 452.6,921.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="450.4" y="877.0" width="60.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="480.6" y="891.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">alerts</text>
+    <rect x="422.4" y="877.0" width="60.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="452.6" y="891.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">alerts</text>
   </g>
   </g>
   <g class="edge" data-id="Router --&gt; Archive">
-  <polyline points="500.9,801.9 688.5,891.0 688.5,921.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="483.5,802.1 665.8,891.0 665.8,921.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="654.6" y="877.0" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="688.5" y="891.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">archive</text>
+    <rect x="631.9" y="877.0" width="67.8" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="665.8" y="891.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">archive</text>
   </g>
   </g>
   <g class="edge" data-id="Analytics --&gt; Dashboard">
   <line x1="239.4" y1="972.0" x2="239.4" y2="1199.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Alerts --&gt; Pager">
-  <line x1="476.2" y1="972.0" x2="436.4" y2="1199.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="452.6" y1="972.0" x2="452.6" y2="1199.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Archive --&gt; Glacier">
-  <line x1="688.5" y1="972.0" x2="688.5" y2="1199.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="665.8" y1="972.0" x2="665.8" y2="1199.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Dashboard --&gt; Users">
   <line x1="239.4" y1="1250.0" x2="239.4" y2="1359.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="node" data-id="SourceA">
-  <rect x="283.3" y="164.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fed7aa" stroke="#2d3748" stroke-width="2" />
-  <line x1="295.3" y1="164.0" x2="295.3" y2="214.0" stroke="#2d3748" stroke-width="2" />
-  <line x1="411.3" y1="164.0" x2="411.3" y2="214.0" stroke="#2d3748" stroke-width="2" />
-  <text x="353.3" y="189.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Kafka</text>
+  <rect x="276.0" y="164.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fed7aa" stroke="#2d3748" stroke-width="2" />
+  <line x1="288.0" y1="164.0" x2="288.0" y2="214.0" stroke="#2d3748" stroke-width="2" />
+  <line x1="404.0" y1="164.0" x2="404.0" y2="214.0" stroke="#2d3748" stroke-width="2" />
+  <text x="346.0" y="189.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Kafka</text>
   </g>
   <g class="node" data-id="ParserA">
-  <rect x="283.3" y="324.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="353.3" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse Avro</text>
+  <rect x="276.0" y="324.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="346.0" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse Avro</text>
   </g>
   <g class="node" data-id="SourceB">
-  <rect x="471.3" y="164.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fed7aa" stroke="#2d3748" stroke-width="2" />
-  <line x1="483.3" y1="164.0" x2="483.3" y2="214.0" stroke="#2d3748" stroke-width="2" />
-  <line x1="599.3" y1="164.0" x2="599.3" y2="214.0" stroke="#2d3748" stroke-width="2" />
-  <text x="541.3" y="189.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">SQS</text>
+  <rect x="489.2" y="164.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fed7aa" stroke="#2d3748" stroke-width="2" />
+  <line x1="501.2" y1="164.0" x2="501.2" y2="214.0" stroke="#2d3748" stroke-width="2" />
+  <line x1="617.2" y1="164.0" x2="617.2" y2="214.0" stroke="#2d3748" stroke-width="2" />
+  <text x="559.2" y="189.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">SQS</text>
   </g>
   <g class="node" data-id="ParserB">
-  <rect x="471.3" y="324.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="541.3" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse JSON</text>
+  <rect x="489.2" y="324.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="559.2" y="349.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Parse JSON</text>
   </g>
   <g class="node" data-id="Normalizer">
-  <rect x="358.1" y="484.0" width="178.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="447.3" y="509.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Normalize Events</text>
+  <rect x="363.4" y="484.0" width="178.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="452.6" y="509.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Normalize Events</text>
   </g>
   <g class="node" data-id="Router">
-  <polygon points="469.5,762.0 547.6,787.0 469.5,812.0 391.4,787.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
-  <text x="469.5" y="787.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Route By Type</text>
+  <polygon points="452.6,762.0 530.7,787.0 452.6,812.0 374.5,787.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="452.6" y="787.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Route By Type</text>
   </g>
   <g class="node" data-id="Analytics">
   <rect x="128.0" y="922.0" width="222.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="239.4" y="947.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Run Analytics Pipeline</text>
   </g>
   <g class="node" data-id="Alerts">
-  <rect x="398.8" y="922.0" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="480.6" y="947.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Trigger Alerts</text>
+  <rect x="370.8" y="922.0" width="163.6" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="452.6" y="947.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Trigger Alerts</text>
   </g>
   <g class="node" data-id="Archive">
-  <rect x="610.4" y="922.0" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="688.5" y="947.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Archive Event</text>
+  <rect x="587.7" y="922.0" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="665.8" y="947.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Archive Event</text>
   </g>
   <g class="node" data-id="Dashboard">
   <rect x="169.4" y="1200.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
   <text x="239.4" y="1225.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Dashboard</text>
   </g>
   <g class="node" data-id="Pager">
-  <rect x="361.8" y="1200.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
-  <text x="431.8" y="1225.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Pager</text>
+  <rect x="382.6" y="1200.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="452.6" y="1225.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Pager</text>
   </g>
   <g class="node" data-id="Glacier">
-  <path d="M603.0,1208.3 A85.5,8.3 0 0 1 774.0,1208.3 L774.0,1241.7 A85.5,8.3 0 0 1 603.0,1241.7 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
-  <path d="M603.0,1208.3 A85.5,8.3 0 0 1 774.0,1208.3" fill="none" stroke="#2d3748" stroke-width="2" />
-  <text x="688.5" y="1225.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Glacier Storage</text>
+  <path d="M580.3,1208.3 A85.5,8.3 0 0 1 751.3,1208.3 L751.3,1241.7 A85.5,8.3 0 0 1 580.3,1241.7 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
+  <path d="M580.3,1208.3 A85.5,8.3 0 0 1 751.3,1208.3" fill="none" stroke="#2d3748" stroke-width="2" />
+  <text x="665.8" y="1225.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Glacier Storage</text>
   </g>
   <g class="node" data-id="Users">
   <rect x="169.4" y="1360.0" width="140.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
