@@ -8,7 +8,6 @@ use std::{
 use tiny_skia::{Pixmap, Transform};
 
 const EXPECTED_DIR: &str = "tests/expected";
-const PAIRS_PER_PAGE: usize = 4;
 const PAGE_WIDTH: u32 = 2240;
 const HEADER_HEIGHT: u32 = 80;
 const ROW_HEIGHT: u32 = 940;
@@ -24,34 +23,33 @@ fn main() {
 }
 
 fn run() -> Result<()> {
-    let mut args = env::args().skip(1);
-    let revision = args
-        .next()
-        .context("usage: cargo run --bin view_visual_diff -- <commit>")?;
-    if args.next().is_some() {
-        bail!("expected one commit hash");
-    }
-
+    let args: Vec<_> = env::args().skip(1).collect();
     let repo = PathBuf::from(git(None, &["rev-parse", "--show-toplevel"])?);
-    let commit = git(
-        Some(&repo),
-        &["rev-parse", "--verify", &format!("{revision}^{{commit}}")],
-    )?;
-    let parent = git(Some(&repo), &["rev-parse", &format!("{commit}^")])?;
-    let changed = git(
-        Some(&repo),
-        &["diff", "--name-only", &parent, &commit, "--", EXPECTED_DIR],
-    )?;
+    let (before, after) = comparison(&repo, &args)?;
+    let changed = if let Some(after) = &after {
+        git(
+            Some(&repo),
+            &["diff", "--name-only", &before, after, "--", EXPECTED_DIR],
+        )?
+    } else {
+        git(
+            Some(&repo),
+            &["diff", "--name-only", &before, "--", EXPECTED_DIR],
+        )?
+    };
     let paths: Vec<_> = changed
         .lines()
         .filter(|path| path.ends_with(".svg"))
         .map(str::to_owned)
         .collect();
     if paths.is_empty() {
-        bail!("commit {revision} changes no SVG goldens under {EXPECTED_DIR}");
+        bail!("comparison changes no SVG goldens under {EXPECTED_DIR}");
     }
 
-    let output_dir = env::temp_dir().join(format!("oxdraw-visual-diff-{}", &commit[..12]));
+    let before_label = short(&before);
+    let after_label = after.as_deref().map(short).unwrap_or("working-tree");
+    let output_dir =
+        env::temp_dir().join(format!("oxdraw-visual-diff-{before_label}-{after_label}"));
     if output_dir.exists() {
         fs::remove_dir_all(&output_dir)?;
     }
@@ -62,47 +60,87 @@ fn run() -> Result<()> {
 
     let mut pairs = Vec::new();
     for (index, path) in paths.into_iter().enumerate() {
-        let before = git_file(&repo, &parent, &path)?.unwrap_or_else(|| placeholder("not present"));
-        let after = git_file(&repo, &commit, &path)?.unwrap_or_else(|| placeholder("not present"));
+        let before_svg =
+            git_file(&repo, &before, &path)?.unwrap_or_else(|| placeholder("not present"));
+        let after_svg = if let Some(after) = &after {
+            git_file(&repo, after, &path)?
+        } else {
+            worktree_file(&repo, &path)?
+        }
+        .unwrap_or_else(|| placeholder("not present"));
         let name = path
             .trim_start_matches(&format!("{EXPECTED_DIR}/"))
             .trim_end_matches(".svg")
             .replace("/", "__");
         fs::write(
             source_dir.join(format!("{:02}_{name}_before.svg", index + 1)),
-            &before,
+            &before_svg,
         )?;
         fs::write(
             source_dir.join(format!("{:02}_{name}_after.svg", index + 1)),
-            &after,
+            &after_svg,
         )?;
         pairs.push((
             path,
-            render_png(&before, &options)?,
-            render_png(&after, &options)?,
+            render_png(&before_svg, &options)?,
+            render_png(&after_svg, &options)?,
         ));
     }
 
-    let page_count = pairs.len().div_ceil(PAIRS_PER_PAGE);
-    let mut pages = Vec::new();
-    for (page, chunk) in pairs.chunks(PAIRS_PER_PAGE).enumerate() {
-        let svg = contact_sheet(chunk, &parent[..12], &commit[..12], page + 1, page_count);
-        let stem = if page_count == 1 {
-            "visual-diff".to_string()
-        } else {
-            format!("visual-diff-{:02}", page + 1)
-        };
-        fs::write(output_dir.join(format!("{stem}.svg")), &svg)?;
-        let png = output_dir.join(format!("{stem}.png"));
-        fs::write(&png, render_png(&svg, &options)?)?;
-        pages.push(png);
-    }
+    let svg = contact_sheet(&pairs, before_label, after_label);
+    fs::write(output_dir.join("visual-diff.svg"), &svg)?;
+    let png = output_dir.join("visual-diff.png");
+    fs::write(&png, render_png(&svg, &options)?)?;
 
     println!("visual diff: {}", output_dir.display());
-    for page in pages {
-        println!("  {}", page.display());
-    }
+    println!("  {}", png.display());
     Ok(())
+}
+
+fn comparison(repo: &Path, args: &[String]) -> Result<(String, Option<String>)> {
+    let resolve = |revision: &str| commit(repo, specified(revision));
+    match args {
+        [] => Ok((resolve("HEAD")?, None)),
+        [range] if range.contains("...") => {
+            let (left, right) = range.split_once("...").unwrap();
+            let (left, right) = (resolve(left)?, resolve(right)?);
+            Ok((
+                git(Some(repo), &["merge-base", &left, &right])?,
+                Some(right),
+            ))
+        }
+        [range] if range.contains("..") => {
+            let (left, right) = range.split_once("..").unwrap();
+            Ok((resolve(left)?, Some(resolve(right)?)))
+        }
+        [revision] => {
+            let after = resolve(revision)?;
+            Ok((resolve(&format!("{after}^"))?, Some(after)))
+        }
+        [left, right] => Ok((resolve(left)?, Some(resolve(right)?))),
+        _ => {
+            bail!("usage: view_visual_diff [<commit> | <from>..<to> | <from>...<to> | <from> <to>]")
+        }
+    }
+}
+
+fn specified(revision: &str) -> &str {
+    if revision.is_empty() {
+        "HEAD"
+    } else {
+        revision
+    }
+}
+
+fn commit(repo: &Path, revision: &str) -> Result<String> {
+    git(
+        Some(repo),
+        &["rev-parse", "--verify", &format!("{revision}^{{commit}}")],
+    )
+}
+
+fn short(revision: &str) -> &str {
+    &revision[..revision.len().min(12)]
 }
 
 fn git(repo: Option<&Path>, args: &[&str]) -> Result<String> {
@@ -132,19 +170,20 @@ fn git_file(repo: &Path, revision: &str, path: &str) -> Result<Option<String>> {
     Ok(Some(String::from_utf8(output.stdout)?))
 }
 
-fn contact_sheet(
-    pairs: &[(String, Vec<u8>, Vec<u8>)],
-    parent: &str,
-    commit: &str,
-    page: usize,
-    page_count: usize,
-) -> String {
+fn worktree_file(repo: &Path, path: &str) -> Result<Option<String>> {
+    let path = repo.join(path);
+    path.exists()
+        .then(|| fs::read_to_string(path))
+        .transpose()
+        .map_err(Into::into)
+}
+
+fn contact_sheet(pairs: &[(String, Vec<u8>, Vec<u8>)], before: &str, after: &str) -> String {
     let height = HEADER_HEIGHT + ROW_HEIGHT * pairs.len() as u32;
     let mut svg = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="{PAGE_WIDTH}" height="{height}" viewBox="0 0 {PAGE_WIDTH} {height}" font-family="Inter,system-ui,sans-serif">
 <rect width="100%" height="100%" fill="white"/>
-<text x="40" y="46" font-size="26" font-weight="600">Visual diff {parent} → {commit}</text>
-<text x="2200" y="46" font-size="20" text-anchor="end">page {page}/{page_count}</text>
+<text x="40" y="46" font-size="26" font-weight="600">Visual diff {before} → {after}</text>
 "#
     );
     for (row, (path, before, after)) in pairs.iter().enumerate() {
