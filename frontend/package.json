@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
-    "start": "next start"
+    "start": "next start",
+    "test:wasm-parity": "node tests/wasm-parity.mjs"
   },
   "dependencies": {
     "@types/react-virtualized-auto-sizer": "^1.0.4",
