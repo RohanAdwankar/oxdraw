@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="461" height="850" viewBox="0 0 461 850" font-family="Inter, system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="556" height="850" viewBox="0 0 556 850" font-family="Inter, system-ui, sans-serif">
   <defs>
         <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
             <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
@@ -13,40 +13,40 @@
   <line x1="230.7" y1="130.0" x2="230.7" y2="237.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Process --&gt; Decision">
-  <line x1="230.7" y1="292.0" x2="230.7" y2="389.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="230.7,292.0 230.7,369.0 230.7,389.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="204.2" y="308.5" width="53.0" height="44.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <rect x="204.2" y="347.0" width="53.0" height="44.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
     <text x="230.7" fill="#2d3748" font-size="13" text-anchor="middle">
-      <tspan x="230.7" y="322.5" dominant-baseline="middle">Edge</tspan>
-      <tspan x="230.7" y="338.5" dominant-baseline="middle">label</tspan>
+      <tspan x="230.7" y="361.0" dominant-baseline="middle">Edge</tspan>
+      <tspan x="230.7" y="377.0" dominant-baseline="middle">label</tspan>
     </text>
   </g>
   </g>
   <g class="edge" data-id="Decision --&gt; Success">
-  <line x1="216.6" y1="453.0" x2="164.1" y2="557.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="211.1,450.2 150.0,529.0 150.0,557.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="160.1" y="473.0" width="60.4" height="44.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="190.3" fill="#2d3748" font-size="13" text-anchor="middle">
-      <tspan x="190.3" y="487.0" dominant-baseline="middle">Yes</tspan>
-      <tspan x="190.3" y="503.0" dominant-baseline="middle">Option</tspan>
+    <rect x="119.8" y="507.0" width="60.4" height="44.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="150.0" fill="#2d3748" font-size="13" text-anchor="middle">
+      <tspan x="150.0" y="521.0" dominant-baseline="middle">Yes</tspan>
+      <tspan x="150.0" y="537.0" dominant-baseline="middle">Option</tspan>
     </text>
   </g>
   </g>
   <g class="edge" data-id="Decision -.-&gt; Retry">
-  <line x1="244.7" y1="453.0" x2="296.8" y2="557.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" stroke-dasharray="8 6" />
+  <polyline points="250.1,450.3 310.7,529.0 310.7,557.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" stroke-dasharray="8 6" />
   <g pointer-events="none">
-    <rect x="247.9" y="473.1" width="45.6" height="44.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="270.7" fill="#2d3748" font-size="13" text-anchor="middle">
-      <tspan x="270.7" y="487.1" dominant-baseline="middle">No</tspan>
-      <tspan x="270.7" y="503.1" dominant-baseline="middle">Path</tspan>
+    <rect x="287.9" y="507.0" width="45.6" height="44.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="310.7" fill="#2d3748" font-size="13" text-anchor="middle">
+      <tspan x="310.7" y="521.0" dominant-baseline="middle">No</tspan>
+      <tspan x="310.7" y="537.0" dominant-baseline="middle">Path</tspan>
     </text>
   </g>
   </g>
   <g class="edge" data-id="Success --&gt; End">
-  <line x1="163.6" y1="612.0" x2="217.6" y2="719.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <line x1="150.0" y1="612.0" x2="150.0" y2="719.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Retry --&gt; Process">
-  <polyline points="326.9,558.0 370.7,485.0 350.7,405.0 330.7,325.0 276.6,292.5" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="381.4,585.0 476.1,585.0 476.1,265.0 302.4,265.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="node" data-id="Start">
   <rect x="160.0" y="80.0" width="141.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
@@ -82,7 +82,7 @@
   </text>
   </g>
   <g class="node" data-id="End">
-  <rect x="160.7" y="720.0" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
-  <text x="230.7" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Final</text>
+  <rect x="80.0" y="720.0" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="150.0" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Final</text>
   </g>
 </svg>

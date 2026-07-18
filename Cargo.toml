@@ -8,6 +8,7 @@ include = [
 	"README.md",
 	"src/**",
 	"tests/**",
+	"utils/**",
 	"frontend/out/**",
 ]
 authors = ["Rohan Adwankar <rohan.adwankar@gmail.com>"]
@@ -24,6 +25,10 @@ path = "src/lib.rs"
 [[bin]]
 name = "oxdraw"
 path = "src/main.rs"
+
+[[bin]]
+name = "view_visual_diff"
+path = "utils/view_visual_diff.rs"
 
 
 [dependencies]

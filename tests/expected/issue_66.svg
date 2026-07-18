@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1189" height="744" viewBox="0 0 1189 744" font-family="Inter, system-ui, sans-serif">
+  <defs>
+        <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
+        </marker>
+        <marker id="arrow-start" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M7,1 L2,4 L7,7 z" fill="context-stroke" />
+        </marker>
+  </defs>
+  <rect width="100%" height="100%" fill="white" />
+  <g class="subgraph" data-id="Cloud">
+    <rect x="80.0" y="314.0" width="810.4" height="350.0" rx="16" ry="16" fill="#edf2f7" fill-opacity="0.7" stroke="#a0aec0" stroke-width="1.5" />
+    <text x="100.0" y="334.0" fill="#2d3748" font-size="14" font-weight="600" text-anchor="start" dominant-baseline="hanging">Cloud (Region)</text>
+  </g>
+  <g class="edge" data-id="User --&gt; App">
+  <polyline points="591.8,130.0 591.8,209.0 591.8,237.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="532.0" y="195.0" width="119.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="591.8" y="209.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">interacts with</text>
+  </g>
+  </g>
+  <g class="edge" data-id="App --&gt; Auth">
+  <polyline points="502.6,289.8 217.2,369.0 217.2,397.0" fill="none" stroke="#2d3748" stroke-width="2" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="124.1" y="355.0" width="186.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="217.2" y="369.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">sign in / token refresh</text>
+  </g>
+  </g>
+  <g class="edge" data-id="App --&gt; API">
+  <polyline points="566.0,292.0 492.6,369.0 492.6,397.0" fill="none" stroke="#2d3748" stroke-width="2" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="414.3" y="355.0" width="156.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="492.6" y="369.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">authenticated HTTPS</text>
+  </g>
+  </g>
+  <g class="edge" data-id="API --&gt; SQL">
+  <polyline points="469.3,452.0 400.8,531.6 400.8,563.0" fill="none" stroke="#2d3748" stroke-width="2" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="322.5" y="517.6" width="156.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="400.8" y="531.6" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">reads / writes data</text>
+  </g>
+  </g>
+  <g class="edge" data-id="App --&gt; Blob">
+  <polyline points="637.5,292.0 768.0,369.0 768.0,397.0" fill="none" stroke="#2d3748" stroke-width="2" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="686.0" y="355.0" width="164.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="768.0" y="369.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">fetch images (HTTPS)</text>
+  </g>
+  </g>
+  <g class="edge" data-id="API --&gt; Logging">
+  <polyline points="515.9,452.0 584.4,531.6 584.4,561.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="509.8" y="517.6" width="149.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="584.4" y="531.6" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">logs &amp; diagnostics</text>
+  </g>
+  </g>
+  <g class="edge" data-id="App --&gt; ErrorTracker">
+  <polyline points="681.0,265.0 896.4,265.0 896.4,345.0 896.4,425.0 937.4,425.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="840.3" y="331.0" width="112.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="896.4" y="345.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">error reports</text>
+  </g>
+  </g>
+  <g class="edge" data-id="ErrorTracker --&gt; Repo">
+  <polyline points="1023.9,452.0 1023.9,529.0 1023.9,557.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="941.9" y="515.0" width="164.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="1023.9" y="529.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">issue tracking links</text>
+  </g>
+  </g>
+  <g class="node" data-id="User">
+  <rect x="521.8" y="80.0" width="140.0" height="50.0" rx="30" ry="30" fill="#c4f1f9" stroke="#2d3748" stroke-width="2" />
+  <text x="591.8" y="105.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">User</text>
+  </g>
+  <g class="node" data-id="App">
+  <rect x="502.6" y="238.0" width="178.4" height="54.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="591.8" fill="#1a202c" font-size="14" text-anchor="middle">
+    <tspan x="591.8" y="257.0" dominant-baseline="middle">Client App</tspan>
+    <tspan x="591.8" y="273.0" dominant-baseline="middle">(Multi-platform)</tspan>
+  </text>
+  </g>
+  <g class="node" data-id="Auth">
+  <rect x="128.0" y="398.0" width="178.4" height="54.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="217.2" fill="#1a202c" font-size="14" text-anchor="middle">
+    <tspan x="217.2" y="417.0" dominant-baseline="middle">Auth Service</tspan>
+    <tspan x="217.2" y="433.0" dominant-baseline="middle">(Authentication)</tspan>
+  </text>
+  </g>
+  <g class="node" data-id="API">
+  <rect x="422.6" y="398.0" width="140.0" height="54.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="492.6" fill="#1a202c" font-size="14" text-anchor="middle">
+    <tspan x="492.6" y="417.0" dominant-baseline="middle">App Server</tspan>
+    <tspan x="492.6" y="433.0" dominant-baseline="middle">(.NET API)</tspan>
+  </text>
+  </g>
+  <g class="node" data-id="SQL">
+  <path d="M326.4,572.3 A74.4,8.3 0 0 1 475.2,572.3 L475.2,605.7 A74.4,8.3 0 0 1 326.4,605.7 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
+  <path d="M326.4,572.3 A74.4,8.3 0 0 1 475.2,572.3" fill="none" stroke="#2d3748" stroke-width="2" />
+  <text x="400.8" y="589.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">SQL Database</text>
+  </g>
+  <g class="node" data-id="Blob">
+  <path d="M693.6,407.0 A74.4,9.0 0 0 1 842.4,407.0 L842.4,443.0 A74.4,9.0 0 0 1 693.6,443.0 Z" fill="#bbf7d0" stroke="#2d3748" stroke-width="2" />
+  <path d="M693.6,407.0 A74.4,9.0 0 0 1 842.4,407.0" fill="none" stroke="#2d3748" stroke-width="2" />
+  <text x="768.0" fill="#1a202c" font-size="14" text-anchor="middle">
+    <tspan x="768.0" y="417.0" dominant-baseline="middle">Blob Storage</tspan>
+    <tspan x="768.0" y="433.0" dominant-baseline="middle">(Images)</tspan>
+  </text>
+  </g>
+  <g class="node" data-id="Logging">
+  <rect x="495.2" y="562.0" width="178.4" height="54.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="584.4" fill="#1a202c" font-size="14" text-anchor="middle">
+    <tspan x="584.4" y="581.0" dominant-baseline="middle">Logging Service</tspan>
+    <tspan x="584.4" y="597.0" dominant-baseline="middle">(Server Logging)</tspan>
+  </text>
+  </g>
+  <g class="node" data-id="ErrorTracker">
+  <rect x="938.4" y="398.0" width="171.0" height="54.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1023.9" fill="#1a202c" font-size="14" text-anchor="middle">
+    <tspan x="1023.9" y="417.0" dominant-baseline="middle">Error Tracker</tspan>
+    <tspan x="1023.9" y="433.0" dominant-baseline="middle">(Client Errors)</tspan>
+  </text>
+  </g>
+  <g class="node" data-id="Repo">
+  <rect x="953.2" y="558.0" width="141.4" height="54.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1023.9" fill="#1a202c" font-size="14" text-anchor="middle">
+    <tspan x="1023.9" y="577.0" dominant-baseline="middle">Source Repo</tspan>
+    <tspan x="1023.9" y="593.0" dominant-baseline="middle">(Private)</tspan>
+  </text>
+  </g>
+</svg>

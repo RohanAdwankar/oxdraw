@@ -1045,8 +1045,14 @@ impl Diagram {
     }
 
     pub fn layout(&self, overrides: Option<&LayoutOverrides>) -> Result<LayoutComputation> {
-        let mut auto = self.compute_auto_layout();
-        self.separate_top_level_subgraphs(&mut auto.positions);
+        let tree_components = self.tree_components();
+        let mut auto = self.compute_auto_layout(tree_components.as_deref());
+        let tree_subgraphs = self.align_subgraph_trees(&mut auto.positions);
+        self.separate_subgraphs(
+            &mut auto.positions,
+            tree_components.is_some(),
+            &tree_subgraphs,
+        );
         auto.size = compute_canvas_size_for_positions(&auto.positions, &self.nodes);
         let mut final_positions = auto.positions.clone();
 
@@ -1070,7 +1076,7 @@ impl Diagram {
         })
     }
 
-    fn compute_auto_layout(&self) -> AutoLayout {
+    fn compute_auto_layout(&self, tree_components: Option<&[Vec<String>]>) -> AutoLayout {
         if self.order.is_empty() {
             let size = CanvasSize {
                 width: START_OFFSET * 2.0 + NODE_WIDTH,
@@ -1082,15 +1088,19 @@ impl Diagram {
             };
         }
 
+        let top_down = matches!(self.direction, Direction::TopDown | Direction::BottomTop);
         let mut levels: HashMap<String, usize> =
             self.nodes.keys().cloned().map(|id| (id, 0_usize)).collect();
 
         let mut indegree: HashMap<String, usize> =
             self.nodes.keys().cloned().map(|id| (id, 0_usize)).collect();
+        let mut outgoing = indegree.clone();
 
         for edge in &self.edges {
             *indegree.entry(edge.to.clone()).or_insert(0) += 1;
+            *outgoing.entry(edge.from.clone()).or_insert(0) += 1;
         }
+        let mut incoming = indegree.clone();
 
         let mut queue: VecDeque<String> = VecDeque::new();
         for id in &self.order {
@@ -1145,11 +1155,18 @@ impl Diagram {
             layers_map.entry(level).or_default().push(id.clone());
         }
 
-        if layers_map.is_empty() {
-            layers_map.insert(0, self.order.clone());
+        let mut layers: Vec<Vec<String>> = layers_map.into_values().collect();
+        let mut rank = HashMap::new();
+        for layer in &mut layers {
+            layer.sort_by_key(|id| {
+                self.edges
+                    .iter()
+                    .filter(|edge| edge.to == *id)
+                    .filter_map(|edge| rank.get(&edge.from))
+                    .min()
+            });
+            rank.extend(layer.iter().cloned().zip(0..));
         }
-
-        let layers: Vec<Vec<String>> = layers_map.into_values().collect();
         let level_count = layers.len().max(1);
         let max_node_height = self
             .nodes
@@ -1163,7 +1180,11 @@ impl Diagram {
         let (width, height) = match self.direction {
             Direction::TopDown | Direction::BottomTop => {
                 let base_horizontal_gap =
-                    (NODE_SPACING - NODE_WIDTH).max(EDGE_COLLISION_MARGIN * 2.0);
+                    (NODE_SPACING - NODE_WIDTH).max(if self.subgraphs.is_empty() {
+                        EDGE_COLLISION_MARGIN * 2.0
+                    } else {
+                        SUBGRAPH_PADDING
+                    });
                 let inner_height = max_node_height + vertical_step * ((level_count - 1) as f32);
 
                 let mut layer_centers: Vec<Vec<(String, f32)>> = Vec::with_capacity(layers.len());
@@ -1355,87 +1376,592 @@ impl Diagram {
             }
         };
 
+        if let Some(components) = tree_components {
+            if !self.align_directed_forest(&self.order, &mut positions, false) {
+                self.align_tree_components(
+                    &layers,
+                    &components,
+                    &incoming,
+                    &outgoing,
+                    &mut positions,
+                );
+            }
+        } else {
+            for edge in &self.edges {
+                if top_down && levels[&edge.from] >= levels[&edge.to] {
+                    incoming.entry(edge.to.clone()).and_modify(|n| *n -= 1);
+                    outgoing.entry(edge.from.clone()).and_modify(|n| *n -= 1);
+                }
+            }
+
+            for edge in &self.edges {
+                if outgoing[&edge.from] == 1 && incoming[&edge.to] == 1 {
+                    let parent = positions[&edge.from];
+                    let mut target = positions[&edge.to];
+                    match self.direction {
+                        Direction::TopDown | Direction::BottomTop => target.x = parent.x,
+                        Direction::LeftRight | Direction::RightLeft => target.y = parent.y,
+                    }
+                    if self.position_clear(&edge.to, target, &positions, true) {
+                        positions.insert(edge.to.clone(), target);
+                    }
+                }
+            }
+        }
+
         AutoLayout {
             positions,
             size: CanvasSize { width, height },
         }
     }
 
-    fn separate_top_level_subgraphs(&self, positions: &mut HashMap<String, Point>) {
-        if self.subgraphs.is_empty() {
-            return;
+    fn align_subgraph_trees(&self, positions: &mut HashMap<String, Point>) -> HashSet<String> {
+        fn visit(
+            diagram: &Diagram,
+            subgraph: &Subgraph,
+            positions: &mut HashMap<String, Point>,
+            aligned: &mut HashSet<String>,
+        ) {
+            for child in &subgraph.children {
+                visit(diagram, child, positions, aligned);
+            }
+            let members = subgraph_nodes(subgraph);
+            let ordered: Vec<_> = diagram
+                .order
+                .iter()
+                .filter(|id| members.contains(*id))
+                .cloned()
+                .collect();
+            if diagram.align_directed_forest(&ordered, positions, true) {
+                aligned.insert(subgraph.id.clone());
+            }
         }
 
-        let mut placed_bounds: Vec<Rect> = Vec::new();
-        let outside_nodes: Vec<(String, Rect)> = positions
-            .iter()
-            .filter_map(|(id, point)| {
-                let membership = self.node_membership.get(id);
-                if membership.map_or(true, |path| path.is_empty()) {
-                    self.nodes
-                        .get(id)
-                        .map(|node| (id.clone(), node_rect(*point, node.width, node.height)))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
+        let mut aligned = HashSet::new();
         for subgraph in &self.subgraphs {
-            let nodes = gather_subgraph_nodes(subgraph);
-            if nodes.is_empty() {
+            visit(self, subgraph, positions, &mut aligned);
+        }
+        aligned
+    }
+
+    fn align_directed_forest(
+        &self,
+        members: &[String],
+        positions: &mut HashMap<String, Point>,
+        reflow_depth: bool,
+    ) -> bool {
+        if members.is_empty() {
+            return false;
+        }
+        let scope: HashSet<_> = members.iter().map(String::as_str).collect();
+        let mut children: HashMap<&str, Vec<&str>> =
+            members.iter().map(|id| (id.as_str(), Vec::new())).collect();
+        let mut indegree: HashMap<&str, usize> =
+            members.iter().map(|id| (id.as_str(), 0)).collect();
+        for edge in &self.edges {
+            if scope.contains(edge.from.as_str()) && scope.contains(edge.to.as_str()) {
+                let degree = indegree.get_mut(edge.to.as_str()).unwrap();
+                *degree += 1;
+                if *degree > 1 || edge.from == edge.to {
+                    return false;
+                }
+                children
+                    .get_mut(edge.from.as_str())
+                    .unwrap()
+                    .push(edge.to.as_str());
+            }
+        }
+        let roots: Vec<_> = members
+            .iter()
+            .map(String::as_str)
+            .filter(|id| indegree[id] == 0)
+            .collect();
+        if roots.is_empty() {
+            return false;
+        }
+
+        let top_down = matches!(self.direction, Direction::TopDown | Direction::BottomTop);
+        let cross_gap = (NODE_SPACING - if top_down { NODE_WIDTH } else { NODE_HEIGHT })
+            .max(EDGE_COLLISION_MARGIN * 2.0);
+        let mut widths = HashMap::new();
+        for root in &roots {
+            measure_subtree(root, &children, &mut widths);
+        }
+        if widths.len() != members.len() {
+            return false;
+        }
+
+        let cross = |point: Point| if top_down { point.x } else { point.y };
+        let anchor = if roots.len() == 1 {
+            cross(positions[roots[0]])
+        } else {
+            let (min, max) =
+                members
+                    .iter()
+                    .fold((f32::INFINITY, f32::NEG_INFINITY), |(min, max), id| {
+                        let center = cross(positions[id]);
+                        let node = &self.nodes[id];
+                        let half = if top_down { node.width } else { node.height } / 2.0;
+                        (min.min(center - half), max.max(center + half))
+                    });
+            (min + max) / 2.0
+        };
+        let forest_width = roots.iter().map(|root| widths[root]).sum::<f32>();
+        let mut cursor = -forest_width / 2.0;
+        let mut slots = HashMap::new();
+        for root in &roots {
+            let width = widths[root];
+            place_subtree(
+                root,
+                cursor + width / 2.0,
+                0,
+                &children,
+                &widths,
+                &mut slots,
+            );
+            cursor += width;
+        }
+
+        let mut rows: BTreeMap<_, Vec<_>> = BTreeMap::new();
+        for (id, (slot, depth)) in &slots {
+            rows.entry(*depth).or_default().push((*id, *slot));
+        }
+        let scale = rows
+            .values_mut()
+            .flat_map(|row| {
+                row.sort_by(|a, b| a.1.total_cmp(&b.1));
+                row.windows(2)
+            })
+            .map(|pair| {
+                let size = |id: &str| {
+                    let node = &self.nodes[id];
+                    if top_down { node.width } else { node.height }
+                };
+                (size(pair[0].0) / 2.0 + cross_gap + size(pair[1].0) / 2.0)
+                    / (pair[1].1 - pair[0].1)
+            })
+            .fold(NODE_SPACING, f32::max);
+
+        let mut levels = Vec::new();
+        if reflow_depth {
+            let max_depth = slots.values().map(|(_, depth)| *depth).max().unwrap_or(0);
+            let mut sizes = vec![0.0_f32; max_depth + 1];
+            for (id, (_, depth)) in &slots {
+                let node = &self.nodes[*id];
+                sizes[*depth] = sizes[*depth].max(if top_down { node.height } else { node.width });
+            }
+            let gap = (NODE_SPACING - if top_down { NODE_HEIGHT } else { NODE_WIDTH })
+                .max(EDGE_COLLISION_MARGIN * 2.0);
+            let main = |point: Point| if top_down { point.y } else { point.x };
+            let direction = if matches!(self.direction, Direction::BottomTop | Direction::RightLeft)
+            {
+                -1.0
+            } else {
+                1.0
+            };
+            levels.push(
+                roots.iter().map(|id| main(positions[*id])).sum::<f32>() / roots.len() as f32,
+            );
+            for depth in 1..=max_depth {
+                levels.push(
+                    levels[depth - 1]
+                        + direction * (sizes[depth - 1] / 2.0 + gap + sizes[depth] / 2.0),
+                );
+            }
+        }
+        for (id, (cross, depth)) in slots {
+            let position = positions.get_mut(id).unwrap();
+            let cross = anchor + cross * scale;
+            if top_down {
+                position.x = cross;
+                if reflow_depth {
+                    position.y = levels[depth];
+                }
+            } else {
+                position.y = cross;
+                if reflow_depth {
+                    position.x = levels[depth];
+                }
+            }
+        }
+        true
+    }
+
+    fn tree_components(&self) -> Option<Vec<Vec<String>>> {
+        let mut adjacent: HashMap<&str, Vec<&str>> = self
+            .nodes
+            .keys()
+            .map(|id| (id.as_str(), Vec::new()))
+            .collect();
+        let mut pairs = HashSet::new();
+        for edge in &self.edges {
+            let pair = if edge.from < edge.to {
+                (edge.from.as_str(), edge.to.as_str())
+            } else {
+                (edge.to.as_str(), edge.from.as_str())
+            };
+            if pair.0 == pair.1 || !pairs.insert(pair) {
+                return None;
+            }
+            adjacent.get_mut(pair.0)?.push(pair.1);
+            adjacent.get_mut(pair.1)?.push(pair.0);
+        }
+
+        let mut seen = HashSet::new();
+        let mut components = Vec::new();
+        for root in &self.order {
+            if !seen.insert(root.as_str()) {
+                continue;
+            }
+            let mut component = Vec::new();
+            let mut stack = vec![root.as_str()];
+            let mut degree_sum = 0;
+            while let Some(id) = stack.pop() {
+                component.push(id.to_string());
+                degree_sum += adjacent[id].len();
+                for &neighbor in &adjacent[id] {
+                    if seen.insert(neighbor) {
+                        stack.push(neighbor);
+                    }
+                }
+            }
+            if degree_sum / 2 + 1 != component.len() {
+                return None;
+            }
+            components.push(component);
+        }
+        Some(components)
+    }
+
+    fn align_tree_components(
+        &self,
+        layers: &[Vec<String>],
+        components: &[Vec<String>],
+        incoming: &HashMap<String, usize>,
+        outgoing: &HashMap<String, usize>,
+        positions: &mut HashMap<String, Point>,
+    ) {
+        let top_down = matches!(self.direction, Direction::TopDown | Direction::BottomTop);
+        let cross_size = |id: &str| {
+            let node = &self.nodes[id];
+            if top_down { node.width } else { node.height }
+        };
+        let base_gap = if top_down {
+            (NODE_SPACING - NODE_WIDTH).max(EDGE_COLLISION_MARGIN * 2.0)
+        } else {
+            (NODE_SPACING - NODE_HEIGHT).max(EDGE_COLLISION_MARGIN * 2.0)
+        };
+        let mut cursor = START_OFFSET;
+
+        for component in components {
+            let members: HashSet<_> = component.iter().map(String::as_str).collect();
+            let rows: Vec<Vec<&str>> = layers
+                .iter()
+                .map(|layer| {
+                    layer
+                        .iter()
+                        .map(String::as_str)
+                        .filter(|id| members.contains(id))
+                        .collect()
+                })
+                .collect();
+            let anchor = rows
+                .iter()
+                .enumerate()
+                .max_by_key(|(_, row)| row.len())
+                .map(|(index, _)| index)
+                .unwrap_or(0);
+            let mut slots = HashMap::new();
+            for row in &rows {
+                let center = (row.len().saturating_sub(1)) as f32 / 2.0;
+                for (index, &id) in row.iter().enumerate() {
+                    slots.insert(id, index as f32 - center);
+                }
+            }
+
+            for row in rows[..anchor].iter().rev() {
+                for &id in row {
+                    let children: Vec<_> = self
+                        .edges
+                        .iter()
+                        .filter(|edge| edge.from == id && members.contains(edge.to.as_str()))
+                        .map(|edge| edge.to.as_str())
+                        .collect();
+                    if children.len() > 1
+                        || children.first().is_some_and(|child| incoming[*child] == 1)
+                    {
+                        slots.insert(id, slot_center(&children, &slots));
+                    }
+                }
+            }
+            for row in rows.iter().skip(anchor + 1) {
+                for &id in row {
+                    let parents: Vec<_> = self
+                        .edges
+                        .iter()
+                        .filter(|edge| edge.to == id && members.contains(edge.from.as_str()))
+                        .map(|edge| edge.from.as_str())
+                        .collect();
+                    if parents.len() > 1
+                        || parents.first().is_some_and(|parent| outgoing[*parent] == 1)
+                    {
+                        slots.insert(id, slot_center(&parents, &slots));
+                    }
+                }
+            }
+
+            if rows
+                .iter()
+                .any(|row| row.windows(2).any(|pair| slots[pair[0]] >= slots[pair[1]]))
+            {
                 continue;
             }
 
-            let mut bounds = match compute_group_bounds(&nodes, positions, &self.nodes) {
-                Some(bounds) => bounds,
-                None => continue,
+            let scale = rows
+                .iter()
+                .flat_map(|row| row.windows(2))
+                .map(|pair| {
+                    let separated_groups = self
+                        .node_membership
+                        .get(pair[0])
+                        .and_then(|path| path.first())
+                        != self
+                            .node_membership
+                            .get(pair[1])
+                            .and_then(|path| path.first());
+                    let gap = if separated_groups {
+                        SUBGRAPH_PADDING * 2.0 + EDGE_COLLISION_MARGIN
+                    } else {
+                        base_gap
+                    };
+                    (cross_size(pair[0]) / 2.0 + gap + cross_size(pair[1]) / 2.0)
+                        / (slots[pair[1]] - slots[pair[0]])
+                })
+                .fold(NODE_SPACING, f32::max);
+            let (min, max) =
+                component
+                    .iter()
+                    .fold((f32::INFINITY, f32::NEG_INFINITY), |(min, max), id| {
+                        let center = slots[id.as_str()] * scale;
+                        let half = cross_size(id) / 2.0;
+                        (min.min(center - half), max.max(center + half))
+                    });
+            let origin = cursor - min;
+            for id in component {
+                let position = positions.get_mut(id).expect("tree node has a position");
+                let cross = origin + slots[id.as_str()] * scale;
+                if top_down {
+                    position.x = cross;
+                } else {
+                    position.y = cross;
+                }
+            }
+            cursor += max - min + SUBGRAPH_PADDING * 2.0;
+        }
+    }
+
+    fn separate_subgraphs(
+        &self,
+        positions: &mut HashMap<String, Point>,
+        preserve_tree: bool,
+        tree_subgraphs: &HashSet<String>,
+    ) {
+        let mut placed: Vec<(Rect, HashSet<String>)> = Vec::new();
+        let top_down = matches!(self.direction, Direction::TopDown | Direction::BottomTop);
+        for subgraph in &self.subgraphs {
+            let members = subgraph_nodes(subgraph);
+            let Some(bounds) = group_bounds(&members, positions, &self.nodes) else {
+                continue;
             };
-
-            let mut required_shift = 0.0_f32;
-
-            loop {
-                let shifted = Rect {
-                    min_x: bounds.min_x + required_shift,
-                    max_x: bounds.max_x + required_shift,
-                    min_y: bounds.min_y,
-                    max_y: bounds.max_y,
+            let mut frame = padded_group_bounds(bounds);
+            let mut shift = Point { x: 0.0, y: 0.0 };
+            while let Some((previous, previous_members)) = placed
+                .iter()
+                .find(|(previous, _)| frame.intersects(previous))
+            {
+                let connects = |from: &HashSet<String>, to: &HashSet<String>| {
+                    self.edges
+                        .iter()
+                        .any(|edge| from.contains(&edge.from) && to.contains(&edge.to))
                 };
-
-                let mut next_shift = required_shift;
-
-                for placed in &placed_bounds {
-                    if rects_intersect_with_margin(&shifted, placed, SUBGRAPH_SEPARATION) {
-                        let candidate = placed.max_x + SUBGRAPH_SEPARATION - bounds.min_x;
-                        next_shift = next_shift.max(candidate);
-                    }
+                let serial =
+                    connects(previous_members, &members) != connects(&members, previous_members);
+                let horizontal = top_down != serial;
+                if horizontal {
+                    let step = previous.max_x + SUBGRAPH_PADDING * 2.0 - frame.min_x;
+                    frame.min_x += step;
+                    frame.max_x += step;
+                    shift.x += step;
+                } else {
+                    let step = previous.max_y + SUBGRAPH_PADDING * 2.0 - frame.min_y;
+                    frame.min_y += step;
+                    frame.max_y += step;
+                    shift.y += step;
                 }
-
-                for (node_id, node_rect) in &outside_nodes {
-                    if nodes.contains(node_id) {
-                        continue;
-                    }
-                    if rects_intersect_with_margin(&shifted, node_rect, SUBGRAPH_SEPARATION) {
-                        let candidate = node_rect.max_x + SUBGRAPH_SEPARATION - bounds.min_x;
-                        next_shift = next_shift.max(candidate);
-                    }
+            }
+            for id in &members {
+                if let Some(position) = positions.get_mut(id) {
+                    position.x += shift.x;
+                    position.y += shift.y;
                 }
+            }
+            placed.push((frame, members));
+        }
 
-                if next_shift > required_shift + 1e-3_f32 {
-                    required_shift = next_shift;
+        for (frame, _) in &placed {
+            for id in &self.order {
+                if self
+                    .node_membership
+                    .get(id)
+                    .is_some_and(|path| !path.is_empty())
+                {
                     continue;
                 }
-
-                if required_shift.abs() > f32::EPSILON {
-                    offset_nodes(positions, &nodes, required_shift, 0.0);
-                    bounds.min_x += required_shift;
-                    bounds.max_x += required_shift;
+                let point = positions[id];
+                let node = &self.nodes[id];
+                let bounds = node_rect(point, node.width, node.height);
+                if !bounds.intersects(frame) {
+                    continue;
                 }
-
-                placed_bounds.push(bounds);
-                break;
+                let delta = if top_down {
+                    if point.x < (frame.min_x + frame.max_x) / 2.0 {
+                        frame.min_x - SUBGRAPH_PADDING - bounds.max_x
+                    } else {
+                        frame.max_x + SUBGRAPH_PADDING - bounds.min_x
+                    }
+                } else if point.y < (frame.min_y + frame.max_y) / 2.0 {
+                    frame.min_y - SUBGRAPH_PADDING - bounds.max_y
+                } else {
+                    frame.max_y + SUBGRAPH_PADDING - bounds.min_y
+                };
+                let mut stack = vec![id.as_str()];
+                let mut shifted = HashSet::new();
+                while let Some(current) = stack.pop() {
+                    if !shifted.insert(current) {
+                        continue;
+                    }
+                    let position = positions.get_mut(current).unwrap();
+                    if top_down {
+                        position.x += delta;
+                    } else {
+                        position.y += delta;
+                    }
+                    stack.extend(
+                        self.edges
+                            .iter()
+                            .filter(|edge| {
+                                edge.from == current
+                                    && self.node_membership.get(&edge.to).is_none_or(Vec::is_empty)
+                            })
+                            .map(|edge| edge.to.as_str()),
+                    );
+                }
             }
         }
+
+        if preserve_tree {
+            return;
+        }
+
+        let mut aligned = HashSet::new();
+        for id in self.order.iter().rev() {
+            if self
+                .node_membership
+                .get(id)
+                .is_some_and(|path| !path.is_empty())
+            {
+                continue;
+            }
+            let children: Vec<_> = self
+                .edges
+                .iter()
+                .filter(|edge| edge.from == **id)
+                .map(|edge| edge.to.as_str())
+                .collect();
+            let mut child_groups = children
+                .iter()
+                .filter_map(|child| self.node_membership.get(*child)?.first());
+            let spans_groups = child_groups
+                .next()
+                .is_some_and(|first| child_groups.any(|group| group != first));
+            if !spans_groups && !children.iter().any(|child| aligned.contains(*child)) {
+                continue;
+            }
+            let mut target = positions[id];
+            let center = centroid(
+                &children
+                    .iter()
+                    .filter_map(|child| positions.get(*child).copied())
+                    .collect::<Vec<_>>(),
+            );
+            match self.direction {
+                Direction::TopDown | Direction::BottomTop => target.x = center.x,
+                Direction::LeftRight | Direction::RightLeft => target.y = center.y,
+            }
+            if self.position_clear(id, target, positions, false) {
+                positions.insert(id.clone(), target);
+                aligned.insert(id.as_str());
+            }
+        }
+
+        for id in self.order.iter().rev() {
+            if self
+                .node_membership
+                .get(id)
+                .is_some_and(|path| path.iter().any(|group| tree_subgraphs.contains(group)))
+            {
+                continue;
+            }
+            let Some(group) = self.node_membership.get(id).and_then(|path| path.first()) else {
+                continue;
+            };
+            let children: Vec<_> = self
+                .edges
+                .iter()
+                .filter(|edge| {
+                    edge.from == **id
+                        && self
+                            .node_membership
+                            .get(&edge.to)
+                            .and_then(|path| path.first())
+                            == Some(group)
+                })
+                .filter_map(|edge| positions.get(&edge.to).copied())
+                .collect();
+            if children.len() < 2 {
+                continue;
+            }
+            let mut target = positions[id];
+            let center = centroid(&children);
+            match self.direction {
+                Direction::TopDown | Direction::BottomTop => target.x = center.x,
+                Direction::LeftRight | Direction::RightLeft => target.y = center.y,
+            }
+            if self.position_clear(id, target, positions, true) {
+                positions.insert(id.clone(), target);
+            }
+        }
+    }
+
+    fn position_clear(
+        &self,
+        id: &str,
+        target: Point,
+        positions: &HashMap<String, Point>,
+        within_group: bool,
+    ) -> bool {
+        let node = &self.nodes[id];
+        let bounds = node_rect(target, node.width, node.height);
+        let group = |id: &str| self.node_membership.get(id).and_then(|path| path.first());
+        positions
+            .iter()
+            .filter(|(other_id, _)| !within_group || group(other_id) == group(id))
+            .all(|(other_id, position)| {
+                other_id == id
+                    || !self.nodes.get(other_id).is_some_and(|other| {
+                        bounds.intersects(&node_rect(*position, other.width, other.height))
+                    })
+            })
     }
 
     fn compute_routes(
@@ -1456,6 +1982,15 @@ impl Diagram {
                 .ok_or_else(|| anyhow!("node '{id}' missing definition"))?;
             node_bounds.insert(id.clone(), NodeBoundary::new(*point, node));
         }
+        let group_frames: Vec<_> = self
+            .subgraphs
+            .iter()
+            .filter_map(|subgraph| {
+                let members = subgraph_nodes(subgraph);
+                let bounds = group_bounds(&members, positions, &self.nodes)?;
+                Some((members, padded_group_bounds(bounds)))
+            })
+            .collect();
 
         for (idx, edge) in self.edges.iter().enumerate() {
             let edge_id = edge_identifier(edge);
@@ -1607,7 +2142,141 @@ impl Diagram {
                     false
                 };
 
+            if !has_custom_override && middle_points.is_empty() {
+                let backward = match self.direction {
+                    Direction::TopDown => to.y < from.y,
+                    Direction::BottomTop => to.y > from.y,
+                    Direction::LeftRight => to.x < from.x,
+                    Direction::RightLeft => to.x > from.x,
+                };
+                let groups = self
+                    .node_membership
+                    .get(&edge.from)
+                    .and_then(|path| path.first())
+                    .zip(
+                        self.node_membership
+                            .get(&edge.to)
+                            .and_then(|path| path.first()),
+                    );
+                if backward && groups.is_some_and(|(from, to)| from != to) {
+                    if let Some(bounds) = group_frames
+                        .iter()
+                        .filter(|(members, _)| {
+                            members.contains(&edge.from) || members.contains(&edge.to)
+                        })
+                        .map(|(_, frame)| *frame)
+                        .reduce(|a, b| Rect {
+                            min_x: a.min_x.min(b.min_x),
+                            max_x: a.max_x.max(b.max_x),
+                            min_y: a.min_y.min(b.min_y),
+                            max_y: a.max_y.max(b.max_y),
+                        })
+                    {
+                        let candidates = match self.direction {
+                            Direction::TopDown | Direction::BottomTop => [
+                                side_points(from, to, bounds.min_x - EDGE_COLLISION_MARGIN),
+                                side_points(from, to, bounds.max_x + EDGE_COLLISION_MARGIN),
+                            ],
+                            Direction::LeftRight | Direction::RightLeft => [
+                                row_points(from, to, bounds.min_y - EDGE_COLLISION_MARGIN),
+                                row_points(from, to, bounds.max_y + EDGE_COLLISION_MARGIN),
+                            ],
+                        };
+                        middle_points.extend(
+                            candidates
+                                .into_iter()
+                                .min_by(|a, b| {
+                                    let a = build_route(from, a, to);
+                                    let b = build_route(from, b, to);
+                                    self.route_collides_with_nodes(edge, &a, &node_bounds)
+                                        .cmp(&self.route_collides_with_nodes(
+                                            edge,
+                                            &b,
+                                            &node_bounds,
+                                        ))
+                                        .then_with(|| {
+                                            count_route_intersections(&a, &routes)
+                                                .cmp(&count_route_intersections(&b, &routes))
+                                        })
+                                        .then_with(|| route_length(&a).total_cmp(&route_length(&b)))
+                                })
+                                .unwrap(),
+                        );
+                    }
+                } else if let Some(label) = &edge.label
+                    && matches!(self.direction, Direction::TopDown | Direction::BottomTop)
+                {
+                    if backward {
+                        let label_width = measure_label_box(&normalize_label_lines(label)).0;
+                        let x = node_bounds[&edge.from]
+                            .rect
+                            .min_x
+                            .min(node_bounds[&edge.to].rect.min_x)
+                            - EDGE_COLLISION_MARGIN
+                            - label_width / 2.0;
+                        middle_points.extend(side_points(from, to, x));
+                    } else {
+                        middle_points.push(Point {
+                            x: to.x,
+                            y: from.y + (to.y - from.y) * 0.65,
+                        });
+                    }
+                }
+            }
+
             let mut path = build_route(from, &middle_points, to);
+            if !has_custom_override {
+                let unrelated: Vec<_> = group_frames
+                    .iter()
+                    .filter(|(members, _)| {
+                        !members.contains(&edge.from) && !members.contains(&edge.to)
+                    })
+                    .map(|(_, frame)| *frame)
+                    .collect();
+                let blockers: Vec<_> = unrelated
+                    .iter()
+                    .copied()
+                    .filter(|frame| route_intersects_rect(&path, *frame))
+                    .collect();
+                if !blockers.is_empty() {
+                    let bounds = blockers.iter().fold(blockers[0], |bounds, frame| Rect {
+                        min_x: bounds.min_x.min(frame.min_x),
+                        max_x: bounds.max_x.max(frame.max_x),
+                        min_y: bounds.min_y.min(frame.min_y),
+                        max_y: bounds.max_y.max(frame.max_y),
+                    });
+                    path = [
+                        build_route(
+                            from,
+                            &side_points(from, to, bounds.min_x - EDGE_COLLISION_MARGIN),
+                            to,
+                        ),
+                        build_route(
+                            from,
+                            &side_points(from, to, bounds.max_x + EDGE_COLLISION_MARGIN),
+                            to,
+                        ),
+                        build_route(
+                            from,
+                            &row_points(from, to, bounds.min_y - EDGE_COLLISION_MARGIN),
+                            to,
+                        ),
+                        build_route(
+                            from,
+                            &row_points(from, to, bounds.max_y + EDGE_COLLISION_MARGIN),
+                            to,
+                        ),
+                    ]
+                    .into_iter()
+                    .filter(|candidate| {
+                        !unrelated
+                            .iter()
+                            .any(|frame| route_intersects_rect(candidate, *frame))
+                    })
+                    .min_by(|a, b| route_length(a).total_cmp(&route_length(b)))
+                    .unwrap_or(path);
+                }
+            }
 
             let mut base_label_collision =
                 self.label_collides_with_nodes(edge, &path, &node_bounds);
@@ -1999,7 +2668,9 @@ impl Diagram {
             let a = route[segment_idx];
             let b = route[segment_idx + 1];
 
-            for (node_id, bounds) in node_bounds {
+            let mut nodes: Vec<_> = node_bounds.iter().collect();
+            nodes.sort_by(|(a, _), (b, _)| a.cmp(b));
+            for (node_id, bounds) in nodes {
                 if node_id == &edge.from || node_id == &edge.to {
                     continue;
                 }
@@ -2366,21 +3037,15 @@ impl Diagram {
 }
 
 fn route_intersects_label_rects(route: &[Point], label_bounds: &HashMap<String, Rect>) -> bool {
-    if label_bounds.is_empty() || route.len() < 2 {
-        return false;
-    }
+    label_bounds
+        .values()
+        .any(|rect| route_intersects_rect(route, *rect))
+}
 
-    for segment in route.windows(2) {
-        let a = segment[0];
-        let b = segment[1];
-        for rect in label_bounds.values() {
-            if rect.intersects_segment(a, b) {
-                return true;
-            }
-        }
-    }
-
-    false
+fn route_intersects_rect(route: &[Point], rect: Rect) -> bool {
+    route
+        .windows(2)
+        .any(|segment| rect.intersects_segment(segment[0], segment[1]))
 }
 
 fn label_overlaps_existing(
@@ -3387,6 +4052,35 @@ fn build_route(start: Point, middle: &[Point], end: Point) -> Vec<Point> {
     route
 }
 
+fn side_points(from: Point, to: Point, x: f32) -> [Point; 3] {
+    [
+        Point { x, y: from.y },
+        Point {
+            x,
+            y: (from.y + to.y) / 2.0,
+        },
+        Point { x, y: to.y },
+    ]
+}
+
+fn row_points(from: Point, to: Point, y: f32) -> [Point; 3] {
+    [
+        Point { x: from.x, y },
+        Point {
+            x: (from.x + to.x) / 2.0,
+            y,
+        },
+        Point { x: to.x, y },
+    ]
+}
+
+fn route_length(route: &[Point]) -> f32 {
+    route
+        .windows(2)
+        .map(|points| (points[1].x - points[0].x).abs() + (points[1].y - points[0].y).abs())
+        .sum()
+}
+
 fn simplify_route(route: &mut Vec<Point>) {
     if route.is_empty() {
         return;
@@ -3970,7 +4664,7 @@ pub fn align_geometry(
         }
     }
 
-    let unshifted_subgraphs = compute_subgraph_visuals(subgraphs, positions, nodes);
+    let unshifted_subgraphs = compute_subgraph_visuals(subgraphs, positions, nodes, routes);
     for sg in &unshifted_subgraphs {
         min_x = min_x.min(sg.x);
         max_x = max_x.max(sg.x + sg.width);
@@ -4035,6 +4729,7 @@ fn compute_subgraph_visuals(
     subgraphs: &[Subgraph],
     positions: &HashMap<String, Point>,
     definitions: &HashMap<String, Node>,
+    routes: &HashMap<String, Vec<Point>>,
 ) -> Vec<SubgraphVisual> {
     let mut visuals = Vec::new();
     let fallback_height = definitions
@@ -4051,6 +4746,22 @@ fn compute_subgraph_visuals(
             0,
             None,
         );
+    }
+
+    for visual in visuals.iter_mut().filter(|visual| visual.depth == 0) {
+        let label_width = NODE_TEXT_CHAR_WIDTH * visual.label.chars().count() as f32;
+        let label_bounds = Rect {
+            min_x: visual.label_x,
+            max_x: visual.label_x + label_width,
+            min_y: visual.y,
+            max_y: visual.y + SUBGRAPH_LABEL_AREA,
+        };
+        if routes
+            .values()
+            .any(|route| route_intersects_rect(route, label_bounds))
+        {
+            visual.label_x = visual.x + visual.width - SUBGRAPH_LABEL_INSET_X - label_width;
+        }
     }
 
     visuals.sort_by(|a, b| {
@@ -4203,55 +4914,95 @@ fn compute_canvas_size_for_positions(
     CanvasSize { width, height }
 }
 
-fn gather_subgraph_nodes(subgraph: &Subgraph) -> HashSet<String> {
-    let mut nodes = HashSet::new();
-    collect_nodes_recursive(subgraph, &mut nodes);
+fn subgraph_nodes(subgraph: &Subgraph) -> HashSet<String> {
+    let mut nodes: HashSet<_> = subgraph.nodes.iter().cloned().collect();
+    for child in &subgraph.children {
+        nodes.extend(subgraph_nodes(child));
+    }
     nodes
 }
 
-fn collect_nodes_recursive(subgraph: &Subgraph, nodes: &mut HashSet<String>) {
-    for id in &subgraph.nodes {
-        nodes.insert(id.clone());
-    }
-    for child in &subgraph.children {
-        collect_nodes_recursive(child, nodes);
-    }
-}
-
-fn compute_group_bounds(
-    nodes: &HashSet<String>,
+fn group_bounds(
+    ids: &HashSet<String>,
     positions: &HashMap<String, Point>,
-    definitions: &HashMap<String, Node>,
+    nodes: &HashMap<String, Node>,
 ) -> Option<Rect> {
-    let mut bounds: Option<Rect> = None;
-    for id in nodes {
-        if let (Some(position), Some(node)) = (positions.get(id), definitions.get(id)) {
+    let mut bounds = None;
+    for id in ids {
+        if let (Some(position), Some(node)) = (positions.get(id), nodes.get(id)) {
             expand_bounds(&mut bounds, node_rect(*position, node.width, node.height));
         }
     }
     bounds
 }
 
-fn offset_nodes(positions: &mut HashMap<String, Point>, nodes: &HashSet<String>, dx: f32, dy: f32) {
-    for id in nodes {
-        if let Some(point) = positions.get_mut(id) {
-            point.x += dx;
-            point.y += dy;
-        }
+fn padded_group_bounds(bounds: Rect) -> Rect {
+    Rect {
+        min_x: bounds.min_x - SUBGRAPH_PADDING,
+        max_x: bounds.max_x + SUBGRAPH_PADDING,
+        min_y: bounds.min_y - SUBGRAPH_PADDING - SUBGRAPH_LABEL_AREA,
+        max_y: bounds.max_y + SUBGRAPH_PADDING,
     }
-}
-
-fn rects_intersect_with_margin(a: &Rect, b: &Rect, margin: f32) -> bool {
-    (a.min_x - margin) < (b.max_x + margin)
-        && (a.max_x + margin) > (b.min_x - margin)
-        && (a.min_y - margin) < (b.max_y + margin)
-        && (a.max_y + margin) > (b.min_y - margin)
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
+}
+
+fn slot_center(ids: &[&str], slots: &HashMap<&str, f32>) -> f32 {
+    let (min, max) = ids
+        .iter()
+        .map(|id| slots[id])
+        .fold((f32::INFINITY, f32::NEG_INFINITY), |(min, max), slot| {
+            (min.min(slot), max.max(slot))
+        });
+    (min + max) / 2.0
+}
+
+fn measure_subtree<'a>(
+    id: &'a str,
+    children: &HashMap<&'a str, Vec<&'a str>>,
+    widths: &mut HashMap<&'a str, f32>,
+) -> f32 {
+    if let Some(width) = widths.get(id) {
+        return *width;
+    }
+    let descendants = &children[id];
+    let width = descendants
+        .iter()
+        .map(|child| measure_subtree(child, children, widths))
+        .sum::<f32>()
+        .max(1.0);
+    widths.insert(id, width);
+    width
+}
+
+fn place_subtree<'a>(
+    id: &'a str,
+    center: f32,
+    depth: usize,
+    children: &HashMap<&'a str, Vec<&'a str>>,
+    widths: &HashMap<&'a str, f32>,
+    slots: &mut HashMap<&'a str, (f32, usize)>,
+) {
+    slots.insert(id, (center, depth));
+    let descendants = &children[id];
+    let span = descendants.iter().map(|child| widths[child]).sum::<f32>();
+    let mut cursor = center - span / 2.0;
+    for child in descendants {
+        let width = widths[child];
+        place_subtree(
+            child,
+            cursor + width / 2.0,
+            depth + 1,
+            children,
+            widths,
+            slots,
+        );
+        cursor += width;
+    }
 }
 
 pub fn centroid(points: &[Point]) -> Point {
@@ -5024,7 +5775,9 @@ fn parse_subgraph_header(raw: &str) -> Result<(String, String)> {
             if id_part.is_empty() {
                 bail!("subgraph identifier cannot be empty");
             }
-            let label_part = trimmed[start + 1..trimmed.len() - 1].trim();
+            let label_part = trimmed[start + 1..trimmed.len() - 1]
+                .trim()
+                .trim_matches('"');
             let label = if label_part.is_empty() {
                 id_part
             } else {
@@ -5186,20 +5939,21 @@ fn parse_png_dimensions(data: &[u8]) -> Result<(u32, u32)> {
 
 fn record_node_membership(
     node_id: &str,
-    subgraph_stack: &mut Vec<SubgraphBuilder>,
+    subgraph_stack: &mut [SubgraphBuilder],
     node_membership: &mut HashMap<String, Vec<String>>,
 ) {
     let node_id_string = node_id.to_string();
-
-    // Record membership path using current stack ordering.
-    let path: Vec<String> = subgraph_stack.iter().map(|sg| sg.id.clone()).collect();
-    node_membership.insert(node_id_string.clone(), path);
-
-    if let Some(current) = subgraph_stack.last_mut() {
-        if !current.nodes.contains(&node_id_string) {
-            current.nodes.push(node_id_string);
-        }
+    let membership = node_membership.entry(node_id_string.clone()).or_default();
+    if subgraph_stack.is_empty() || !membership.is_empty() {
+        return;
     }
+    membership.extend(subgraph_stack.iter().map(|sg| sg.id.clone()));
+
+    subgraph_stack
+        .last_mut()
+        .unwrap()
+        .nodes
+        .push(node_id_string);
 }
 
 fn prune_node_from_subgraphs(subgraphs: &mut Vec<Subgraph>, node_id: &str) -> bool {
@@ -5227,17 +5981,8 @@ fn parse_node_line(
         Err(_) => return Ok(false),
     };
 
-    let (id, inserted) = insert_node_spec(spec, nodes, order);
-    if inserted {
-        record_node_membership(&id, subgraph_stack, node_membership);
-    } else if !node_membership.contains_key(&id) {
-        if subgraph_stack.is_empty() {
-            node_membership.insert(id.clone(), Vec::new());
-        } else {
-            // Preserve membership for nodes first declared outside any subgraph when later wrapped.
-            record_node_membership(&id, subgraph_stack, node_membership);
-        }
-    }
+    let (id, _) = insert_node_spec(spec, nodes, order);
+    record_node_membership(&id, subgraph_stack, node_membership);
 
     Ok(true)
 }
@@ -5249,8 +5994,14 @@ fn parse_edge_line(
     node_membership: &mut HashMap<String, Vec<String>>,
     subgraph_stack: &mut Vec<SubgraphBuilder>,
 ) -> Result<Option<Edge>> {
-    const EDGE_PATTERNS: [(&str, EdgeKind, EdgeArrowDirection, Option<&str>); 3] = [
+    const EDGE_PATTERNS: [(&str, EdgeKind, EdgeArrowDirection, Option<&str>); 4] = [
         ("-.->", EdgeKind::Dashed, EdgeArrowDirection::Forward, None),
+        (
+            "<-->",
+            EdgeKind::Solid,
+            EdgeArrowDirection::Both,
+            Some("--"),
+        ),
         (
             "-->",
             EdgeKind::Solid,
@@ -5281,7 +6032,7 @@ fn parse_edge_line(
         };
         let label_text = rest[..end_idx].trim();
         let target = rest[end_idx + 1..].trim();
-        label = Some(label_text.to_string());
+        label = Some(label_text.trim_matches('"').to_string());
         target
     } else {
         if let Some(prefix) = inline_prefix {
@@ -5296,19 +6047,11 @@ fn parse_edge_line(
         rhs
     };
 
-    let (from_id, from_new) = intern_node(from_segment, nodes, order)?;
-    if from_new {
-        record_node_membership(&from_id, subgraph_stack, node_membership);
-    } else if !node_membership.contains_key(&from_id) && subgraph_stack.is_empty() {
-        node_membership.insert(from_id.clone(), Vec::new());
-    }
+    let (from_id, _) = intern_node(from_segment, nodes, order)?;
+    record_node_membership(&from_id, subgraph_stack, node_membership);
 
-    let (to_id, to_new) = intern_node(rhs_clean, nodes, order)?;
-    if to_new {
-        record_node_membership(&to_id, subgraph_stack, node_membership);
-    } else if !node_membership.contains_key(&to_id) && subgraph_stack.is_empty() {
-        node_membership.insert(to_id.clone(), Vec::new());
-    }
+    let (to_id, _) = intern_node(rhs_clean, nodes, order)?;
+    record_node_membership(&to_id, subgraph_stack, node_membership);
 
     Ok(Some(Edge {
         from: from_id,
@@ -5336,7 +6079,7 @@ fn extract_inline_label(segment: &str, prefix: &str) -> Option<(String, String)>
             if from.is_empty() || label.is_empty() {
                 None
             } else {
-                Some((from.to_string(), label.to_string()))
+                Some((from.to_string(), label.trim_matches('"').to_string()))
             }
         }
         _ => None,
@@ -5427,6 +6170,7 @@ impl NodeSpec {
             (trimmed.to_string(), NodeShape::Rectangle)
         };
 
+        let label = label.trim_matches('"').to_string();
         Ok(NodeSpec {
             id: id.to_string(),
             label: if label.is_empty() {
@@ -5601,6 +6345,18 @@ graph TD
     }
 
     #[test]
+    fn parses_bidirectional_edges_and_quoted_labels() {
+        let diagram = Diagram::parse("graph TD\nA[\"From\"] <-->|\"sync\"| B[\"To\"]")
+            .expect("diagram parse should succeed");
+
+        assert_eq!(diagram.nodes.len(), 2);
+        assert_eq!(diagram.nodes["A"].label, "From");
+        assert_eq!(diagram.nodes["B"].label, "To");
+        assert_eq!(diagram.edges[0].arrow, EdgeArrowDirection::Both);
+        assert_eq!(diagram.edges[0].label.as_deref(), Some("sync"));
+    }
+
+    #[test]
     fn resolves_forward_declared_nodes() {
         let source = r#"
 graph TD
@@ -5614,5 +6370,100 @@ graph TD
             .get("I")
             .expect("expected node I to be present");
         assert_eq!(node.label, "Official Node");
+    }
+
+    #[test]
+    fn lays_out_polytrees_on_symmetric_columns() {
+        let diagram = Diagram::parse(
+            "graph TD\nA --> C\nB --> C\nC --> D\nD --> E\nD --> F\nD --> G\nE --> H\nF --> I\nG --> J",
+        )
+        .expect("diagram parse should succeed");
+        let positions = diagram
+            .layout(None)
+            .expect("layout should succeed")
+            .auto_positions;
+        let close = |a: f32, b: f32| assert!((a - b).abs() < 0.01, "{a} != {b}");
+
+        close(
+            (positions["A"].x + positions["B"].x) / 2.0,
+            positions["C"].x,
+        );
+        close(positions["C"].x, positions["D"].x);
+        close(positions["D"].x, positions["F"].x);
+        close(positions["E"].x, positions["H"].x);
+        close(positions["F"].x, positions["I"].x);
+        close(positions["G"].x, positions["J"].x);
+    }
+
+    #[test]
+    fn preserves_recursive_tree_layout_inside_subgraphs() {
+        let diagram = Diagram::parse(
+            "graph TD\nX --> Y\nY --> Z\nX --> R\nsubgraph Cluster\nR --> A\nR --> B\nR --> C\nA --> D\nA --> E\nC --> F\nC --> G\nend\nZ --> G",
+        )
+        .expect("diagram parse should succeed");
+        let positions = diagram
+            .layout(None)
+            .expect("layout should succeed")
+            .auto_positions;
+        let close = |a: f32, b: f32| assert!((a - b).abs() < 0.01, "{a} != {b}");
+
+        close(positions["A"].y, positions["B"].y);
+        close(positions["B"].y, positions["C"].y);
+        close(positions["D"].y, positions["E"].y);
+        close(positions["E"].y, positions["F"].y);
+        close(positions["F"].y, positions["G"].y);
+        close(
+            (positions["A"].x + positions["C"].x) / 2.0,
+            positions["R"].x,
+        );
+        close(
+            (positions["D"].x + positions["E"].x) / 2.0,
+            positions["A"].x,
+        );
+        close(
+            (positions["F"].x + positions["G"].x) / 2.0,
+            positions["C"].x,
+        );
+    }
+
+    #[test]
+    fn routes_backward_edges_around_separate_subgraphs() {
+        let diagram = Diagram::parse(
+            "graph TD\nsubgraph Upper\nA --> B\nend\nsubgraph Lower\nC --> D\nend\nC --> B",
+        )
+        .expect("diagram parse should succeed");
+        let positions = HashMap::from([
+            ("A".into(), Point { x: 0.0, y: 0.0 }),
+            ("B".into(), Point { x: 0.0, y: 160.0 }),
+            ("C".into(), Point { x: 200.0, y: 480.0 }),
+            ("D".into(), Point { x: 200.0, y: 640.0 }),
+        ]);
+        let routes = diagram
+            .compute_routes(&positions, None)
+            .expect("routing should succeed");
+        let edge = diagram
+            .edges
+            .iter()
+            .find(|edge| edge.from == "C" && edge.to == "B")
+            .unwrap();
+        let route = &routes[&edge_identifier(edge)];
+        let frames: Vec<_> = diagram
+            .subgraphs
+            .iter()
+            .filter_map(|subgraph| {
+                group_bounds(&subgraph_nodes(subgraph), &positions, &diagram.nodes)
+                    .map(padded_group_bounds)
+            })
+            .collect();
+        let min_x = frames
+            .iter()
+            .map(|frame| frame.min_x)
+            .fold(f32::MAX, f32::min);
+        let max_x = frames
+            .iter()
+            .map(|frame| frame.max_x)
+            .fold(f32::MIN, f32::max);
+
+        assert!(route.iter().any(|point| point.x < min_x || point.x > max_x));
     }
 }
