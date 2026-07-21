@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1526" height="1010" viewBox="0 0 1526 1010" font-family="Inter, system-ui, sans-serif">
+  <defs>
+        <marker id="arrow-end" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M1,1 L6,4 L1,7 z" fill="context-stroke" />
+        </marker>
+        <marker id="arrow-start" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M7,1 L2,4 L7,7 z" fill="context-stroke" />
+        </marker>
+  </defs>
+  <rect width="100%" height="100%" fill="white" />
+  <g class="edge" data-id="A --&gt; B">
+  <polyline points="631.8,130.0 762.8,209.0 762.8,239.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="706.7" y="195.0" width="112.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="762.8" y="209.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Silver Window</text>
+  </g>
+  </g>
+  <g class="edge" data-id="Z --&gt; B">
+  <polyline points="760.0,130.0 762.8,209.0 762.8,239.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="714.1" y="195.0" width="97.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="762.8" y="209.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Blue Ribbon</text>
+  </g>
+  </g>
+  <g class="edge" data-id="Y --&gt; B">
+  <polyline points="891.0,130.0 762.8,209.0 762.8,239.0" fill="none" stroke="#2d3748" stroke-width="2" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="706.7" y="195.0" width="112.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="762.8" y="209.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Paper Signals</text>
+  </g>
+  </g>
+  <g class="edge" data-id="B --&gt; D">
+  <polyline points="713.5,274.9 246.9,369.0 246.9,399.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="201.9" y="355.0" width="90.0" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="246.9" y="369.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Amber Path</text>
+  </g>
+  </g>
+  <g class="edge" data-id="D --&gt; K">
+  <line x1="246.9" y1="450.0" x2="246.9" y2="559.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  </g>
+  <g class="edge" data-id="K --&gt; L">
+  <line x1="327.5" y1="610.0" x2="681.2" y2="719.7" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  </g>
+  <g class="edge" data-id="B --&gt; E">
+  <polyline points="735.6,281.7 593.3,369.0 593.3,399.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="544.6" y="355.0" width="97.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="593.3" y="369.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Indigo Path</text>
+  </g>
+  </g>
+  <g class="edge" data-id="E --&gt; J">
+  <line x1="593.3" y1="450.0" x2="593.3" y2="559.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  </g>
+  <g class="edge" data-id="J --&gt; L">
+  <line x1="619.8" y1="610.0" x2="735.6" y2="719.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  </g>
+  <g class="edge" data-id="B --&gt; F">
+  <polyline points="790.4,281.6 936.0,369.0 936.0,399.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="894.7" y="355.0" width="82.6" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="936.0" y="369.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Teal Path</text>
+  </g>
+  </g>
+  <g class="edge" data-id="F --&gt; I">
+  <line x1="936.0" y1="450.0" x2="936.0" y2="559.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  </g>
+  <g class="edge" data-id="I --&gt; L">
+  <line x1="908.9" y1="610.0" x2="790.6" y2="719.3" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  </g>
+  <g class="edge" data-id="B --&gt; G">
+  <polyline points="812.2,274.9 1282.4,369.0 1282.4,399.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <g pointer-events="none">
+    <rect x="1233.7" y="355.0" width="97.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="1282.4" y="369.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Violet Path</text>
+  </g>
+  </g>
+  <g class="edge" data-id="G --&gt; H">
+  <line x1="1282.4" y1="450.0" x2="1282.4" y2="559.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  </g>
+  <g class="edge" data-id="H --&gt; L">
+  <line x1="1201.2" y1="610.0" x2="844.9" y2="719.7" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  </g>
+  <g class="edge" data-id="L --&gt; M">
+  <line x1="762.8" y1="770.0" x2="762.8" y2="879.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  </g>
+  <g class="node" data-id="A">
+  <rect x="515.9" y="80.0" width="148.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="590.3" y="105.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Velvet Comet</text>
+  </g>
+  <g class="node" data-id="B">
+  <polygon points="762.8,240.0 844.6,265.0 762.8,290.0 681.0,265.0" fill="#fbcfe8" stroke="#2d3748" stroke-width="2" />
+  <text x="762.8" y="265.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Marble Compass</text>
+  </g>
+  <g class="node" data-id="Z">
+  <rect x="684.7" y="80.0" width="148.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="759.1" y="105.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Echo Lantern</text>
+  </g>
+  <g class="node" data-id="Y">
+  <rect x="853.5" y="80.0" width="156.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="931.6" y="105.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Quartz Meadow</text>
+  </g>
+  <g class="node" data-id="D">
+  <rect x="80.0" y="400.0" width="333.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="246.9" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Crimson Otter Counts Floating Pebbles</text>
+  </g>
+  <g class="node" data-id="K">
+  <rect x="105.9" y="560.0" width="282.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="246.9" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Hidden Tulip Opens at Midnight</text>
+  </g>
+  <g class="node" data-id="L">
+  <rect x="669.9" y="720.0" width="185.8" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="762.8" y="745.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Spiral Sandwiches</text>
+  </g>
+  <g class="node" data-id="E">
+  <rect x="433.8" y="400.0" width="319.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="593.3" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Juniper Kite Searches Glass Forests</text>
+  </g>
+  <g class="node" data-id="J">
+  <rect x="430.1" y="560.0" width="326.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="593.3" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Quiet Penguin Suggests a Purple Door</text>
+  </g>
+  <g class="node" data-id="F">
+  <rect x="772.8" y="400.0" width="326.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="936.0" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Willow Clock Examines Golden Puddles</text>
+  </g>
+  <g class="node" data-id="I">
+  <rect x="765.4" y="560.0" width="341.2" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="936.0" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Orange Badger Maps the Broken Carousel</text>
+  </g>
+  <g class="node" data-id="G">
+  <rect x="1119.2" y="400.0" width="326.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1282.4" y="425.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Aspen Teacup Measures Singing Clouds</text>
+  </g>
+  <g class="node" data-id="H">
+  <rect x="1137.7" y="560.0" width="289.4" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="1282.4" y="585.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Marble Fox Opens a Lemon Window</text>
+  </g>
+  <g class="node" data-id="M">
+  <rect x="677.3" y="880.0" width="171.0" height="50.0" rx="8" ry="8" fill="#fde68a" stroke="#2d3748" stroke-width="2" />
+  <text x="762.8" y="905.0" fill="#1a202c" font-size="14" text-anchor="middle" dominant-baseline="middle">Final Pineapple</text>
+  </g>
+</svg>
