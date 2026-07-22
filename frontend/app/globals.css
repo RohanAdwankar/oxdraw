@@ -131,6 +131,15 @@ body > div:first-of-type {
   max-width: none;
 }
 
+.node-create-preview {
+  position: fixed;
+  z-index: 20;
+  box-sizing: border-box;
+  border: 1px solid var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  pointer-events: none;
+}
+
 .placeholder {
   margin: auto;
   padding: 1rem 1.5rem;

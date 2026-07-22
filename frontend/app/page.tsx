@@ -366,6 +366,9 @@ const copyTextToClipboard = async (text: string): Promise<void> => {
 
 const LOCAL_MODE = isLocalMode();
 
+const appendNode = (source: string, id: string): string =>
+  `${source}${source.endsWith("\n") ? "" : "\n"}  ${id}["New node"]\n`;
+
 export default function Home() {
   const [diagram, setDiagram] = useState<DiagramData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1092,6 +1095,46 @@ const handleSourceChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>)
   setError(null);
   setSourceError(null);
 }, []);
+
+const handleCreateNode = useCallback(async (position: Point) => {
+  if (!diagram || diagram.kind !== "flowchart" || saving || sourceSaving) {
+    return;
+  }
+  const ids = new Set(diagram.nodes.map((node) => node.id));
+  let index = diagram.nodes.length + 1;
+  while (ids.has(`node${index}`)) {
+    index += 1;
+  }
+  const id = `node${index}`;
+  const nextSource = appendNode(sourceDraft, id);
+  try {
+    setSaving(true);
+    setError(null);
+    lastSubmittedSource.current = nextSource;
+    setSourceDraft(nextSource);
+    await updateSource(nextSource);
+    const nextDiagram = await loadDiagram({ silent: true });
+    const node = nextDiagram.nodes.find((entry) => entry.id === id);
+    if (!node) {
+      throw new Error("Created node was not found in the diagram.");
+    }
+    await updateLayout({
+      nodes: {
+        [id]: {
+          x: position.x - node.width / 2,
+          y: position.y - node.height / 2,
+        },
+      },
+    });
+    await loadDiagram({ silent: true });
+    setSelectedNodeId(id);
+    setSelectedEdgeId(null);
+  } catch (err) {
+    setError((err as Error).message);
+  } finally {
+    setSaving(false);
+  }
+}, [diagram, loadDiagram, saving, sourceDraft, sourceSaving]);
 
 const handleSelectNode = useCallback((id: string | null) => {
   setSelectedNodeId(id);
@@ -2016,6 +2059,7 @@ return (
                 selectedEdgeId={selectedEdgeId}
                 onSelectNode={handleSelectNode}
                 onSelectEdge={handleSelectEdge}
+                onCreateNode={handleCreateNode}
                 onDragStateChange={setDragging}
                 onDeleteNode={handleDeleteNodeDirect}
                 onDeleteEdge={handleDeleteEdgeDirect}

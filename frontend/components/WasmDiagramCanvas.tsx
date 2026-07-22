@@ -9,11 +9,22 @@ import type { LayoutUpdate, Point } from "../lib/types";
 
 type DragKind = "node" | "edge" | "subgraph" | "gantt";
 
-interface ActiveDrag {
+interface ExistingDrag {
   kind: DragKind;
   id: string;
   pointerId: number;
 }
+
+interface CreateDrag {
+  kind: "create";
+  pointerId: number;
+  origin: Point;
+  current: Point;
+  originClient: Point;
+  currentClient: Point;
+}
+
+type ActiveDrag = ExistingDrag | CreateDrag;
 
 interface EdgeVm {
   id: string;
@@ -141,6 +152,7 @@ const NUDGE_PIXELS = 10;
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 1.15;
+const CREATE_DRAG_MIN_PIXELS = 12;
 
 export default function WasmDiagramCanvas({
   diagram,
@@ -151,6 +163,7 @@ export default function WasmDiagramCanvas({
   selectedNodeId,
   onSelectNode,
   onSelectEdge,
+  onCreateNode,
   onDragStateChange,
 }: DiagramCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -159,6 +172,12 @@ export default function WasmDiagramCanvas({
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const coreRef = useRef<WasmEditorCore | null>(null);
   const dragRef = useRef<ActiveDrag | null>(null);
+  const [createPreview, setCreatePreview] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   const renderFromCore = useCallback(() => {
     if (!coreRef.current) {
@@ -247,6 +266,9 @@ export default function WasmDiagramCanvas({
   }, [onEdgeMove, onLayoutUpdate, onNodeMove, renderFromCore, selectedNodeId]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
     const core = coreRef.current;
     if (!core) {
       return;
@@ -355,6 +377,21 @@ export default function WasmDiagramCanvas({
 
     onSelectNode(null);
     onSelectEdge(null);
+    if (diagram.kind !== "flowchart" || target.closest(".zoom-controls")) {
+      return;
+    }
+    const clientPoint = { x: event.clientX, y: event.clientY };
+    dragRef.current = {
+      kind: "create",
+      pointerId: event.pointerId,
+      origin: point,
+      current: point,
+      originClient: clientPoint,
+      currentClient: clientPoint,
+    };
+    onDragStateChange?.(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -375,7 +412,16 @@ export default function WasmDiagramCanvas({
     }
 
     try {
-      if (active.kind === "node") {
+      if (active.kind === "create") {
+        active.current = point;
+        active.currentClient = { x: event.clientX, y: event.clientY };
+        setCreatePreview({
+          left: Math.min(active.originClient.x, event.clientX),
+          top: Math.min(active.originClient.y, event.clientY),
+          width: Math.abs(event.clientX - active.originClient.x),
+          height: Math.abs(event.clientY - active.originClient.y),
+        });
+      } else if (active.kind === "node") {
         core.updateNodeDrag(point.x, point.y);
       } else if (active.kind === "edge") {
         core.updateEdgeDrag(point.x, point.y);
@@ -384,7 +430,9 @@ export default function WasmDiagramCanvas({
       } else {
         core.updateGanttTaskDrag(point.x);
       }
-      renderFromCore();
+      if (active.kind !== "create") {
+        renderFromCore();
+      }
       event.preventDefault();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to update drag";
@@ -401,7 +449,18 @@ export default function WasmDiagramCanvas({
 
     try {
       let patch: unknown = null;
-      if (active.kind === "node") {
+      if (active.kind === "create") {
+        const distance = Math.hypot(
+          active.currentClient.x - active.originClient.x,
+          active.currentClient.y - active.originClient.y
+        );
+        if (distance >= CREATE_DRAG_MIN_PIXELS) {
+          void onCreateNode({
+            x: (active.origin.x + active.current.x) / 2,
+            y: (active.origin.y + active.current.y) / 2,
+          });
+        }
+      } else if (active.kind === "node") {
         patch = core.endNodeDrag();
       } else if (active.kind === "edge") {
         patch = core.endEdgeDrag();
@@ -410,14 +469,17 @@ export default function WasmDiagramCanvas({
       } else {
         patch = core.endGanttTaskDrag();
       }
-      applyLayoutPatch(patch, onLayoutUpdate, onNodeMove, onEdgeMove);
-      renderFromCore();
+      if (active.kind !== "create") {
+        applyLayoutPatch(patch, onLayoutUpdate, onNodeMove, onEdgeMove);
+        renderFromCore();
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to finish drag";
       setError(message);
       core.cancelDrag();
     } finally {
       dragRef.current = null;
+      setCreatePreview(null);
       onDragStateChange?.(false);
     }
   };
@@ -436,6 +498,7 @@ export default function WasmDiagramCanvas({
       renderFromCore();
     }
     dragRef.current = null;
+    setCreatePreview(null);
     onDragStateChange?.(false);
     if ((event.currentTarget as HTMLDivElement).hasPointerCapture(event.pointerId)) {
       (event.currentTarget as HTMLDivElement).releasePointerCapture(event.pointerId);
@@ -491,6 +554,7 @@ export default function WasmDiagramCanvas({
         }}
         dangerouslySetInnerHTML={{ __html: svgMarkup }}
       />
+      {createPreview && <div className="node-create-preview" style={createPreview} />}
       <div className="zoom-controls">
         <button type="button" onClick={zoomOut} title="Zoom out">-</button>
         <button type="button" className="zoom-display" onClick={resetZoom} title="Reset zoom">
