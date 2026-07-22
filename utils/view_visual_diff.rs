@@ -8,7 +8,6 @@ use std::{
 use tiny_skia::{Pixmap, Transform};
 
 const EXPECTED_DIR: &str = "tests/expected";
-const PAGE_WIDTH: u32 = 2240;
 const HEADER_HEIGHT: u32 = 80;
 const ROW_HEIGHT: u32 = 940;
 const CELL_WIDTH: u32 = 1100;
@@ -24,8 +23,14 @@ fn main() {
 
 fn run() -> Result<()> {
     let args: Vec<_> = env::args().skip(1).collect();
+    let include_mmdc = args.iter().any(|arg| arg == "--mmdc");
+    let revisions: Vec<_> = args
+        .iter()
+        .filter(|arg| arg.as_str() != "--mmdc")
+        .cloned()
+        .collect();
     let repo = PathBuf::from(git(None, &["rev-parse", "--show-toplevel"])?);
-    let (before, after) = comparison(&repo, &args)?;
+    let (before, after) = comparison(&repo, &revisions)?;
     let changed = if let Some(after) = &after {
         git(
             Some(&repo),
@@ -80,10 +85,14 @@ fn run() -> Result<()> {
             source_dir.join(format!("{:02}_{name}_after.svg", index + 1)),
             &after_svg,
         )?;
+        let mmdc = include_mmdc
+            .then(|| render_mmdc(&repo, &path, &source_dir, index, &name))
+            .transpose()?;
         pairs.push((
             path,
             render_png(&before_svg, &options)?,
             render_png(&after_svg, &options)?,
+            mmdc,
         ));
     }
 
@@ -119,7 +128,9 @@ fn comparison(repo: &Path, args: &[String]) -> Result<(String, Option<String>)> 
         }
         [left, right] => Ok((resolve(left)?, Some(resolve(right)?))),
         _ => {
-            bail!("usage: view_visual_diff [<commit> | <from>..<to> | <from>...<to> | <from> <to>]")
+            bail!(
+                "usage: view_visual_diff [--mmdc] [<commit> | <from>..<to> | <from>...<to> | <from> <to>]"
+            )
         }
     }
 }
@@ -178,20 +189,63 @@ fn worktree_file(repo: &Path, path: &str) -> Result<Option<String>> {
         .map_err(Into::into)
 }
 
-fn contact_sheet(pairs: &[(String, Vec<u8>, Vec<u8>)], before: &str, after: &str) -> String {
+fn render_mmdc(
+    repo: &Path,
+    golden: &str,
+    source_dir: &Path,
+    index: usize,
+    name: &str,
+) -> Result<Vec<u8>> {
+    let input = repo
+        .join("tests/input")
+        .join(Path::new(golden).file_name().unwrap())
+        .with_extension("mmd");
+    if !input.exists() {
+        bail!("mmdc input does not exist: {}", input.display());
+    }
+    let output = source_dir.join(format!("{:02}_{name}_mmdc.png", index + 1));
+    let result = Command::new("mmdc")
+        .current_dir(repo)
+        .args(["-i"])
+        .arg(&input)
+        .args(["-o"])
+        .arg(&output)
+        .args(["-b", "white"])
+        .output()
+        .context("failed to run mmdc")?;
+    if !result.status.success() {
+        bail!(
+            "mmdc failed for {}: {}",
+            input.display(),
+            String::from_utf8_lossy(&result.stderr).trim()
+        );
+    }
+    fs::read(output).map_err(Into::into)
+}
+
+fn contact_sheet(
+    pairs: &[(String, Vec<u8>, Vec<u8>, Option<Vec<u8>>)],
+    before: &str,
+    after: &str,
+) -> String {
+    let columns = if pairs.iter().any(|pair| pair.3.is_some()) {
+        3
+    } else {
+        2
+    };
+    let page_width = 40 + CELL_WIDTH * columns;
     let height = HEADER_HEIGHT + ROW_HEIGHT * pairs.len() as u32;
     let mut svg = format!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{PAGE_WIDTH}" height="{height}" viewBox="0 0 {PAGE_WIDTH} {height}" font-family="Inter,system-ui,sans-serif">
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{page_width}" height="{height}" viewBox="0 0 {page_width} {height}" font-family="Inter,system-ui,sans-serif">
 <rect width="100%" height="100%" fill="white"/>
 <text x="40" y="46" font-size="26" font-weight="600">Visual diff {before} → {after}</text>
 "#
     );
-    for (row, (path, before, after)) in pairs.iter().enumerate() {
+    for (row, (path, before, after, mmdc)) in pairs.iter().enumerate() {
         let y = HEADER_HEIGHT + ROW_HEIGHT * row as u32;
-        for (column, (label, source)) in [("before", before), ("after", after)]
-            .into_iter()
-            .enumerate()
-        {
+        let mut images = vec![("before", before), ("after", after)];
+        images.extend(mmdc.as_ref().map(|image| ("mmdc", image)));
+        for (column, (label, source)) in images.into_iter().enumerate() {
             let x = 20 + CELL_WIDTH * column as u32;
             let image_x = x + (CELL_WIDTH - IMAGE_WIDTH) / 2;
             let image_y = y + 60;
