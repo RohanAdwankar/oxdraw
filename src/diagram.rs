@@ -2216,9 +2216,26 @@ impl Diagram {
                             - label_width / 2.0;
                         middle_points.extend(side_points(from, to, x));
                     } else {
-                        middle_points.push(Point {
+                        let default = Point {
                             x: to.x,
                             y: from.y + (to.y - from.y) * 0.65,
+                        };
+                        let overlaps =
+                            label_rect_for_route(edge, &build_route(from, &[default], to))
+                                .is_some_and(|rect| {
+                                    label_overlaps_existing(
+                                        edge_id,
+                                        rect.inflate(EDGE_COLLISION_MARGIN),
+                                        &label_bounds,
+                                    )
+                                });
+                        middle_points.push(if overlaps {
+                            Point {
+                                x: from.x,
+                                y: from.y + (to.y - from.y) * 0.35,
+                            }
+                        } else {
+                            default
                         });
                     }
                 }
@@ -6427,6 +6444,31 @@ graph TD
             diagram.edges.iter().filter(|edge| edge.to == "Z").count(),
             2
         );
+    }
+
+    #[test]
+    fn separates_labels_on_converging_edges() {
+        let diagram =
+            Diagram::parse("graph TD\nA -->|one| D\nB -->|second| D\nC <-->|third label| D")
+                .expect("diagram parse should succeed");
+        let routes = diagram
+            .layout(None)
+            .expect("layout should succeed")
+            .auto_routes;
+        let labels: Vec<_> = diagram
+            .edges
+            .iter()
+            .map(|edge| label_rect_for_route(edge, &routes[&edge_identifier(edge)]).unwrap())
+            .collect();
+
+        for (index, label) in labels.iter().enumerate() {
+            assert!(
+                labels[index + 1..]
+                    .iter()
+                    .all(|other| !label.intersects(other)),
+                "converging edge labels must not overlap"
+            );
+        }
     }
 
     #[test]
