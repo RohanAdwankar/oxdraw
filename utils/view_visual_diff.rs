@@ -201,10 +201,10 @@ fn render_mmdc(
         .join(Path::new(golden).file_name().unwrap())
         .with_extension("mmd");
     if !input.exists() {
-        bail!("mmdc input does not exist: {}", input.display());
+        return placeholder_png("mmdc input missing");
     }
     let output = source_dir.join(format!("{:02}_{name}_mmdc.png", index + 1));
-    let result = Command::new("mmdc")
+    let result = match Command::new("mmdc")
         .current_dir(repo)
         .args(["-i"])
         .arg(&input)
@@ -212,13 +212,22 @@ fn render_mmdc(
         .arg(&output)
         .args(["-b", "white"])
         .output()
-        .context("failed to run mmdc")?;
+    {
+        Ok(result) => result,
+        Err(error) => {
+            fs::write(
+                source_dir.join(format!("{:02}_{name}_mmdc.error.txt", index + 1)),
+                error.to_string(),
+            )?;
+            return placeholder_png("mmdc unavailable");
+        }
+    };
     if !result.status.success() {
-        bail!(
-            "mmdc failed for {}: {}",
-            input.display(),
-            String::from_utf8_lossy(&result.stderr).trim()
-        );
+        fs::write(
+            source_dir.join(format!("{:02}_{name}_mmdc.error.txt", index + 1)),
+            &result.stderr,
+        )?;
+        return placeholder_png("mmdc failed");
     }
     fs::read(output).map_err(Into::into)
 }
@@ -286,6 +295,12 @@ fn placeholder(message: &str) -> String {
         r##"<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="850"><rect width="100%" height="100%" fill="#f3f4f6"/><text x="500" y="425" font-family="system-ui" font-size="36" text-anchor="middle">{}</text></svg>"##,
         escape_xml(message)
     )
+}
+
+fn placeholder_png(message: &str) -> Result<Vec<u8>> {
+    let mut options = resvg::usvg::Options::default();
+    options.fontdb_mut().load_system_fonts();
+    render_png(&placeholder(message), &options)
 }
 
 fn escape_xml(value: &str) -> String {
