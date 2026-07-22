@@ -17,6 +17,7 @@ interface ExistingDrag {
 
 interface CreateDrag {
   kind: "create";
+  fromId: string;
   pointerId: number;
   origin: Point;
   current: Point;
@@ -164,6 +165,7 @@ export default function WasmDiagramCanvas({
   onSelectNode,
   onSelectEdge,
   onCreateNode,
+  onRenameNewNode,
   onDragStateChange,
 }: DiagramCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -173,11 +175,18 @@ export default function WasmDiagramCanvas({
   const coreRef = useRef<WasmEditorCore | null>(null);
   const dragRef = useRef<ActiveDrag | null>(null);
   const [createPreview, setCreatePreview] = useState<{
+    origin: Point;
+    current: Point;
+  } | null>(null);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [editingLabel, setEditingLabel] = useState("New node");
+  const [labelPosition, setLabelPosition] = useState<{
     left: number;
     top: number;
     width: number;
     height: number;
   } | null>(null);
+  const labelInputRef = useRef<HTMLInputElement | null>(null);
 
   const renderFromCore = useCallback(() => {
     if (!coreRef.current) {
@@ -227,6 +236,50 @@ export default function WasmDiagramCanvas({
       cancelled = true;
     };
   }, [diagram.background, diagram.source, onSvgMarkupChange]);
+
+  useEffect(() => {
+    const svg = wrapperRef.current?.querySelector("svg");
+    if (!svg) {
+      return;
+    }
+    for (const group of svg.querySelectorAll<SVGGElement>("g.node[data-id]")) {
+      const id = group.getAttribute("data-id");
+      group.classList.toggle("selected", id === selectedNodeId);
+      if (!id || group.querySelector(".node-create-handle")) {
+        continue;
+      }
+      const box = group.getBBox();
+      const handle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      handle.setAttribute("class", "node-create-handle");
+      handle.setAttribute("data-node-id", id);
+      handle.setAttribute("cx", String(box.x + box.width + 10));
+      handle.setAttribute("cy", String(box.y + box.height / 2));
+      handle.setAttribute("r", "7");
+      group.appendChild(handle);
+    }
+  }, [selectedNodeId, svgMarkup]);
+
+  useEffect(() => {
+    if (!editingNodeId) {
+      setLabelPosition(null);
+      return;
+    }
+    const group = Array.from(
+      wrapperRef.current?.querySelectorAll<SVGGElement>("g.node[data-id]") ?? []
+    ).find((entry) => entry.getAttribute("data-id") === editingNodeId);
+    const shape = group?.querySelector<SVGGraphicsElement>("rect, ellipse, polygon, path");
+    if (!shape) {
+      return;
+    }
+    const box = shape.getBoundingClientRect();
+    setLabelPosition({
+      left: box.left,
+      top: box.top,
+      width: box.width,
+      height: box.height,
+    });
+    window.requestAnimationFrame(() => labelInputRef.current?.select());
+  }, [diagram, editingNodeId, svgMarkup]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -285,10 +338,32 @@ export default function WasmDiagramCanvas({
     }
 
     const target = event.target as Element;
+    const createHandle = target.closest(".node-create-handle[data-node-id]");
     const ganttTaskGroup = target.closest("g.gantt-task[data-task-id]");
     const subgraphGroup = target.closest("g.subgraph[data-id]");
     const nodeGroup = target.closest("g.node[data-id]");
     const edgeGroup = target.closest("g.edge[data-id]");
+
+    if (createHandle) {
+      const fromId = createHandle.getAttribute("data-node-id");
+      if (!fromId) {
+        return;
+      }
+      const clientPoint = { x: event.clientX, y: event.clientY };
+      dragRef.current = {
+        kind: "create",
+        fromId,
+        pointerId: event.pointerId,
+        origin: point,
+        current: point,
+        originClient: clientPoint,
+        currentClient: clientPoint,
+      };
+      onDragStateChange?.(true);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      return;
+    }
 
     if (ganttTaskGroup) {
       const taskId = ganttTaskGroup.getAttribute("data-task-id");
@@ -377,21 +452,6 @@ export default function WasmDiagramCanvas({
 
     onSelectNode(null);
     onSelectEdge(null);
-    if (diagram.kind !== "flowchart" || target.closest(".zoom-controls")) {
-      return;
-    }
-    const clientPoint = { x: event.clientX, y: event.clientY };
-    dragRef.current = {
-      kind: "create",
-      pointerId: event.pointerId,
-      origin: point,
-      current: point,
-      originClient: clientPoint,
-      currentClient: clientPoint,
-    };
-    onDragStateChange?.(true);
-    event.currentTarget.setPointerCapture(event.pointerId);
-    event.preventDefault();
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -416,10 +476,8 @@ export default function WasmDiagramCanvas({
         active.current = point;
         active.currentClient = { x: event.clientX, y: event.clientY };
         setCreatePreview({
-          left: Math.min(active.originClient.x, event.clientX),
-          top: Math.min(active.originClient.y, event.clientY),
-          width: Math.abs(event.clientX - active.originClient.x),
-          height: Math.abs(event.clientY - active.originClient.y),
+          origin: active.originClient,
+          current: active.currentClient,
         });
       } else if (active.kind === "node") {
         core.updateNodeDrag(point.x, point.y);
@@ -455,9 +513,11 @@ export default function WasmDiagramCanvas({
           active.currentClient.y - active.originClient.y
         );
         if (distance >= CREATE_DRAG_MIN_PIXELS) {
-          void onCreateNode({
-            x: (active.origin.x + active.current.x) / 2,
-            y: (active.origin.y + active.current.y) / 2,
+          void onCreateNode(active.fromId, active.current).then((id) => {
+            if (id) {
+              setEditingLabel("New node");
+              setEditingNodeId(id);
+            }
           });
         }
       } else if (active.kind === "node") {
@@ -554,7 +614,40 @@ export default function WasmDiagramCanvas({
         }}
         dangerouslySetInnerHTML={{ __html: svgMarkup }}
       />
-      {createPreview && <div className="node-create-preview" style={createPreview} />}
+      {createPreview && (
+        <svg className="node-create-preview" aria-hidden="true">
+          <line
+            x1={createPreview.origin.x}
+            y1={createPreview.origin.y}
+            x2={createPreview.current.x}
+            y2={createPreview.current.y}
+          />
+        </svg>
+      )}
+      {editingNodeId && labelPosition && (
+        <input
+          ref={labelInputRef}
+          className="node-label-editor"
+          style={labelPosition}
+          value={editingLabel}
+          onChange={(event) => setEditingLabel(event.target.value)}
+          onBlur={() => {
+            const label = editingLabel.trim();
+            setEditingNodeId(null);
+            if (label) {
+              void onRenameNewNode(editingNodeId, label);
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.currentTarget.blur();
+            } else if (event.key === "Escape") {
+              setEditingNodeId(null);
+            }
+          }}
+          aria-label="New node label"
+        />
+      )}
       <div className="zoom-controls">
         <button type="button" onClick={zoomOut} title="Zoom out">-</button>
         <button type="button" className="zoom-display" onClick={resetZoom} title="Reset zoom">

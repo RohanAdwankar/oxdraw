@@ -12,7 +12,8 @@ export interface DiagramCanvasProps {
   selectedEdgeId: string | null;
   onSelectNode: (id: string | null) => void;
   onSelectEdge: (id: string | null) => void;
-  onCreateNode: (position: Point) => Promise<void> | void;
+  onCreateNode: (fromId: string, position: Point) => Promise<string | null>;
+  onRenameNewNode: (id: string, label: string) => Promise<void>;
   onDragStateChange?: (dragging: boolean) => void;
   onDeleteNode: (id: string) => Promise<void> | void;
   onDeleteEdge: (id: string) => Promise<void> | void;

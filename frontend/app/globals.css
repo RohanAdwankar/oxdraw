@@ -133,11 +133,43 @@ body > div:first-of-type {
 
 .node-create-preview {
   position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
   z-index: 20;
+  pointer-events: none;
+}
+
+.node-create-preview line {
+  stroke: var(--accent-primary);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+
+.node-create-handle {
+  fill: var(--bg-primary);
+  stroke: var(--accent-primary);
+  stroke-width: 2;
+  opacity: 0;
+  cursor: crosshair;
+  pointer-events: all;
+}
+
+.node:hover .node-create-handle,
+.node.selected .node-create-handle {
+  opacity: 1;
+}
+
+.node-label-editor {
+  position: fixed;
+  z-index: 21;
   box-sizing: border-box;
   border: 1px solid var(--accent-primary);
-  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
-  pointer-events: none;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: 600 0.95rem Arial, Helvetica, sans-serif;
+  text-align: center;
+  outline: none;
 }
 
 .placeholder {
