@@ -2216,26 +2216,19 @@ impl Diagram {
                             - label_width / 2.0;
                         middle_points.extend(side_points(from, to, x));
                     } else {
-                        let default = Point {
-                            x: to.x,
+                        let incoming = self
+                            .edges
+                            .iter()
+                            .filter(|candidate| candidate.to == edge.to)
+                            .count();
+                        let outgoing = self
+                            .edges
+                            .iter()
+                            .filter(|candidate| candidate.from == edge.from)
+                            .count();
+                        middle_points.push(Point {
+                            x: if incoming > outgoing { from.x } else { to.x },
                             y: from.y + (to.y - from.y) * 0.65,
-                        };
-                        let overlaps =
-                            label_rect_for_route(edge, &build_route(from, &[default], to))
-                                .is_some_and(|rect| {
-                                    label_overlaps_existing(
-                                        edge_id,
-                                        rect.inflate(EDGE_COLLISION_MARGIN),
-                                        &label_bounds,
-                                    )
-                                });
-                        middle_points.push(if overlaps {
-                            Point {
-                                x: from.x,
-                                y: from.y + (to.y - from.y) * 0.35,
-                            }
-                        } else {
-                            default
                         });
                     }
                 }
@@ -2295,6 +2288,12 @@ impl Diagram {
                 }
             }
 
+            if let (Some(from_bounds), Some(to_bounds)) =
+                (node_bounds.get(&edge.from), node_bounds.get(&edge.to))
+            {
+                trim_route_endpoints(&mut path, from_bounds, to_bounds);
+            }
+
             let mut base_label_collision =
                 self.label_collides_with_nodes(edge, &path, &node_bounds);
             let base_node_collision = self.route_collides_with_nodes(edge, &path, &node_bounds);
@@ -2309,7 +2308,7 @@ impl Diagram {
             }
             let base_intersections = count_route_intersections(&path, &routes);
 
-            if middle_points.is_empty()
+            if (middle_points.is_empty() || base_label_collision)
                 && !has_override(edge_idx)
                 && (base_label_collision || base_node_collision || base_intersections > 0)
             {
@@ -2326,6 +2325,11 @@ impl Diagram {
                     base_intersections,
                 ) {
                     path = build_route(from, &adjusted, to);
+                    trim_route_endpoints(
+                        &mut path,
+                        &node_bounds[&edge.from],
+                        &node_bounds[&edge.to],
+                    );
                 }
             }
 
@@ -3095,7 +3099,8 @@ fn evaluate_candidate_route(
     best_metric: &mut (u8, u8, usize),
     best_points: &mut Option<Vec<Point>>,
 ) -> bool {
-    let route = build_route(from, &points, to);
+    let mut route = build_route(from, &points, to);
+    trim_route_endpoints(&mut route, &node_bounds[&edge.from], &node_bounds[&edge.to]);
     let node_collision = diagram.route_collides_with_nodes(edge, &route, node_bounds);
     let mut label_collision = diagram.label_collides_with_nodes(edge, &route, node_bounds);
     if route_intersects_label_rects(&route, existing_label_bounds) {
@@ -6447,28 +6452,46 @@ graph TD
     }
 
     #[test]
-    fn separates_labels_on_converging_edges() {
-        let diagram =
-            Diagram::parse("graph TD\nA -->|one| D\nB -->|second| D\nC <-->|third label| D")
-                .expect("diagram parse should succeed");
-        let routes = diagram
-            .layout(None)
-            .expect("layout should succeed")
-            .auto_routes;
-        let labels: Vec<_> = diagram
-            .edges
-            .iter()
-            .map(|edge| label_rect_for_route(edge, &routes[&edge_identifier(edge)]).unwrap())
-            .collect();
+    fn separates_labels_on_branching_edges() {
+        let assert_clear = |source| {
+            let diagram = Diagram::parse(source).expect("diagram parse should succeed");
+            let routes = diagram
+                .layout(None)
+                .expect("layout should succeed")
+                .auto_routes;
+            let labels: Vec<_> = diagram
+                .edges
+                .iter()
+                .map(|edge| label_rect_for_route(edge, &routes[&edge_identifier(edge)]).unwrap())
+                .collect();
 
-        for (index, label) in labels.iter().enumerate() {
-            assert!(
-                labels[index + 1..]
-                    .iter()
-                    .all(|other| !label.intersects(other)),
-                "converging edge labels must not overlap"
-            );
-        }
+            for (index, label) in labels.iter().enumerate() {
+                for other in &labels[index + 1..] {
+                    assert!(
+                        !label.intersects(other),
+                        "edge labels must not overlap: {label:?}, {other:?}"
+                    );
+                }
+            }
+            for (edge_index, edge) in diagram.edges.iter().enumerate() {
+                let route = &routes[&edge_identifier(edge)];
+                for (label_index, label) in labels.iter().enumerate() {
+                    if edge_index != label_index {
+                        assert!(
+                            !route_intersects_rect(route, *label),
+                            "edges must not cross other edge labels"
+                        );
+                    }
+                }
+            }
+        };
+
+        assert_clear(
+            "graph TD\nA[Left] -->|northbound signal| D{Merge}\nB[Middle] -->|central window| D\nC[Right] <-->|eastbound notice| D",
+        );
+        assert_clear(
+            "graph TD\nD{Split} -->|northbound signal| A[Left]\nD -->|central window| B[Middle]\nD <-->|eastbound notice| C[Right]",
+        );
     }
 
     #[test]

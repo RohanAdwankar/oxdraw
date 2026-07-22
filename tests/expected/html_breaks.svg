@@ -13,12 +13,12 @@
   <line x1="230.7" y1="130.0" x2="230.7" y2="237.0" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Process --&gt; Decision">
-  <polyline points="230.7,292.0 230.7,369.0 230.7,389.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="209.1,292.0 198.7,305.0 198.7,345.0 198.7,385.0 210.1,399.2" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="204.2" y="347.0" width="53.0" height="44.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="230.7" fill="#2d3748" font-size="13" text-anchor="middle">
-      <tspan x="230.7" y="361.0" dominant-baseline="middle">Edge</tspan>
-      <tspan x="230.7" y="377.0" dominant-baseline="middle">label</tspan>
+    <rect x="172.2" y="323.0" width="53.0" height="44.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="198.7" fill="#2d3748" font-size="13" text-anchor="middle">
+      <tspan x="198.7" y="337.0" dominant-baseline="middle">Edge</tspan>
+      <tspan x="198.7" y="353.0" dominant-baseline="middle">label</tspan>
     </text>
   </g>
   </g>

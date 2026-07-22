@@ -10,24 +10,24 @@
   </defs>
   <rect width="100%" height="100%" fill="white" />
   <g class="edge" data-id="A --&gt; B">
-  <polyline points="631.8,130.0 762.8,209.0 762.8,239.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="590.3,130.0 590.3,209.0 722.2,251.8" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="706.7" y="195.0" width="112.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="762.8" y="209.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Silver Window</text>
+    <rect x="534.2" y="195.0" width="112.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="590.3" y="209.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Silver Window</text>
   </g>
   </g>
   <g class="edge" data-id="Z --&gt; B">
-  <polyline points="759.1,130.0 759.1,161.0 761.9,239.3" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="759.1,130.0 759.1,209.0 761.1,239.5" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="710.4" y="147.0" width="97.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="759.1" y="161.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Blue Ribbon</text>
+    <rect x="710.4" y="195.0" width="97.4" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="759.1" y="209.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Blue Ribbon</text>
   </g>
   </g>
   <g class="edge" data-id="Y --&gt; B">
-  <polyline points="931.6,130.0 931.6,161.0 790.8,247.8" fill="none" stroke="#2d3748" stroke-width="2" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+  <polyline points="931.6,130.0 931.6,209.0 803.0,251.7" fill="none" stroke="#2d3748" stroke-width="2" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="875.5" y="147.0" width="112.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="931.6" y="161.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Paper Signals</text>
+    <rect x="875.5" y="195.0" width="112.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="931.6" y="209.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Paper Signals</text>
   </g>
   </g>
   <g class="edge" data-id="B --&gt; D">

@@ -23,7 +23,7 @@
   <line x1="670.0" y1="238.1" x2="722.3" y2="238.1" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Notify --&gt; Start">
-  <polyline points="769.0,213.1 636.0,80.0 477.9,80.0 319.9,80.0 187.5,212.3" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="769.0,213.0 636.0,80.0 477.9,80.0 319.9,80.0 187.5,212.3" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   </g>
   <g class="edge" data-id="Check --&gt; Monitor">
   <polyline points="380.5,338.9 419.3,387.5 456.4,401.2 493.6,414.9 580.8,398.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
