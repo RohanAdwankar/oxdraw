@@ -101,8 +101,7 @@ fn run() -> Result<()> {
     let png = output_dir.join("visual-diff.png");
     fs::write(&png, render_png(&svg, &options)?)?;
 
-    println!("visual diff: {}", output_dir.display());
-    println!("  {}", png.display());
+    println!("{}", png.display());
     Ok(())
 }
 
