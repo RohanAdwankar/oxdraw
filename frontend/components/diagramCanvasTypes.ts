@@ -2,6 +2,8 @@
 
 import type { CodeMapMapping, DiagramData, LayoutUpdate, Point } from "../lib/types";
 
+export type NodeCreateDirection = "up" | "right" | "down" | "left";
+
 export interface DiagramCanvasProps {
   diagram: DiagramData;
   onNodeMove: (id: string, position: Point | null) => void;
@@ -12,8 +14,7 @@ export interface DiagramCanvasProps {
   selectedEdgeId: string | null;
   onSelectNode: (id: string | null) => void;
   onSelectEdge: (id: string | null) => void;
-  onCreateNode: (fromId: string, position: Point) => Promise<string | null>;
-  onRenameNewNode: (id: string, label: string) => Promise<void>;
+  onCreateNode: (fromId: string, direction: NodeCreateDirection) => Promise<void>;
   onDragStateChange?: (dragging: boolean) => void;
   onDeleteNode: (id: string) => Promise<void> | void;
   onDeleteEdge: (id: string) => Promise<void> | void;

@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import WasmDiagramCanvas from "../components/WasmDiagramCanvas";
+import type { NodeCreateDirection } from "../components/diagramCanvasTypes";
 import MarkdownViewer from "../components/MarkdownViewer";
 import CodePanel from "../components/CodePanel";
 import {
@@ -367,7 +368,7 @@ const copyTextToClipboard = async (text: string): Promise<void> => {
 const LOCAL_MODE = isLocalMode();
 
 const appendNode = (source: string, fromId: string, id: string): string =>
-  `${source}${source.endsWith("\n") ? "" : "\n"}  ${fromId} --> ${id}["New node"]\n`;
+  `${source}${source.endsWith("\n") ? "" : "\n"}  ${fromId} --> ${id}[""]\n`;
 
 export default function Home() {
   const [diagram, setDiagram] = useState<DiagramData | null>(null);
@@ -409,7 +410,6 @@ export default function Home() {
   const nodeImageInputRef = useRef<HTMLInputElement | null>(null);
   const imagePaddingValueRef = useRef(imagePaddingValue);
   const shareCopiedTimer = useRef<number | null>(null);
-  const createdNodes = useRef(new Map<string, { fromId: string; declaration: string }>());
 
   useEffect(() => {
     return () => {
@@ -1097,9 +1097,12 @@ const handleSourceChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>)
   setSourceError(null);
 }, []);
 
-const handleCreateNode = useCallback(async (fromId: string, position: Point) => {
+const handleCreateNode = useCallback(async (
+  fromId: string,
+  direction: NodeCreateDirection
+) => {
   if (!diagram || diagram.kind !== "flowchart" || saving || sourceSaving) {
-    return null;
+    return;
   }
   const ids = new Set(diagram.nodes.map((node) => node.id));
   let index = diagram.nodes.length + 1;
@@ -1108,7 +1111,6 @@ const handleCreateNode = useCallback(async (fromId: string, position: Point) => 
   }
   const id = `node${index}`;
   const nextSource = appendNode(sourceDraft, fromId, id);
-  const declaration = `${fromId} --> ${id}["New node"]`;
   try {
     setSaving(true);
     setError(null);
@@ -1117,55 +1119,42 @@ const handleCreateNode = useCallback(async (fromId: string, position: Point) => 
     await updateSource(nextSource);
     const nextDiagram = await loadDiagram({ silent: true });
     const node = nextDiagram.nodes.find((entry) => entry.id === id);
-    if (!node) {
+    const sourceNode = nextDiagram.nodes.find((entry) => entry.id === fromId);
+    if (!node || !sourceNode) {
       throw new Error("Created node was not found in the diagram.");
+    }
+    const horizontal = sourceNode.width / 2 + node.width / 2 + 80;
+    const vertical = sourceNode.height / 2 + node.height / 2 + 80;
+    const center = {
+      x: sourceNode.renderedPosition.x,
+      y: sourceNode.renderedPosition.y,
+    };
+    if (direction === "left") {
+      center.x -= horizontal;
+    } else if (direction === "right") {
+      center.x += horizontal;
+    } else if (direction === "up") {
+      center.y -= vertical;
+    } else {
+      center.y += vertical;
     }
     await updateLayout({
       nodes: {
         [id]: {
-          x: position.x - node.width / 2,
-          y: position.y - node.height / 2,
+          x: center.x - node.width / 2,
+          y: center.y - node.height / 2,
         },
       },
     });
     await loadDiagram({ silent: true });
     setSelectedNodeId(id);
     setSelectedEdgeId(null);
-    createdNodes.current.set(id, { fromId, declaration });
-    return id;
   } catch (err) {
     setError((err as Error).message);
-    return null;
   } finally {
     setSaving(false);
   }
 }, [diagram, loadDiagram, saving, sourceDraft, sourceSaving]);
-
-const handleRenameNewNode = useCallback(async (id: string, label: string) => {
-  const created = createdNodes.current.get(id);
-  if (!created) {
-    return;
-  }
-  const escapedLabel = label.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
-  const declaration = `${created.fromId} --> ${id}["${escapedLabel}"]`;
-  const nextSource = sourceDraft.replace(created.declaration, declaration);
-  if (nextSource === sourceDraft) {
-    return;
-  }
-  try {
-    setSaving(true);
-    setError(null);
-    lastSubmittedSource.current = nextSource;
-    setSourceDraft(nextSource);
-    await updateSource(nextSource);
-    await loadDiagram({ silent: true });
-    createdNodes.current.set(id, { fromId: created.fromId, declaration });
-  } catch (err) {
-    setError((err as Error).message);
-  } finally {
-    setSaving(false);
-  }
-}, [loadDiagram, sourceDraft]);
 
 const handleSelectNode = useCallback((id: string | null) => {
   setSelectedNodeId(id);
@@ -2091,7 +2080,6 @@ return (
                 onSelectNode={handleSelectNode}
                 onSelectEdge={handleSelectEdge}
                 onCreateNode={handleCreateNode}
-                onRenameNewNode={handleRenameNewNode}
                 onDragStateChange={setDragging}
                 onDeleteNode={handleDeleteNodeDirect}
                 onDeleteEdge={handleDeleteEdgeDirect}
