@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import WasmDiagramCanvas from "../components/WasmDiagramCanvas";
+import type { NodeCreateDirection } from "../components/diagramCanvasTypes";
 import MarkdownViewer from "../components/MarkdownViewer";
 import CodePanel from "../components/CodePanel";
 import {
@@ -365,6 +366,9 @@ const copyTextToClipboard = async (text: string): Promise<void> => {
 };
 
 const LOCAL_MODE = isLocalMode();
+
+const appendNode = (source: string, fromId: string, id: string): string =>
+  `${source}${source.endsWith("\n") ? "" : "\n"}  ${fromId} --> ${id}[""]\n`;
 
 export default function Home() {
   const [diagram, setDiagram] = useState<DiagramData | null>(null);
@@ -1092,6 +1096,65 @@ const handleSourceChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>)
   setError(null);
   setSourceError(null);
 }, []);
+
+const handleCreateNode = useCallback(async (
+  fromId: string,
+  direction: NodeCreateDirection
+) => {
+  if (!diagram || diagram.kind !== "flowchart" || saving || sourceSaving) {
+    return;
+  }
+  const ids = new Set(diagram.nodes.map((node) => node.id));
+  let index = diagram.nodes.length + 1;
+  while (ids.has(`node${index}`)) {
+    index += 1;
+  }
+  const id = `node${index}`;
+  const nextSource = appendNode(sourceDraft, fromId, id);
+  try {
+    setSaving(true);
+    setError(null);
+    lastSubmittedSource.current = nextSource;
+    setSourceDraft(nextSource);
+    await updateSource(nextSource);
+    const nextDiagram = await loadDiagram({ silent: true });
+    const node = nextDiagram.nodes.find((entry) => entry.id === id);
+    const sourceNode = nextDiagram.nodes.find((entry) => entry.id === fromId);
+    if (!node || !sourceNode) {
+      throw new Error("Created node was not found in the diagram.");
+    }
+    const horizontal = sourceNode.width / 2 + node.width / 2 + 80;
+    const vertical = sourceNode.height / 2 + node.height / 2 + 80;
+    const center = {
+      x: sourceNode.renderedPosition.x,
+      y: sourceNode.renderedPosition.y,
+    };
+    if (direction === "left") {
+      center.x -= horizontal;
+    } else if (direction === "right") {
+      center.x += horizontal;
+    } else if (direction === "up") {
+      center.y -= vertical;
+    } else {
+      center.y += vertical;
+    }
+    await updateLayout({
+      nodes: {
+        [id]: {
+          x: center.x - node.width / 2,
+          y: center.y - node.height / 2,
+        },
+      },
+    });
+    await loadDiagram({ silent: true });
+    setSelectedNodeId(id);
+    setSelectedEdgeId(null);
+  } catch (err) {
+    setError((err as Error).message);
+  } finally {
+    setSaving(false);
+  }
+}, [diagram, loadDiagram, saving, sourceDraft, sourceSaving]);
 
 const handleSelectNode = useCallback((id: string | null) => {
   setSelectedNodeId(id);
@@ -2016,6 +2079,7 @@ return (
                 selectedEdgeId={selectedEdgeId}
                 onSelectNode={handleSelectNode}
                 onSelectEdge={handleSelectEdge}
+                onCreateNode={handleCreateNode}
                 onDragStateChange={setDragging}
                 onDeleteNode={handleDeleteNodeDirect}
                 onDeleteEdge={handleDeleteEdgeDirect}
