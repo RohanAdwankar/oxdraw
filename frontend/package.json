@@ -11,7 +11,7 @@
   "dependencies": {
     "@types/react-virtualized-auto-sizer": "^1.0.4",
     "@types/react-window": "^1.8.8",
-    "next": "15.5.21",
+    "next": "16.3.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-markdown": "^10.1.0",
