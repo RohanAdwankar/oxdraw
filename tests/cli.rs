@@ -26,7 +26,10 @@ fn main() {
         .map(|entry| entry.path())
         .collect();
 
-    assert!(in_paths.len() > 0, "expected tests/input to contain files");
+    assert!(
+        !in_paths.is_empty(),
+        "expected tests/input to contain files"
+    );
 
     assert_eq!(
         in_paths

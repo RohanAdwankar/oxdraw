@@ -475,11 +475,12 @@ async fn run_new(cli: RenderArgs) -> Result<()> {
         target_path.set_extension("mmd");
     }
 
-    if let Some(parent) = target_path.parent() {
-        if !parent.as_os_str().is_empty() && !parent.exists() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("failed to create directory '{}'", parent.display()))?;
-        }
+    if let Some(parent) = target_path.parent()
+        && !parent.as_os_str().is_empty()
+        && !parent.exists()
+    {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create directory '{}'", parent.display()))?;
     }
 
     target_path = ensure_unique_path(target_path);
@@ -578,31 +579,28 @@ async fn run_code_map(cli: RenderArgs, code_map_path: String) -> Result<()> {
                 }
             }
 
-            if source_path.exists() {
-                if let Some((current_commit, current_diff, _)) =
+            if source_path.exists()
+                && let Some((current_commit, current_diff, _)) =
                     oxdraw::codemap::get_git_info(&source_path)
+            {
+                let mut warnings = Vec::new();
+                if let Some(meta_commit) = &metadata.commit
+                    && meta_commit != &current_commit
                 {
-                    let mut warnings = Vec::new();
-                    if let Some(meta_commit) = &metadata.commit {
-                        if meta_commit != &current_commit {
-                            warnings.push(format!(
-                                "Commit mismatch: map({}) vs HEAD({})",
-                                meta_commit, current_commit
-                            ));
-                        }
-                    }
-                    if let Some(meta_diff) = &metadata.diff_hash {
-                        if meta_diff != &current_diff {
-                            warnings.push(
-                                "Working directory has changed since map generation".to_string(),
-                            );
-                        }
-                    }
-                    if !warnings.is_empty() {
-                        let msg = warnings.join("; ");
-                        println!("Warning: {}", msg);
-                        warning = Some(msg);
-                    }
+                    warnings.push(format!(
+                        "Commit mismatch: map({}) vs HEAD({})",
+                        meta_commit, current_commit
+                    ));
+                }
+                if let Some(meta_diff) = &metadata.diff_hash
+                    && meta_diff != &current_diff
+                {
+                    warnings.push("Working directory has changed since map generation".to_string());
+                }
+                if !warnings.is_empty() {
+                    let msg = warnings.join("; ");
+                    println!("Warning: {}", msg);
+                    warning = Some(msg);
                 }
             }
         }
@@ -1143,12 +1141,11 @@ fn ensure_bundled_ui_dist() -> Result<Option<PathBuf>> {
         std::fs::read_to_string(source.join("index.txt")).unwrap_or_default();
     let target_index_path = target.join("index.txt");
 
-    if target_index_path.is_file() {
-        if let Ok(existing) = std::fs::read_to_string(&target_index_path) {
-            if existing == source_index_signature {
-                return Ok(Some(target));
-            }
-        }
+    if target_index_path.is_file()
+        && let Ok(existing) = std::fs::read_to_string(&target_index_path)
+        && existing == source_index_signature
+    {
+        return Ok(Some(target));
     }
 
     if target.exists() {
@@ -1222,13 +1219,14 @@ fn parse_output(
         Some("-") => Ok(OutputDestination::Stdout),
         Some(path_str) => {
             let path = PathBuf::from(path_str);
-            if let Some(parent) = path.parent() {
-                if !parent.as_os_str().is_empty() && !parent.exists() {
-                    return Err(anyhow!(
-                        "output directory '{}' does not exist",
-                        parent.display()
-                    ));
-                }
+            if let Some(parent) = path.parent()
+                && !parent.as_os_str().is_empty()
+                && !parent.exists()
+            {
+                return Err(anyhow!(
+                    "output directory '{}' does not exist",
+                    parent.display()
+                ));
             }
             Ok(OutputDestination::File(path))
         }

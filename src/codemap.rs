@@ -45,6 +45,9 @@ pub struct CodeMapMetadata {
     pub diff_hash: Option<u64>,
 }
 
+// Options are passed through from the CLI one by one, so grouping them
+// would only move the verbosity elsewhere.
+#[allow(clippy::too_many_arguments)]
 pub async fn generate_code_map(
     path: &Path,
     api_key: Option<String>,
@@ -69,20 +72,18 @@ pub async fn generate_code_map(
     let path_hash = hasher.finish();
     let cache_path = config_dir.join(format!("cache_{:x}.json", path_hash));
 
-    if !regen {
-        if let Some((commit, diff_hash, _)) = &git_info {
-            if let Ok(cache_content) = fs::read_to_string(&cache_path) {
-                if let Ok(cache) = serde_json::from_str::<CacheEntry>(&cache_content) {
-                    if cache.commit == *commit && cache.diff_hash == *diff_hash {
-                        println!(
-                            "Using cached code map for commit {} (diff hash: {:x})",
-                            commit, diff_hash
-                        );
-                        return Ok((cache.mermaid, cache.mapping));
-                    }
-                }
-            }
-        }
+    if !regen
+        && let Some((commit, diff_hash, _)) = &git_info
+        && let Ok(cache_content) = fs::read_to_string(&cache_path)
+        && let Ok(cache) = serde_json::from_str::<CacheEntry>(&cache_content)
+        && cache.commit == *commit
+        && cache.diff_hash == *diff_hash
+    {
+        println!(
+            "Using cached code map for commit {} (diff hash: {:x})",
+            commit, diff_hash
+        );
+        return Ok((cache.mermaid, cache.mapping));
     }
 
     if no_ai {
@@ -371,7 +372,7 @@ fn validate_response(response: &LlmResponse) -> Result<()> {
 pub fn get_git_info(path: &Path) -> Option<(String, u64, PathBuf)> {
     // Get git root
     let root_output = Command::new("git")
-        .args(&["rev-parse", "--show-toplevel"])
+        .args(["rev-parse", "--show-toplevel"])
         .current_dir(path)
         .output()
         .ok()?;
@@ -386,7 +387,7 @@ pub fn get_git_info(path: &Path) -> Option<(String, u64, PathBuf)> {
 
     // Get commit hash
     let output = Command::new("git")
-        .args(&["rev-parse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .current_dir(path)
         .output()
         .ok()?;
@@ -399,7 +400,7 @@ pub fn get_git_info(path: &Path) -> Option<(String, u64, PathBuf)> {
 
     // Get diff hash
     let diff_output = Command::new("git")
-        .args(&["diff", "HEAD"])
+        .args(["diff", "HEAD"])
         .current_dir(path)
         .output()
         .ok()?;
@@ -423,19 +424,19 @@ fn scan_codebase(root_path: &Path) -> Result<(Vec<String>, Granularity)> {
     let mut total_chars = 0;
     const MAX_TOTAL_CHARS: usize = 100_000; // Limit total context size
 
-    if root_path.is_file() {
-        if let Ok(content) = fs::read_to_string(root_path) {
-            let file_name = root_path.file_name().unwrap_or_default().to_string_lossy();
-            summaries.push(format!("File: {}\n```\n{}\n```", file_name, content));
-            return Ok((summaries, Granularity::File));
-        }
+    if root_path.is_file()
+        && let Ok(content) = fs::read_to_string(root_path)
+    {
+        let file_name = root_path.file_name().unwrap_or_default().to_string_lossy();
+        summaries.push(format!("File: {}\n```\n{}\n```", file_name, content));
+        return Ok((summaries, Granularity::File));
     }
 
     // Basic ignore list
     let include_exts = vec![
         "rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "c", "cpp", "h",
     ];
-    let ignore_dirs = vec![
+    let ignore_dirs = [
         "target",
         "node_modules",
         ".git",
@@ -458,30 +459,29 @@ fn scan_codebase(root_path: &Path) -> Result<(Vec<String>, Granularity)> {
             continue;
         }
 
-        if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-            if include_exts.contains(&ext) {
-                if let Ok(content) = fs::read_to_string(path) {
-                    // Truncate if too large
-                    let truncated = if content.len() > 10000 {
-                        format!("{}... (truncated)", &content[..10000])
-                    } else {
-                        content
-                    };
+        if let Some(ext) = path.extension().and_then(|s| s.to_str())
+            && include_exts.contains(&ext)
+            && let Ok(content) = fs::read_to_string(path)
+        {
+            // Truncate if too large
+            let truncated = if content.len() > 10000 {
+                format!("{}... (truncated)", &content[..10000])
+            } else {
+                content
+            };
 
-                    if total_chars + truncated.len() > MAX_TOTAL_CHARS {
-                        break; // Stop if we exceed the budget
-                    }
-
-                    total_chars += truncated.len();
-
-                    // Get relative path
-                    let rel_path = path
-                        .strip_prefix(root_path)
-                        .unwrap_or(path)
-                        .to_string_lossy();
-                    summaries.push(format!("File: {}\n```\n{}\n```", rel_path, truncated));
-                }
+            if total_chars + truncated.len() > MAX_TOTAL_CHARS {
+                break; // Stop if we exceed the budget
             }
+
+            total_chars += truncated.len();
+
+            // Get relative path
+            let rel_path = path
+                .strip_prefix(root_path)
+                .unwrap_or(path)
+                .to_string_lossy();
+            summaries.push(format!("File: {}\n```\n{}\n```", rel_path, truncated));
         }
     }
 
@@ -563,7 +563,7 @@ pub fn serialize_codemap(
     if !output.ends_with('\n') {
         output.push('\n');
     }
-    output.push_str("\n");
+    output.push('\n');
 
     for (node_id, location) in &mapping.nodes {
         let mut parts = Vec::new();
@@ -613,20 +613,19 @@ impl CodeMapMapping {
             if let Some(symbol) = &location.symbol {
                 if !file_cache.contains_key(&location.file) {
                     let file_path = root.join(&location.file);
-                    if file_path.exists() {
-                        if let Ok(content) = fs::read_to_string(&file_path) {
-                            file_cache.insert(location.file.clone(), content);
-                        }
+                    if file_path.exists()
+                        && let Ok(content) = fs::read_to_string(&file_path)
+                    {
+                        file_cache.insert(location.file.clone(), content);
                     }
                 }
 
-                if let Some(content) = file_cache.get(&location.file) {
-                    if let Some((start, end)) =
+                if let Some(content) = file_cache.get(&location.file)
+                    && let Some((start, end)) =
                         find_symbol_definition(content, symbol, &location.file)
-                    {
-                        location.start_line = Some(start);
-                        location.end_line = Some(end);
-                    }
+                {
+                    location.start_line = Some(start);
+                    location.end_line = Some(end);
                 }
             }
         }
@@ -675,24 +674,24 @@ fn find_symbol_definition(content: &str, symbol: &str, file_path: &str) -> Optio
     };
 
     for pattern in patterns {
-        if let Ok(re) = regex::Regex::new(&pattern) {
-            if let Some(mat) = re.find(content) {
-                // Found the start. Now try to estimate the end.
-                // This is hard without a parser.
-                // For now, let's just return the line where it starts, and maybe 10 lines after?
-                // Or just the single line if we can't determine scope.
+        if let Ok(re) = regex::Regex::new(&pattern)
+            && let Some(mat) = re.find(content)
+        {
+            // Found the start. Now try to estimate the end.
+            // This is hard without a parser.
+            // For now, let's just return the line where it starts, and maybe 10 lines after?
+            // Or just the single line if we can't determine scope.
 
-                let start_byte = mat.start();
-                let start_line = content[..start_byte].lines().count() + 1;
+            let start_byte = mat.start();
+            let start_line = content[..start_byte].lines().count() + 1;
 
-                // Heuristic for end line: count braces?
-                // This is very rough.
-                let end_line = estimate_block_end(content, start_byte)
-                    .map(|l| l + 1)
-                    .unwrap_or(start_line);
+            // Heuristic for end line: count braces?
+            // This is very rough.
+            let end_line = estimate_block_end(content, start_byte)
+                .map(|l| l + 1)
+                .unwrap_or(start_line);
 
-                return Some((start_line, end_line));
-            }
+            return Some((start_line, end_line));
         }
     }
 
@@ -746,8 +745,8 @@ fn generate_deterministic_map(
 
     // 1. Scan files and find definitions
     let walker = WalkDir::new(root_path).into_iter();
-    let include_exts = vec!["rs", "ts", "tsx", "js", "jsx", "py", "go"];
-    let ignore_dirs = vec![
+    let include_exts = ["rs", "ts", "tsx", "js", "jsx", "py", "go"];
+    let ignore_dirs = [
         "target",
         "node_modules",
         ".git",
@@ -769,85 +768,83 @@ fn generate_deterministic_map(
             continue;
         }
 
-        if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-            if include_exts.contains(&ext) {
-                if let Ok(content) = fs::read_to_string(path) {
-                    let rel_path = if root_path.is_file() {
-                        path.file_name()
-                            .unwrap_or_default()
-                            .to_string_lossy()
-                            .to_string()
-                    } else {
-                        path.strip_prefix(root_path)
-                            .unwrap_or(path)
-                            .to_string_lossy()
-                            .to_string()
-                    };
-                    files_content.insert(rel_path.clone(), (content.clone(), ext.to_string()));
+        if let Some(ext) = path.extension().and_then(|s| s.to_str())
+            && include_exts.contains(&ext)
+            && let Ok(content) = fs::read_to_string(path)
+        {
+            let rel_path = if root_path.is_file() {
+                path.file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string()
+            } else {
+                path.strip_prefix(root_path)
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .to_string()
+            };
+            files_content.insert(rel_path.clone(), (content.clone(), ext.to_string()));
 
-                    let defs = find_all_definitions(&content, ext);
-                    for (symbol, start, end) in defs {
-                        if nodes.len() >= max_nodes {
-                            println!(
-                                "Warning: Hit node limit ({}). Stopping scan to prevent huge diagrams.",
-                                max_nodes
-                            );
-                            break 'outer;
-                        }
-
-                        let node_id = format!("node_{}", nodes.len());
-                        nodes.insert(
-                            node_id.clone(),
-                            CodeLocation {
-                                file: rel_path.clone(),
-                                start_line: Some(start),
-                                end_line: Some(end),
-                                symbol: Some(symbol.clone()),
-                            },
-                        );
-                        symbol_to_node_id.insert(symbol, node_id);
-                    }
+            let defs = find_all_definitions(&content, ext);
+            for (symbol, start, end) in defs {
+                if nodes.len() >= max_nodes {
+                    println!(
+                        "Warning: Hit node limit ({}). Stopping scan to prevent huge diagrams.",
+                        max_nodes
+                    );
+                    break 'outer;
                 }
+
+                let node_id = format!("node_{}", nodes.len());
+                nodes.insert(
+                    node_id.clone(),
+                    CodeLocation {
+                        file: rel_path.clone(),
+                        start_line: Some(start),
+                        end_line: Some(end),
+                        symbol: Some(symbol.clone()),
+                    },
+                );
+                symbol_to_node_id.insert(symbol, node_id);
             }
         }
     }
 
     // 2. Scan bodies for calls
     for (node_id, location) in &nodes {
-        if location.symbol.is_some() {
-            if let Some((content, _)) = files_content.get(&location.file) {
-                let start_line = location.start_line.unwrap_or(0);
-                let end_line = location.end_line.unwrap_or(content.lines().count());
+        if location.symbol.is_some()
+            && let Some((content, _)) = files_content.get(&location.file)
+        {
+            let start_line = location.start_line.unwrap_or(0);
+            let end_line = location.end_line.unwrap_or(content.lines().count());
 
-                // Extract body content (approximate)
-                let take_count = if end_line >= start_line {
-                    end_line - start_line + 1
-                } else {
-                    0
-                };
+            // Extract body content (approximate)
+            let take_count = if end_line >= start_line {
+                end_line - start_line + 1
+            } else {
+                0
+            };
 
-                let body: String = content
-                    .lines()
-                    .skip(start_line.saturating_sub(1))
-                    .take(take_count)
-                    .collect::<Vec<&str>>()
-                    .join("\n");
+            let body: String = content
+                .lines()
+                .skip(start_line.saturating_sub(1))
+                .take(take_count)
+                .collect::<Vec<&str>>()
+                .join("\n");
 
-                for (target_symbol, target_id) in &symbol_to_node_id {
-                    if target_id == node_id {
-                        continue;
-                    } // Don't link to self
+            for (target_symbol, target_id) in &symbol_to_node_id {
+                if target_id == node_id {
+                    continue;
+                } // Don't link to self
 
-                    // Check if body contains target_symbol
-                    if body.contains(target_symbol) {
-                        // Verify with regex for word boundary
-                        if let Ok(re) =
-                            regex::Regex::new(&format!(r"\b{}\b", regex::escape(target_symbol)))
-                        {
-                            if re.is_match(&body) {
-                                edges.push((node_id.clone(), target_id.clone()));
-                            }
-                        }
+                // Check if body contains target_symbol
+                if body.contains(target_symbol) {
+                    // Verify with regex for word boundary
+                    if let Ok(re) =
+                        regex::Regex::new(&format!(r"\b{}\b", regex::escape(target_symbol)))
+                        && re.is_match(&body)
+                    {
+                        edges.push((node_id.clone(), target_id.clone()));
                     }
                 }
             }

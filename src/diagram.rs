@@ -295,7 +295,7 @@ impl Diagram {
                 .copied()
                 .ok_or_else(|| anyhow!("missing geometry for node '{id}'"))?;
             let clip_id = svg_safe_id("oxdraw-node-clip-", id);
-            write!(clip_defs, "    <clipPath id=\"{}\">\n", clip_id)?;
+            writeln!(clip_defs, "    <clipPath id=\"{}\">", clip_id)?;
             node.shape
                 .render_svg_clip_shape(&mut clip_defs, position, node.width, node.height)?;
             clip_defs.push_str("    </clipPath>\n");
@@ -353,27 +353,23 @@ impl Diagram {
                 .cloned()
                 .ok_or_else(|| anyhow!("missing geometry for edge '{id}'"))?;
 
-            write!(
-                svg,
-                "  <g class=\"edge\" data-id=\"{}\">\n",
-                escape_xml(&id)
-            )?;
+            writeln!(svg, "  <g class=\"edge\" data-id=\"{}\">", escape_xml(&id))?;
 
             let mut stroke_color = "#2d3748".to_string();
             let mut effective_kind = edge.kind;
             let mut arrow_direction = edge.arrow;
 
-            if let Some(overrides) = overrides {
-                if let Some(style) = overrides.edge_styles.get(&id) {
-                    if let Some(line) = style.line {
-                        effective_kind = line;
-                    }
-                    if let Some(color) = &style.color {
-                        stroke_color = color.clone();
-                    }
-                    if let Some(direction) = style.arrow {
-                        arrow_direction = direction;
-                    }
+            if let Some(overrides) = overrides
+                && let Some(style) = overrides.edge_styles.get(&id)
+            {
+                if let Some(line) = style.line {
+                    effective_kind = line;
+                }
+                if let Some(color) = &style.color {
+                    stroke_color = color.clone();
+                }
+                if let Some(direction) = style.arrow {
+                    arrow_direction = direction;
                 }
             }
 
@@ -421,9 +417,9 @@ impl Diagram {
             if route.len() == 2 {
                 let a = route[0];
                 let b = route[1];
-                write!(
+                writeln!(
                     svg,
-                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />\n",
+                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
                     a.x,
                     a.y,
                     b.x,
@@ -441,9 +437,9 @@ impl Diagram {
                     .map(|p| format!("{:.1},{:.1}", p.x, p.y))
                     .collect::<Vec<_>>()
                     .join(" ");
-                write!(
+                writeln!(
                     svg,
-                    "  <polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />\n",
+                    "  <polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{}{}{}{} />",
                     points,
                     stroke_color,
                     stroke_width_attr_ref,
@@ -474,9 +470,9 @@ impl Diagram {
 
                 if lines.len() <= 1 {
                     if let Some(single_line) = lines.first() {
-                        write!(
+                        writeln!(
                             svg,
-                            "    <text x=\"{:.1}\" y=\"{:.1}\" fill=\"#2d3748\" font-size=\"13\" text-anchor=\"middle\" dominant-baseline=\"middle\" xml:space=\"preserve\">{}</text>\n",
+                            "    <text x=\"{:.1}\" y=\"{:.1}\" fill=\"#2d3748\" font-size=\"13\" text-anchor=\"middle\" dominant-baseline=\"middle\" xml:space=\"preserve\">{}</text>",
                             label_center.x,
                             label_center.y,
                             escape_xml(single_line)
@@ -485,16 +481,16 @@ impl Diagram {
                 } else {
                     let start_y =
                         label_center.y - EDGE_LABEL_LINE_HEIGHT * (lines.len() as f32 - 1.0) / 2.0;
-                    write!(
+                    writeln!(
                         svg,
-                        "    <text x=\"{:.1}\" fill=\"#2d3748\" font-size=\"13\" text-anchor=\"middle\">\n",
+                        "    <text x=\"{:.1}\" fill=\"#2d3748\" font-size=\"13\" text-anchor=\"middle\">",
                         label_center.x
                     )?;
                     for (idx, line_text) in lines.iter().enumerate() {
                         let line_y = start_y + EDGE_LABEL_LINE_HEIGHT * idx as f32;
-                        write!(
+                        writeln!(
                             svg,
-                            "      <tspan x=\"{:.1}\" y=\"{:.1}\" dominant-baseline=\"middle\">{}</tspan>\n",
+                            "      <tspan x=\"{:.1}\" y=\"{:.1}\" dominant-baseline=\"middle\">{}</tspan>",
                             label_center.x,
                             line_y,
                             escape_xml(line_text)
@@ -522,23 +518,23 @@ impl Diagram {
             let mut label_fill_override: Option<String> = None;
             let mut image_fill_override: Option<String> = None;
 
-            if let Some(overrides) = overrides {
-                if let Some(style) = overrides.node_styles.get(id) {
-                    if let Some(fill) = &style.fill {
-                        fill_color = fill.clone();
-                    }
-                    if let Some(stroke) = &style.stroke {
-                        stroke_color = stroke.clone();
-                    }
-                    if let Some(text) = &style.text {
-                        text_color = text.clone();
-                    }
-                    if let Some(label_fill) = &style.label_fill {
-                        label_fill_override = Some(label_fill.clone());
-                    }
-                    if let Some(image_fill) = &style.image_fill {
-                        image_fill_override = Some(image_fill.clone());
-                    }
+            if let Some(overrides) = overrides
+                && let Some(style) = overrides.node_styles.get(id)
+            {
+                if let Some(fill) = &style.fill {
+                    fill_color = fill.clone();
+                }
+                if let Some(stroke) = &style.stroke {
+                    stroke_color = stroke.clone();
+                }
+                if let Some(text) = &style.text {
+                    text_color = text.clone();
+                }
+                if let Some(label_fill) = &style.label_fill {
+                    label_fill_override = Some(label_fill.clone());
+                }
+                if let Some(image_fill) = &style.image_fill {
+                    image_fill_override = Some(image_fill.clone());
                 }
             }
 
@@ -563,7 +559,7 @@ impl Diagram {
                     .unwrap_or_else(|| image_fill_color.clone())
             };
 
-            write!(svg, "  <g class=\"node\" data-id=\"{}\">\n", escape_xml(id))?;
+            writeln!(svg, "  <g class=\"node\" data-id=\"{}\">", escape_xml(id))?;
 
             node.shape.render_svg_shape(
                 &mut svg,
@@ -589,9 +585,9 @@ impl Diagram {
                 if label_area_height > 0.0 {
                     let label_top = position.y - node.height / 2.0;
                     let label_left = position.x - node.width / 2.0;
-                    write!(
+                    writeln!(
                         svg,
-                        "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"{}\" clip-path=\"url(#{})\" />\n",
+                        "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"{}\" clip-path=\"url(#{})\" />",
                         label_left,
                         label_top,
                         node.width,
@@ -605,9 +601,9 @@ impl Diagram {
                 if available_height > 0.5 {
                     let image_top = position.y - node.height / 2.0 + label_area_height + padding;
                     let image_left = position.x - node.width / 2.0 + padding;
-                    write!(
+                    writeln!(
                         svg,
-                        "  <image x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" href=\"{}\" xlink:href=\"{}\" clip-path=\"url(#{})\" preserveAspectRatio=\"xMidYMid slice\" />\n",
+                        "  <image x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" href=\"{}\" xlink:href=\"{}\" clip-path=\"url(#{})\" preserveAspectRatio=\"xMidYMid slice\" />",
                         image_left,
                         image_top,
                         available_width.max(0.5),
@@ -631,9 +627,9 @@ impl Diagram {
                     let text_anchor_x = position.x;
                     if lines.len() == 1 {
                         let baseline = position.y - node.height / 2.0 + label_area_height / 2.0;
-                        write!(
+                        writeln!(
                             svg,
-                            "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+                            "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>",
                             text_anchor_x,
                             baseline,
                             text_color,
@@ -645,16 +641,16 @@ impl Diagram {
                         let start_y = label_top
                             + (label_area_height - total_text_height) / 2.0
                             + NODE_TEXT_LINE_HEIGHT / 2.0;
-                        write!(
+                        writeln!(
                             svg,
-                            "  <text x=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\">\n",
+                            "  <text x=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\">",
                             text_anchor_x, text_color
                         )?;
                         for (idx, line_text) in lines.iter().enumerate() {
                             let line_y = start_y + NODE_TEXT_LINE_HEIGHT * idx as f32;
-                            write!(
+                            writeln!(
                                 svg,
-                                "    <tspan x=\"{:.1}\" y=\"{:.1}\" dominant-baseline=\"middle\">{}</tspan>\n",
+                                "    <tspan x=\"{:.1}\" y=\"{:.1}\" dominant-baseline=\"middle\">{}</tspan>",
                                 text_anchor_x,
                                 line_y,
                                 escape_xml(line_text)
@@ -663,9 +659,9 @@ impl Diagram {
                         svg.push_str("  </text>\n");
                     }
                 } else if lines.len() == 1 {
-                    write!(
+                    writeln!(
                         svg,
-                        "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+                        "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>",
                         position.x,
                         position.y,
                         text_color,
@@ -674,16 +670,16 @@ impl Diagram {
                 } else {
                     let start_y =
                         position.y - NODE_TEXT_LINE_HEIGHT * (lines.len() as f32 - 1.0) / 2.0;
-                    write!(
+                    writeln!(
                         svg,
-                        "  <text x=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\">\n",
+                        "  <text x=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"middle\">",
                         position.x, text_color
                     )?;
                     for (idx, line_text) in lines.iter().enumerate() {
                         let line_y = start_y + NODE_TEXT_LINE_HEIGHT * idx as f32;
-                        write!(
+                        writeln!(
                             svg,
-                            "    <tspan x=\"{:.1}\" y=\"{:.1}\" dominant-baseline=\"middle\">{}</tspan>\n",
+                            "    <tspan x=\"{:.1}\" y=\"{:.1}\" dominant-baseline=\"middle\">{}</tspan>",
                             position.x,
                             line_y,
                             escape_xml(line_text)
@@ -712,8 +708,10 @@ impl Diagram {
 
         let svg = self.render_svg(background, overrides)?;
 
-        let mut options = resvg::usvg::Options::default();
-        options.font_family = "Inter".to_string();
+        let mut options = resvg::usvg::Options::<'_> {
+            font_family: "Inter".to_string(),
+            ..Default::default()
+        };
         options.fontdb_mut().load_system_fonts();
 
         let tree = resvg::usvg::Tree::from_str(&svg, &options)
@@ -856,9 +854,9 @@ impl Diagram {
         )?;
 
         if let Some(title) = &gantt.title {
-            write!(
+            writeln!(
                 svg,
-                "  <text x=\"{:.1}\" y=\"36\" fill=\"#1a202c\" font-size=\"20\" font-weight=\"700\" text-anchor=\"middle\">{}</text>\n",
+                "  <text x=\"{:.1}\" y=\"36\" fill=\"#1a202c\" font-size=\"20\" font-weight=\"700\" text-anchor=\"middle\">{}</text>",
                 width / 2.0,
                 escape_xml(title)
             )?;
@@ -881,9 +879,9 @@ impl Diagram {
             let Some((top, bottom)) = section_bounds.get(&section_idx).copied() else {
                 continue;
             };
-            write!(
+            writeln!(
                 svg,
-                "  <rect x=\"0\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"{}\" />\n",
+                "  <rect x=\"0\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"{}\" />",
                 top,
                 width,
                 (bottom - top).max(row_height),
@@ -893,9 +891,9 @@ impl Diagram {
                     row_fill_odd
                 },
             )?;
-            write!(
+            writeln!(
                 svg,
-                "  <text x=\"16\" y=\"{:.1}\" fill=\"#1f2937\" font-size=\"14\" font-weight=\"600\" dominant-baseline=\"middle\">{}</text>\n",
+                "  <text x=\"16\" y=\"{:.1}\" fill=\"#1f2937\" font-size=\"14\" font-weight=\"600\" dominant-baseline=\"middle\">{}</text>",
                 (top + bottom) / 2.0,
                 escape_xml(section_name)
             )?;
@@ -903,9 +901,9 @@ impl Diagram {
 
         for row_idx in 0..gantt.tasks.len() {
             let row_top = top_margin + row_idx as f32 * row_height;
-            write!(
+            writeln!(
                 svg,
-                "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"{}\" />\n",
+                "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"{}\" />",
                 axis_left,
                 row_top,
                 timeline_width,
@@ -923,14 +921,14 @@ impl Diagram {
             let ratio = idx as f64 / ticks as f64;
             let day = min_start + (max_end - min_start) * ratio;
             let x = axis_left + timeline_width * ratio as f32;
-            write!(
+            writeln!(
                 svg,
-                "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"#cbd5e1\" stroke-width=\"1\" />\n",
+                "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"#cbd5e1\" stroke-width=\"1\" />",
                 x, axis_top, x, axis_bottom
             )?;
-            write!(
+            writeln!(
                 svg,
-                "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"#64748b\" font-size=\"16\" text-anchor=\"middle\">{}</text>\n",
+                "  <text x=\"{:.1}\" y=\"{:.1}\" fill=\"#64748b\" font-size=\"16\" text-anchor=\"middle\">{}</text>",
                 x,
                 axis_bottom + 32.0,
                 escape_xml(&format_gantt_day(day, &gantt.date_format))
@@ -963,9 +961,9 @@ impl Diagram {
                 .and_then(|style| style.stroke.as_deref())
                 .unwrap_or("#ffffff");
 
-            write!(
+            writeln!(
                 svg,
-                "  <g class=\"gantt-task\" data-task-id=\"{}\">\n",
+                "  <g class=\"gantt-task\" data-task-id=\"{}\">",
                 escape_xml(&task.id)
             )?;
 
@@ -973,9 +971,9 @@ impl Diagram {
                 let cx = start_x + bar_width / 2.0;
                 let cy = bar_y + bar_height / 2.0;
                 let half = bar_height * 0.42;
-                write!(
+                writeln!(
                     svg,
-                    "    <polygon class=\"gantt-handle\" data-drag-kind=\"milestone\" points=\"{:.1},{:.1} {:.1},{:.1} {:.1},{:.1} {:.1},{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "    <polygon class=\"gantt-handle\" data-drag-kind=\"milestone\" points=\"{:.1},{:.1} {:.1},{:.1} {:.1},{:.1} {:.1},{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                     cx,
                     cy - half,
                     cx + half,
@@ -998,9 +996,9 @@ impl Diagram {
                 } else {
                     ((cx + half + 4.0).min(width - 8.0), "start")
                 };
-                write!(
+                writeln!(
                     svg,
-                    "    <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"{}\" dominant-baseline=\"middle\">{}</text>\n",
+                    "    <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"14\" text-anchor=\"{}\" dominant-baseline=\"middle\">{}</text>",
                     label_x,
                     cy,
                     escape_xml(text_color),
@@ -1008,9 +1006,9 @@ impl Diagram {
                     escape_xml(&task.label)
                 )?;
             } else {
-                write!(
+                writeln!(
                     svg,
-                    "    <rect class=\"gantt-handle\" data-drag-kind=\"move\" x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "    <rect class=\"gantt-handle\" data-drag-kind=\"move\" x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"4\" ry=\"4\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                     start_x,
                     bar_y,
                     bar_width,
@@ -1018,9 +1016,9 @@ impl Diagram {
                     escape_xml(fill_color),
                     escape_xml(stroke_color)
                 )?;
-                write!(
+                writeln!(
                     svg,
-                    "    <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"13\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+                    "    <text x=\"{:.1}\" y=\"{:.1}\" fill=\"{}\" font-size=\"13\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>",
                     start_x + bar_width / 2.0,
                     bar_y + bar_height / 2.0,
                     escape_xml(text_color),
@@ -1122,12 +1120,12 @@ impl Diagram {
                     *entry = node_level + 1;
                 }
 
-                if let Some(degree) = indegree.get_mut(&target_id) {
-                    if *degree > 0 {
-                        *degree -= 1;
-                        if *degree == 0 {
-                            queue.push_back(target_id.clone());
-                        }
+                if let Some(degree) = indegree.get_mut(&target_id)
+                    && *degree > 0
+                {
+                    *degree -= 1;
+                    if *degree == 0 {
+                        queue.push_back(target_id.clone());
                     }
                 }
             }
@@ -1380,7 +1378,7 @@ impl Diagram {
             if !self.align_directed_forest(&self.order, &mut positions, false) {
                 self.align_tree_components(
                     &layers,
-                    &components,
+                    components,
                     &incoming,
                     &outgoing,
                     &mut positions,
@@ -2010,7 +2008,7 @@ impl Diagram {
         let mut auto_points: HashMap<usize, Vec<Point>> = HashMap::new();
 
         let has_override = |edge_idx: usize| -> bool {
-            overrides.map_or(false, |ov| ov.edges.contains_key(&edge_ids[edge_idx]))
+            overrides.is_some_and(|ov| ov.edges.contains_key(&edge_ids[edge_idx]))
         };
 
         for ((a, b), entries) in pairings {
@@ -2070,21 +2068,19 @@ impl Diagram {
             }
 
             let mut first_pair_resolved = false;
-            if let (Some(&f_idx0), Some(&b_idx0)) = (forward.first(), backward.first()) {
-                if !has_override(f_idx0) && !has_override(b_idx0) {
-                    if let Some((forward_points, backward_points)) = self
-                        .resolve_bidirectional_pair(
-                            from,
-                            to,
-                            &self.edges[f_idx0],
-                            &self.edges[b_idx0],
-                        )
-                    {
-                        auto_points.insert(f_idx0, forward_points.clone());
-                        auto_points.insert(b_idx0, backward_points.clone());
-                        first_pair_resolved = true;
-                    }
-                }
+            if let (Some(&f_idx0), Some(&b_idx0)) = (forward.first(), backward.first())
+                && !has_override(f_idx0)
+                && !has_override(b_idx0)
+                && let Some((forward_points, backward_points)) = self.resolve_bidirectional_pair(
+                    from,
+                    to,
+                    &self.edges[f_idx0],
+                    &self.edges[b_idx0],
+                )
+            {
+                auto_points.insert(f_idx0, forward_points.clone());
+                auto_points.insert(b_idx0, backward_points.clone());
+                first_pair_resolved = true;
             }
 
             for (i, &edge_idx) in forward.iter().enumerate() {
@@ -2295,8 +2291,7 @@ impl Diagram {
             if middle_points.is_empty()
                 && !has_override(edge_idx)
                 && (base_label_collision || base_node_collision || base_intersections > 0)
-            {
-                if let Some(adjusted) = self.adjust_edge_for_conflicts(
+                && let Some(adjusted) = self.adjust_edge_for_conflicts(
                     from,
                     to,
                     edge,
@@ -2307,9 +2302,9 @@ impl Diagram {
                     base_label_collision,
                     base_node_collision,
                     base_intersections,
-                ) {
-                    path = build_route(from, &adjusted, to);
-                }
+                )
+            {
+                path = build_route(from, &adjusted, to);
             }
 
             if !has_custom_override {
@@ -2320,12 +2315,10 @@ impl Diagram {
                             || self.label_collides_with_nodes(edge, &path, &node_bounds)
                             || route_intersects_label_rects(&path, &label_bounds);
 
-                    if !requires_detour {
-                        if let Some(rect) = label_rect_for_route(edge, &path) {
-                            let inflated = rect.inflate(EDGE_COLLISION_MARGIN);
-                            if label_overlaps_existing(edge_id, inflated, &label_bounds) {
-                                requires_detour = true;
-                            }
+                    if !requires_detour && let Some(rect) = label_rect_for_route(edge, &path) {
+                        let inflated = rect.inflate(EDGE_COLLISION_MARGIN);
+                        if label_overlaps_existing(edge_id, inflated, &label_bounds) {
+                            requires_detour = true;
                         }
                     }
 
@@ -2352,10 +2345,10 @@ impl Diagram {
                 }
             }
 
-            if has_custom_override {
-                if let Some(custom) = overrides.and_then(|ov| ov.edges.get(edge_id)) {
-                    path = build_route(from, &custom.points, to);
-                }
+            if has_custom_override
+                && let Some(custom) = overrides.and_then(|ov| ov.edges.get(edge_id))
+            {
+                path = build_route(from, &custom.points, to);
             }
 
             if let (Some(from_bounds), Some(to_bounds)) =
@@ -2443,22 +2436,22 @@ impl Diagram {
 
             let mut collision = false;
 
-            if let Some(rect) = forward_label {
-                if rect.intersects(&from_rect) || rect.intersects(&to_rect) {
-                    collision = true;
-                }
+            if let Some(rect) = forward_label
+                && (rect.intersects(&from_rect) || rect.intersects(&to_rect))
+            {
+                collision = true;
             }
 
-            if let Some(rect) = backward_label {
-                if rect.intersects(&from_rect) || rect.intersects(&to_rect) {
-                    collision = true;
-                }
+            if let Some(rect) = backward_label
+                && (rect.intersects(&from_rect) || rect.intersects(&to_rect))
+            {
+                collision = true;
             }
 
-            if let (Some(a), Some(b)) = (forward_label, backward_label) {
-                if a.intersects(&b) {
-                    collision = true;
-                }
+            if let (Some(a), Some(b)) = (forward_label, backward_label)
+                && a.intersects(&b)
+            {
+                collision = true;
             }
 
             if !collision {
@@ -2476,6 +2469,9 @@ impl Diagram {
         fallback
     }
 
+    // Routing inputs are independent values; a parameter struct would just
+    // mirror this list at every call site.
+    #[allow(clippy::too_many_arguments)]
     fn adjust_edge_for_conflicts(
         &self,
         from: Point,
@@ -2642,14 +2638,14 @@ impl Diagram {
         if route_intersects_label_rects(route, existing_label_bounds) {
             best_label_collision = 1;
         }
-        if let Some(rect) = label_rect_for_route(edge, route) {
-            if label_overlaps_existing(
+        if let Some(rect) = label_rect_for_route(edge, route)
+            && label_overlaps_existing(
                 edge_id,
                 rect.inflate(EDGE_COLLISION_MARGIN),
                 existing_label_bounds,
-            ) {
-                best_label_collision = 1;
-            }
+            )
+        {
+            best_label_collision = 1;
         }
         let mut best_metric = (
             best_node_collision,
@@ -2669,7 +2665,7 @@ impl Diagram {
             let b = route[segment_idx + 1];
 
             let mut nodes: Vec<_> = node_bounds.iter().collect();
-            nodes.sort_by(|(a, _), (b, _)| a.cmp(b));
+            nodes.sort_by_key(|(a, _)| *a);
             for (node_id, bounds) in nodes {
                 if node_id == &edge.from || node_id == &edge.to {
                     continue;
@@ -2737,14 +2733,14 @@ impl Diagram {
                     if route_intersects_label_rects(&candidate, existing_label_bounds) {
                         candidate_label_collision = 1;
                     }
-                    if let Some(rect) = label_rect_for_route(edge, &candidate) {
-                        if label_overlaps_existing(
+                    if let Some(rect) = label_rect_for_route(edge, &candidate)
+                        && label_overlaps_existing(
                             edge_id,
                             rect.inflate(EDGE_COLLISION_MARGIN),
                             existing_label_bounds,
-                        ) {
-                            candidate_label_collision = 1;
-                        }
+                        )
+                    {
+                        candidate_label_collision = 1;
                     }
                     let candidate_metric = (
                         candidate_node_collision,
@@ -2956,21 +2952,21 @@ impl Diagram {
             if !direct_nodes.contains(id.as_str()) {
                 continue;
             }
-            if emitted.insert(id.clone()) {
-                if let Some(node) = self.nodes.get(id) {
-                    if let Some(image) = &node.image {
-                        lines.push(format!(
-                            "{}{}",
-                            inner_indent,
-                            Self::format_image_comment(id, image)
-                        ));
-                    }
+            if emitted.insert(id.clone())
+                && let Some(node) = self.nodes.get(id)
+            {
+                if let Some(image) = &node.image {
                     lines.push(format!(
                         "{}{}",
                         inner_indent,
-                        Self::format_node_line(id, node)
+                        Self::format_image_comment(id, image)
                     ));
                 }
+                lines.push(format!(
+                    "{}{}",
+                    inner_indent,
+                    Self::format_node_line(id, node)
+                ));
             }
         }
 
@@ -3065,6 +3061,9 @@ fn label_overlaps_existing(
     false
 }
 
+// Routing inputs are independent values; a parameter struct would just
+// mirror this list at every call site.
+#[allow(clippy::too_many_arguments)]
 fn evaluate_candidate_route(
     diagram: &Diagram,
     edge: &Edge,
@@ -3346,9 +3345,9 @@ impl NodeShape {
         let half_w = width / 2.0;
         let half_h = height / 2.0;
         match self {
-            NodeShape::Rectangle => write!(
+            NodeShape::Rectangle => writeln!(
                 svg,
-                "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                 position.x - half_w,
                 position.y - half_h,
                 width,
@@ -3356,9 +3355,9 @@ impl NodeShape {
                 fill_color,
                 stroke_color
             ),
-            NodeShape::Stadium => write!(
+            NodeShape::Stadium => writeln!(
                 svg,
-                "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                 position.x - half_w,
                 position.y - half_h,
                 width,
@@ -3366,20 +3365,20 @@ impl NodeShape {
                 fill_color,
                 stroke_color
             ),
-            NodeShape::Circle => write!(
+            NodeShape::Circle => writeln!(
                 svg,
-                "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                 position.x, position.y, half_w, half_h, fill_color, stroke_color
             ),
             NodeShape::DoubleCircle => {
-                write!(
+                writeln!(
                     svg,
-                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                     position.x, position.y, half_w, half_h, fill_color, stroke_color
                 )?;
-                write!(
+                writeln!(
                     svg,
-                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                     position.x,
                     position.y,
                     (half_w - 6.0).max(half_w * 0.65),
@@ -3394,9 +3393,9 @@ impl NodeShape {
                     (position.x, position.y + half_h),
                     (position.x - half_w, position.y),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, fill_color, stroke_color
                 )
             }
@@ -3406,23 +3405,23 @@ impl NodeShape {
                 let right = position.x + half_w;
                 let bottom = position.y + half_h;
                 let inset = 12.0;
-                write!(
+                writeln!(
                     svg,
-                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                     left, top, width, height, fill_color, stroke_color
                 )?;
-                write!(
+                writeln!(
                     svg,
-                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />",
                     left + inset,
                     top,
                     left + inset,
                     bottom,
                     stroke_color
                 )?;
-                write!(
+                writeln!(
                     svg,
-                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />",
                     right - inset,
                     top,
                     right - inset,
@@ -3439,9 +3438,9 @@ impl NodeShape {
                 let ry = height / 6.0;
                 let top_center = top + ry;
                 let bottom_center = bottom - ry;
-                write!(
+                writeln!(
                     svg,
-                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} L{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} L{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} Z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                     left,
                     top_center,
                     rx,
@@ -3457,9 +3456,9 @@ impl NodeShape {
                     fill_color,
                     stroke_color
                 )?;
-                write!(
+                writeln!(
                     svg,
-                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                     left, top_center, rx, ry, right, top_center, stroke_color
                 )
             }
@@ -3473,9 +3472,9 @@ impl NodeShape {
                     (position.x - half_w + offset, position.y + half_h),
                     (position.x - half_w, position.y),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, fill_color, stroke_color
                 )
             }
@@ -3487,9 +3486,9 @@ impl NodeShape {
                     (position.x + half_w - skew, position.y + half_h),
                     (position.x - half_w, position.y + half_h),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, fill_color, stroke_color
                 )
             }
@@ -3501,9 +3500,9 @@ impl NodeShape {
                     (position.x + half_w, position.y + half_h),
                     (position.x - half_w + skew, position.y + half_h),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, fill_color, stroke_color
                 )
             }
@@ -3516,9 +3515,9 @@ impl NodeShape {
                     (position.x + half_w - bottom_inset, position.y + half_h),
                     (position.x - half_w + bottom_inset, position.y + half_h),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, fill_color, stroke_color
                 )
             }
@@ -3531,9 +3530,9 @@ impl NodeShape {
                     (position.x + half_w - bottom_inset, position.y + half_h),
                     (position.x - half_w + bottom_inset, position.y + half_h),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, fill_color, stroke_color
                 )
             }
@@ -3546,9 +3545,9 @@ impl NodeShape {
                     (position.x + half_w - skew, position.y + half_h),
                     (position.x - half_w, position.y + half_h),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, fill_color, stroke_color
                 )
             }
@@ -3565,25 +3564,25 @@ impl NodeShape {
         let half_w = width / 2.0;
         let half_h = height / 2.0;
         match self {
-            NodeShape::Rectangle | NodeShape::Subroutine => write!(
+            NodeShape::Rectangle | NodeShape::Subroutine => writeln!(
                 svg,
-                "      <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" />\n",
+                "      <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" />",
                 position.x - half_w,
                 position.y - half_h,
                 width,
                 height
             ),
-            NodeShape::Stadium => write!(
+            NodeShape::Stadium => writeln!(
                 svg,
-                "      <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" />\n",
+                "      <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" />",
                 position.x - half_w,
                 position.y - half_h,
                 width,
                 height
             ),
-            NodeShape::Circle | NodeShape::DoubleCircle => write!(
+            NodeShape::Circle | NodeShape::DoubleCircle => writeln!(
                 svg,
-                "      <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" />\n",
+                "      <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" />",
                 position.x, position.y, half_w, half_h
             ),
             NodeShape::Diamond => {
@@ -3593,7 +3592,7 @@ impl NodeShape {
                     (position.x, position.y + half_h),
                     (position.x - half_w, position.y),
                 ]);
-                write!(svg, "      <polygon points=\"{}\" />\n", points)
+                writeln!(svg, "      <polygon points=\"{}\" />", points)
             }
             NodeShape::Cylinder => {
                 let left = position.x - half_w;
@@ -3604,9 +3603,9 @@ impl NodeShape {
                 let ry = height / 6.0;
                 let top_center = top + ry;
                 let bottom_center = bottom - ry;
-                write!(
+                writeln!(
                     svg,
-                    "      <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} L{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} Z\" />\n",
+                    "      <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} L{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} Z\" />",
                     left,
                     top_center,
                     rx,
@@ -3631,7 +3630,7 @@ impl NodeShape {
                     (position.x - half_w + offset, position.y + half_h),
                     (position.x - half_w, position.y),
                 ]);
-                write!(svg, "      <polygon points=\"{}\" />\n", points)
+                writeln!(svg, "      <polygon points=\"{}\" />", points)
             }
             NodeShape::Parallelogram => {
                 let skew = height * 0.35;
@@ -3641,7 +3640,7 @@ impl NodeShape {
                     (position.x + half_w - skew, position.y + half_h),
                     (position.x - half_w, position.y + half_h),
                 ]);
-                write!(svg, "      <polygon points=\"{}\" />\n", points)
+                writeln!(svg, "      <polygon points=\"{}\" />", points)
             }
             NodeShape::ParallelogramAlt => {
                 let skew = height * 0.35;
@@ -3651,7 +3650,7 @@ impl NodeShape {
                     (position.x + half_w, position.y + half_h),
                     (position.x - half_w + skew, position.y + half_h),
                 ]);
-                write!(svg, "      <polygon points=\"{}\" />\n", points)
+                writeln!(svg, "      <polygon points=\"{}\" />", points)
             }
             NodeShape::Trapezoid => {
                 let top_inset = width * 0.22;
@@ -3662,7 +3661,7 @@ impl NodeShape {
                     (position.x + half_w - bottom_inset, position.y + half_h),
                     (position.x - half_w + bottom_inset, position.y + half_h),
                 ]);
-                write!(svg, "      <polygon points=\"{}\" />\n", points)
+                writeln!(svg, "      <polygon points=\"{}\" />", points)
             }
             NodeShape::TrapezoidAlt => {
                 let top_inset = width * 0.08;
@@ -3673,7 +3672,7 @@ impl NodeShape {
                     (position.x + half_w - bottom_inset, position.y + half_h),
                     (position.x - half_w + bottom_inset, position.y + half_h),
                 ]);
-                write!(svg, "      <polygon points=\"{}\" />\n", points)
+                writeln!(svg, "      <polygon points=\"{}\" />", points)
             }
             NodeShape::Asymmetric => {
                 let skew = height * 0.45;
@@ -3684,7 +3683,7 @@ impl NodeShape {
                     (position.x + half_w - skew, position.y + half_h),
                     (position.x - half_w, position.y + half_h),
                 ]);
-                write!(svg, "      <polygon points=\"{}\" />\n", points)
+                writeln!(svg, "      <polygon points=\"{}\" />", points)
             }
         }
     }
@@ -3701,9 +3700,9 @@ impl NodeShape {
         let half_h = height / 2.0;
         match self {
             NodeShape::Rectangle | NodeShape::Subroutine => {
-                write!(
+                writeln!(
                     svg,
-                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" ry=\"8\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                     position.x - half_w,
                     position.y - half_h,
                     width,
@@ -3712,18 +3711,18 @@ impl NodeShape {
                 )?;
                 if matches!(self, NodeShape::Subroutine) {
                     let inset = 12.0;
-                    write!(
+                    writeln!(
                         svg,
-                        "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                        "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />",
                         position.x - half_w + inset,
                         position.y - half_h,
                         position.x - half_w + inset,
                         position.y + half_h,
                         stroke_color
                     )?;
-                    write!(
+                    writeln!(
                         svg,
-                        "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                        "  <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"2\" />",
                         position.x + half_w - inset,
                         position.y - half_h,
                         position.x + half_w - inset,
@@ -3733,9 +3732,9 @@ impl NodeShape {
                 }
                 Ok(())
             }
-            NodeShape::Stadium => write!(
+            NodeShape::Stadium => writeln!(
                 svg,
-                "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"30\" ry=\"30\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                 position.x - half_w,
                 position.y - half_h,
                 width,
@@ -3743,17 +3742,17 @@ impl NodeShape {
                 stroke_color
             ),
             NodeShape::Circle | NodeShape::DoubleCircle => {
-                write!(
+                writeln!(
                     svg,
-                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                     position.x, position.y, half_w, half_h, stroke_color
                 )?;
                 if matches!(self, NodeShape::DoubleCircle) {
                     let inner_rx = (half_w - 6.0).max(half_w * 0.65);
                     let inner_ry = (half_h - 6.0).max(half_h * 0.65);
-                    write!(
+                    writeln!(
                         svg,
-                        "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                        "  <ellipse cx=\"{:.1}\" cy=\"{:.1}\" rx=\"{:.1}\" ry=\"{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                         position.x, position.y, inner_rx, inner_ry, stroke_color
                     )?;
                 }
@@ -3766,9 +3765,9 @@ impl NodeShape {
                     (position.x, position.y + half_h),
                     (position.x - half_w, position.y),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, stroke_color
                 )
             }
@@ -3781,9 +3780,9 @@ impl NodeShape {
                 let ry = height / 6.0;
                 let top_center = top + ry;
                 let bottom_center = bottom - ry;
-                write!(
+                writeln!(
                     svg,
-                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} L{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} Z\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} L{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1} Z\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                     left,
                     top_center,
                     rx,
@@ -3798,9 +3797,9 @@ impl NodeShape {
                     bottom_center,
                     stroke_color
                 )?;
-                write!(
+                writeln!(
                     svg,
-                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <path d=\"M{:.1},{:.1} A{:.1},{:.1} 0 0 1 {:.1},{:.1}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                     left, top_center, rx, ry, right, top_center, stroke_color
                 )
             }
@@ -3814,9 +3813,9 @@ impl NodeShape {
                     (position.x - half_w + offset, position.y + half_h),
                     (position.x - half_w, position.y),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, stroke_color
                 )
             }
@@ -3828,9 +3827,9 @@ impl NodeShape {
                     (position.x + half_w - skew, position.y + half_h),
                     (position.x - half_w, position.y + half_h),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, stroke_color
                 )
             }
@@ -3842,9 +3841,9 @@ impl NodeShape {
                     (position.x + half_w, position.y + half_h),
                     (position.x - half_w + skew, position.y + half_h),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, stroke_color
                 )
             }
@@ -3857,9 +3856,9 @@ impl NodeShape {
                     (position.x + half_w - bottom_inset, position.y + half_h),
                     (position.x - half_w + bottom_inset, position.y + half_h),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, stroke_color
                 )
             }
@@ -3872,9 +3871,9 @@ impl NodeShape {
                     (position.x + half_w - bottom_inset, position.y + half_h),
                     (position.x - half_w + bottom_inset, position.y + half_h),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, stroke_color
                 )
             }
@@ -3887,9 +3886,9 @@ impl NodeShape {
                     (position.x + half_w - skew, position.y + half_h),
                     (position.x - half_w, position.y + half_h),
                 ]);
-                write!(
+                writeln!(
                     svg,
-                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />\n",
+                    "  <polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\" />",
                     points, stroke_color
                 )
             }
@@ -4255,19 +4254,15 @@ impl NodeBoundary {
     }
 }
 
-fn trim_route_endpoints(
-    path: &mut Vec<Point>,
-    from_bounds: &NodeBoundary,
-    to_bounds: &NodeBoundary,
-) {
+fn trim_route_endpoints(path: &mut [Point], from_bounds: &NodeBoundary, to_bounds: &NodeBoundary) {
     if path.len() < 2 {
         return;
     }
 
-    if from_bounds.contains_point(path[0]) {
-        if let Some(trimmed) = clip_segment_exit_with_shape(path[0], path[1], from_bounds, false) {
-            path[0] = trimmed;
-        }
+    if from_bounds.contains_point(path[0])
+        && let Some(trimmed) = clip_segment_exit_with_shape(path[0], path[1], from_bounds, false)
+    {
+        path[0] = trimmed;
     }
 
     if path.len() < 2 {
@@ -4275,12 +4270,11 @@ fn trim_route_endpoints(
     }
 
     let last = path.len() - 1;
-    if to_bounds.contains_point(path[last]) {
-        if let Some(trimmed) =
+    if to_bounds.contains_point(path[last])
+        && let Some(trimmed) =
             clip_segment_exit_with_shape(path[last], path[last - 1], to_bounds, true)
-        {
-            path[last] = trimmed;
-        }
+    {
+        path[last] = trimmed;
     }
 }
 
@@ -4316,7 +4310,7 @@ fn clip_segment_exit_rect(
     if dx.abs() > f32::EPSILON {
         let target_x = if dx > 0.0 { rect.max_x } else { rect.min_x };
         let t = (target_x - start.x) / dx;
-        if t >= 0.0 && t <= 1.0 {
+        if (0.0..=1.0).contains(&t) {
             let y = start.y + t * dy;
             if y >= rect.min_y - 1e-3_f32 && y <= rect.max_y + 1e-3_f32 {
                 candidates.push(t);
@@ -4326,7 +4320,7 @@ fn clip_segment_exit_rect(
     if dy.abs() > f32::EPSILON {
         let target_y = if dy > 0.0 { rect.max_y } else { rect.min_y };
         let t = (target_y - start.y) / dy;
-        if t >= 0.0 && t <= 1.0 {
+        if (0.0..=1.0).contains(&t) {
             let x = start.x + t * dx;
             if x >= rect.min_x - 1e-3_f32 && x <= rect.max_x + 1e-3_f32 {
                 candidates.push(t);
@@ -4393,10 +4387,10 @@ fn clip_segment_exit_circle(
     let mut candidates = Vec::new();
     let t0 = (-b + sqrt_disc) / (2.0 * a);
     let t1 = (-b - sqrt_disc) / (2.0 * a);
-    if t0 >= 0.0 && t0 <= 1.0 {
+    if (0.0..=1.0).contains(&t0) {
         candidates.push(t0);
     }
-    if t1 >= 0.0 && t1 <= 1.0 {
+    if (0.0..=1.0).contains(&t1) {
         candidates.push(t1);
     }
 
@@ -4460,17 +4454,17 @@ fn clip_segment_exit_diamond(
 
     let mut best_t: Option<f32> = None;
     for (edge_start, edge_end) in edges {
-        if let Some(t) = segment_intersection_param(start, next, edge_start, edge_end) {
-            if t >= 0.0 && t <= 1.0 {
-                let t = t.max(f32::EPSILON);
-                best_t = Some(best_t.map_or(t, |current| current.min(t)));
-            }
+        if let Some(t) = segment_intersection_param(start, next, edge_start, edge_end)
+            && (0.0..=1.0).contains(&t)
+        {
+            let t = t.max(f32::EPSILON);
+            best_t = Some(best_t.map_or(t, |current| current.min(t)));
         }
     }
 
-    let t_exit = match best_t {
-        Some(t) => t.clamp(0.0, 1.0),
-        None => return None,
+    let t_exit = {
+        let t = best_t?;
+        t.clamp(0.0, 1.0)
     };
 
     let mut point = Point {
@@ -4516,7 +4510,7 @@ fn segment_intersection_param(
     let t = (qp.x * s.y - qp.y * s.x) / denom;
     let u = (qp.x * r.y - qp.y * r.x) / denom;
 
-    if t >= 0.0 && t <= 1.0 && u >= 0.0 && u <= 1.0 {
+    if (0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u) {
         Some(t)
     } else {
         None
@@ -4804,10 +4798,7 @@ fn collect_subgraph_visual(
         }
     }
 
-    let mut bounds = match bounds {
-        Some(bounds) => bounds,
-        None => return None,
-    };
+    let mut bounds = bounds?;
 
     bounds.min_x -= SUBGRAPH_PADDING;
     bounds.max_x += SUBGRAPH_PADDING;
@@ -5314,15 +5305,15 @@ fn parse_gantt_diagram(lines: Vec<String>, original_source: &str) -> Result<Diag
                 logical_id_to_node.insert(task_id, node_id.clone());
             }
 
-            if let Some(expr) = start_expr {
-                if let Some(day) = resolve_gantt_start_expr(
+            if let Some(expr) = start_expr
+                && let Some(day) = resolve_gantt_start_expr(
                     &expr,
                     &date_format,
                     previous_task_end,
                     &gantt_end_by_id,
-                ) {
-                    start_day = day;
-                }
+                )
+            {
+                start_day = day;
             }
 
             if let Some(expr) = end_expr {
@@ -5360,10 +5351,8 @@ fn parse_gantt_diagram(lines: Vec<String>, original_source: &str) -> Result<Diag
                     pending_after.push((dep, node_id.clone()));
                 }
             }
-        } else if !has_explicit_start {
-            if let Some(previous) = &previous_task_id {
-                push_gantt_edge(&mut edges, &mut edge_keys, previous, &node_id);
-            }
+        } else if !has_explicit_start && let Some(previous) = &previous_task_id {
+            push_gantt_edge(&mut edges, &mut edge_keys, previous, &node_id);
         }
 
         for dep in until_refs {
@@ -5561,10 +5550,10 @@ fn parse_gantt_duration_days(value: &str) -> Option<f64> {
     ];
 
     for (suffix, factor) in units {
-        if let Some(number) = trimmed.strip_suffix(suffix) {
-            if let Ok(parsed) = number.trim().parse::<f64>() {
-                return Some(parsed * factor);
-            }
+        if let Some(number) = trimmed.strip_suffix(suffix)
+            && let Ok(parsed) = number.trim().parse::<f64>()
+        {
+            return Some(parsed * factor);
         }
     }
 
@@ -5769,22 +5758,23 @@ fn parse_subgraph_header(raw: &str) -> Result<(String, String)> {
         bail!("subgraph declaration missing identifier");
     }
 
-    if let Some(start) = trimmed.find('[') {
-        if trimmed.ends_with(']') && start < trimmed.len() - 1 {
-            let id_part = trimmed[..start].trim();
-            if id_part.is_empty() {
-                bail!("subgraph identifier cannot be empty");
-            }
-            let label_part = trimmed[start + 1..trimmed.len() - 1]
-                .trim()
-                .trim_matches('"');
-            let label = if label_part.is_empty() {
-                id_part
-            } else {
-                label_part
-            };
-            return Ok((normalize_subgraph_id(id_part), label.to_string()));
+    if let Some(start) = trimmed.find('[')
+        && trimmed.ends_with(']')
+        && start < trimmed.len() - 1
+    {
+        let id_part = trimmed[..start].trim();
+        if id_part.is_empty() {
+            bail!("subgraph identifier cannot be empty");
         }
+        let label_part = trimmed[start + 1..trimmed.len() - 1]
+            .trim()
+            .trim_matches('"');
+        let label = if label_part.is_empty() {
+            id_part
+        } else {
+            label_part
+        };
+        return Ok((normalize_subgraph_id(id_part), label.to_string()));
     }
 
     if trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2 {
@@ -5813,7 +5803,7 @@ fn parse_image_comment(line: &str) -> Result<Option<(String, NodeImage)>> {
         return Ok(None);
     };
 
-    let mut parts = rest.trim_start().split_whitespace();
+    let mut parts = rest.split_whitespace();
     let node_id = parts
         .next()
         .ok_or_else(|| anyhow!("image comment missing node identifier"))?;
@@ -5970,7 +5960,7 @@ fn parse_node_line(
     nodes: &mut HashMap<String, Node>,
     order: &mut Vec<String>,
     node_membership: &mut HashMap<String, Vec<String>>,
-    subgraph_stack: &mut Vec<SubgraphBuilder>,
+    subgraph_stack: &mut [SubgraphBuilder],
 ) -> Result<bool> {
     if line.contains("-->") || line.contains("-.->") {
         return Ok(false);
@@ -5992,7 +5982,7 @@ fn parse_edge_line(
     nodes: &mut HashMap<String, Node>,
     order: &mut Vec<String>,
     node_membership: &mut HashMap<String, Vec<String>>,
-    subgraph_stack: &mut Vec<SubgraphBuilder>,
+    subgraph_stack: &mut [SubgraphBuilder],
 ) -> Result<Option<Edge>> {
     const EDGE_PATTERNS: [(&str, EdgeKind, EdgeArrowDirection, Option<&str>); 4] = [
         ("-.->", EdgeKind::Dashed, EdgeArrowDirection::Forward, None),
@@ -6035,11 +6025,11 @@ fn parse_edge_line(
         label = Some(label_text.trim_matches('"').to_string());
         target
     } else {
-        if let Some(prefix) = inline_prefix {
-            if let Some((maybe_from, inline_label)) = extract_inline_label(from_segment, prefix) {
-                label = Some(inline_label);
-                from_buffer = Some(maybe_from);
-            }
+        if let Some(prefix) = inline_prefix
+            && let Some((maybe_from, inline_label)) = extract_inline_label(from_segment, prefix)
+        {
+            label = Some(inline_label);
+            from_buffer = Some(maybe_from);
         }
         if let Some(buffer) = &from_buffer {
             from_segment = buffer.as_str();
@@ -6064,9 +6054,7 @@ fn parse_edge_line(
 
 fn extract_inline_label(segment: &str, prefix: &str) -> Option<(String, String)> {
     let trimmed = segment.trim_end();
-    let Some(prefix_pos) = trimmed.rfind(prefix) else {
-        return None;
-    };
+    let prefix_pos = trimmed.rfind(prefix)?;
 
     let before = &trimmed[..prefix_pos];
     let after = &trimmed[prefix_pos + prefix.len()..];

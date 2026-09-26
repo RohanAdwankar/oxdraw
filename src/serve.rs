@@ -29,7 +29,7 @@ use crate::diagram::decode_image_dimensions;
 use crate::*;
 
 const MAX_IMAGE_BYTES: usize = 10 * 1024 * 1024;
-const MAX_IMAGE_REQUEST_BYTES: usize = (MAX_IMAGE_BYTES * 4) / 3 + 1 * 1024 * 1024;
+const MAX_IMAGE_REQUEST_BYTES: usize = (MAX_IMAGE_BYTES * 4) / 3 + 1024 * 1024;
 
 /// Arguments for running the oxdraw web server
 #[derive(Debug, Clone, Parser)]
@@ -260,10 +260,7 @@ impl ServeState {
             Err(e) => {
                 // If this is a markdown file and we failed to parse as a diagram,
                 // return a dummy diagram so the UI can load and switch to codedown mode.
-                let is_md = self
-                    .source_path
-                    .extension()
-                    .map_or(false, |ext| ext == "md");
+                let is_md = self.source_path.extension().is_some_and(|ext| ext == "md");
                 if is_md {
                     let mut nodes = HashMap::new();
                     nodes.insert(
@@ -483,11 +480,7 @@ impl ServeState {
 
     async fn prune_overrides_for(&self, diagram: &Diagram) -> Result<()> {
         let node_ids: HashSet<String> = diagram.nodes.keys().cloned().collect();
-        let edge_ids: HashSet<String> = diagram
-            .edges
-            .iter()
-            .map(|edge| edge_identifier(edge))
-            .collect();
+        let edge_ids: HashSet<String> = diagram.edges.iter().map(edge_identifier).collect();
 
         let snapshot = {
             let mut overrides = self.overrides.write().await;
@@ -508,11 +501,7 @@ impl ServeState {
         let diagram = Diagram::parse(&definition)?;
 
         let node_ids: HashSet<String> = diagram.nodes.keys().cloned().collect();
-        let edge_ids: HashSet<String> = diagram
-            .edges
-            .iter()
-            .map(|edge| edge_identifier(edge))
-            .collect();
+        let edge_ids: HashSet<String> = diagram.edges.iter().map(edge_identifier).collect();
 
         let snapshot = {
             let mut overrides = self.overrides.write().await;
@@ -1623,8 +1612,8 @@ async fn get_codemap_search(
             };
 
             // Skip binary files and SVG/PNG
-            if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                if matches!(
+            if let Some(ext) = path.extension().and_then(|s| s.to_str())
+                && matches!(
                     ext,
                     "png"
                         | "jpg"
@@ -1636,9 +1625,9 @@ async fn get_codemap_search(
                         | "woff2"
                         | "ttf"
                         | "eot"
-                ) {
-                    continue;
-                }
+                )
+            {
+                continue;
             }
 
             if let Ok(content) = std::fs::read_to_string(path) {

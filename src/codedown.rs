@@ -29,13 +29,15 @@ pub enum CodedownStyle {
     Api,
 }
 
-impl CodedownStyle {
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for CodedownStyle {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "architecture" => Some(CodedownStyle::Architecture),
-            "tutorial" => Some(CodedownStyle::Tutorial),
-            "api" => Some(CodedownStyle::Api),
-            _ => None,
+            "architecture" => Ok(CodedownStyle::Architecture),
+            "tutorial" => Ok(CodedownStyle::Tutorial),
+            "api" => Ok(CodedownStyle::Api),
+            _ => Err(format!("unknown codedown style: {s}")),
         }
     }
 }
@@ -50,35 +52,35 @@ pub fn extract_codedown_mappings(source: &str) -> (CodeMapMapping, CodeMapMetada
     };
 
     // Look for <!-- OXDRAW MAPPING ... --> comment
-    if let Some(start) = source.find("<!-- OXDRAW MAPPING") {
-        if let Some(end) = source[start..].find("-->") {
-            let comment_content = &source[start + "<!-- OXDRAW MAPPING".len()..start + end];
-            // Parse JSON from comment
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(comment_content.trim()) {
-                if let Some(nodes_obj) = parsed.get("nodes").and_then(|n| n.as_object()) {
-                    for (node_id, location) in nodes_obj {
-                        if let Ok(loc) = serde_json::from_value::<CodeLocation>(location.clone()) {
-                            nodes.insert(node_id.clone(), loc);
-                        }
-                    }
+    if let Some(start) = source.find("<!-- OXDRAW MAPPING")
+        && let Some(end) = source[start..].find("-->")
+    {
+        let comment_content = &source[start + "<!-- OXDRAW MAPPING".len()..start + end];
+        // Parse JSON from comment
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(comment_content.trim())
+            && let Some(nodes_obj) = parsed.get("nodes").and_then(|n| n.as_object())
+        {
+            for (node_id, location) in nodes_obj {
+                if let Ok(loc) = serde_json::from_value::<CodeLocation>(location.clone()) {
+                    nodes.insert(node_id.clone(), loc);
                 }
             }
         }
     }
 
     // Look for <!-- OXDRAW META ... --> comment
-    if let Some(start) = source.find("<!-- OXDRAW META") {
-        if let Some(end) = source[start..].find("-->") {
-            let meta_content = &source[start + "<!-- OXDRAW META".len()..start + end];
-            let parts: Vec<&str> = meta_content.split_whitespace().collect();
-            for part in parts {
-                if let Some(val) = part.strip_prefix("path:") {
-                    metadata.path = Some(val.to_string());
-                } else if let Some(val) = part.strip_prefix("commit:") {
-                    metadata.commit = Some(val.to_string());
-                } else if let Some(val) = part.strip_prefix("diff_hash:") {
-                    metadata.diff_hash = val.parse().ok();
-                }
+    if let Some(start) = source.find("<!-- OXDRAW META")
+        && let Some(end) = source[start..].find("-->")
+    {
+        let meta_content = &source[start + "<!-- OXDRAW META".len()..start + end];
+        let parts: Vec<&str> = meta_content.split_whitespace().collect();
+        for part in parts {
+            if let Some(val) = part.strip_prefix("path:") {
+                metadata.path = Some(val.to_string());
+            } else if let Some(val) = part.strip_prefix("commit:") {
+                metadata.commit = Some(val.to_string());
+            } else if let Some(val) = part.strip_prefix("diff_hash:") {
+                metadata.diff_hash = val.parse().ok();
             }
         }
     }
@@ -95,17 +97,17 @@ pub fn serialize_codedown(
     let mut output = markdown.to_string();
 
     // Remove existing OXDRAW comments if present
-    if let Some(start) = output.find("<!-- OXDRAW MAPPING") {
-        if let Some(end) = output[start..].find("-->") {
-            let full_end = start + end + 3; // +3 for "-->""
-            output.replace_range(start..full_end, "");
-        }
+    if let Some(start) = output.find("<!-- OXDRAW MAPPING")
+        && let Some(end) = output[start..].find("-->")
+    {
+        let full_end = start + end + 3; // +3 for "-->""
+        output.replace_range(start..full_end, "");
     }
-    if let Some(start) = output.find("<!-- OXDRAW META") {
-        if let Some(end) = output[start..].find("-->") {
-            let full_end = start + end + 3;
-            output.replace_range(start..full_end, "");
-        }
+    if let Some(start) = output.find("<!-- OXDRAW META")
+        && let Some(end) = output[start..].find("-->")
+    {
+        let full_end = start + end + 3;
+        output.replace_range(start..full_end, "");
     }
 
     // Trim trailing whitespace
@@ -114,7 +116,7 @@ pub fn serialize_codedown(
     if !output.ends_with('\n') {
         output.push('\n');
     }
-    output.push_str("\n");
+    output.push('\n');
 
     // Add mapping comment
     let mapping_json = serde_json::json!({
@@ -147,7 +149,7 @@ fn get_git_info(path: &Path) -> Option<(String, u64, PathBuf)> {
     use std::process::Command;
 
     let repo_root = Command::new("git")
-        .args(&["rev-parse", "--show-toplevel"])
+        .args(["rev-parse", "--show-toplevel"])
         .current_dir(path)
         .output()
         .ok()
@@ -156,7 +158,7 @@ fn get_git_info(path: &Path) -> Option<(String, u64, PathBuf)> {
         .map(|s| PathBuf::from(s.trim()))?;
 
     let commit = Command::new("git")
-        .args(&["rev-parse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .current_dir(path)
         .output()
         .ok()
@@ -165,7 +167,7 @@ fn get_git_info(path: &Path) -> Option<(String, u64, PathBuf)> {
         .map(|s| s.trim().to_string())?;
 
     let diff_output = Command::new("git")
-        .args(&["diff", "HEAD"])
+        .args(["diff", "HEAD"])
         .current_dir(path)
         .output()
         .ok()
@@ -181,6 +183,9 @@ fn get_git_info(path: &Path) -> Option<(String, u64, PathBuf)> {
 }
 
 /// Generate a codedown from a codebase using AI
+// Options are passed through from the CLI one by one, so grouping them
+// would only move the verbosity elsewhere.
+#[allow(clippy::too_many_arguments)]
 pub async fn generate_codedown(
     path: &Path,
     api_key: Option<String>,
@@ -205,20 +210,18 @@ pub async fn generate_codedown(
     let cache_path = config_dir.join(format!("codedown_cache_{:x}.json", path_hash));
 
     // Check cache
-    if !regen {
-        if let Some((commit, diff_hash, _)) = &git_info {
-            if let Ok(cache_content) = fs::read_to_string(&cache_path) {
-                if let Ok(cache) = serde_json::from_str::<CacheEntry>(&cache_content) {
-                    if cache.commit == *commit && cache.diff_hash == *diff_hash {
-                        println!(
-                            "Using cached codedown for commit {} (diff hash: {:x})",
-                            commit, diff_hash
-                        );
-                        return Ok((cache.markdown, cache.mapping));
-                    }
-                }
-            }
-        }
+    if !regen
+        && let Some((commit, diff_hash, _)) = &git_info
+        && let Ok(cache_content) = fs::read_to_string(&cache_path)
+        && let Ok(cache) = serde_json::from_str::<CacheEntry>(&cache_content)
+        && cache.commit == *commit
+        && cache.diff_hash == *diff_hash
+    {
+        println!(
+            "Using cached codedown for commit {} (diff hash: {:x})",
+            commit, diff_hash
+        );
+        return Ok((cache.markdown, cache.mapping));
     }
 
     println!("Generating codedown with AI...");

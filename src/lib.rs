@@ -181,7 +181,9 @@ pub enum EdgeKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum EdgeArrowDirection {
+    #[default]
     Forward,
     Backward,
     Both,
@@ -299,12 +301,6 @@ impl GanttStyleOverride {
 impl GanttOverrides {
     pub fn is_empty(&self) -> bool {
         self.tasks.is_empty() && self.style.is_empty()
-    }
-}
-
-impl Default for EdgeArrowDirection {
-    fn default() -> Self {
-        EdgeArrowDirection::Forward
     }
 }
 
