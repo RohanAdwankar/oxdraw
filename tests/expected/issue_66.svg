@@ -56,10 +56,10 @@
   </g>
   </g>
   <g class="edge" data-id="App --&gt; ErrorTracker">
-  <polyline points="681.0,265.0 896.4,265.0 896.4,345.0 896.4,425.0 937.4,425.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="591.8,265.0 655.4,254.4 819.0,315.0 982.5,375.5 1000.7,397.2" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="840.3" y="331.0" width="112.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="896.4" y="345.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">error reports</text>
+    <rect x="762.9" y="301.0" width="112.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="819.0" y="315.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">error reports</text>
   </g>
   </g>
   <g class="edge" data-id="ErrorTracker --&gt; Repo">

@@ -57,10 +57,10 @@
   </g>
   </g>
   <g class="edge" data-id="F --&gt; G">
-  <polyline points="1378.6,610.0 1378.6,796.0 1070.8,796.0 1070.8,997.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
+  <polyline points="1359.1,603.0 1359.1,796.0 1070.8,796.0 1070.8,997.0" fill="none" stroke="#2d3748" stroke-width="2" marker-end="url(#arrow-end)" />
   <g pointer-events="none">
-    <rect x="1359.5" y="782.0" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
-    <text x="1378.6" y="796.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
+    <rect x="1340.0" y="782.0" width="38.2" height="28.0" rx="6" ry="6" fill="white" fill-opacity="0.96" stroke="#2d3748" stroke-width="1" />
+    <text x="1359.1" y="796.0" fill="#2d3748" font-size="13" text-anchor="middle" dominant-baseline="middle" xml:space="preserve">Yes</text>
   </g>
   </g>
   <g class="edge" data-id="F --&gt; H">

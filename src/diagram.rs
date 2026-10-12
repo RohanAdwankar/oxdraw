@@ -212,14 +212,14 @@ impl Diagram {
                 continue;
             }
 
-            if let Some(edge) = parse_edge_line(
+            if let Some(parsed_edges) = parse_edge_line(
                 line,
                 &mut nodes,
                 &mut order,
                 &mut node_membership,
                 &mut subgraph_stack,
             )? {
-                edges.push(edge);
+                edges.extend(parsed_edges);
                 continue;
             }
 
@@ -2216,8 +2216,18 @@ impl Diagram {
                             - label_width / 2.0;
                         middle_points.extend(side_points(from, to, x));
                     } else {
+                        let incoming = self
+                            .edges
+                            .iter()
+                            .filter(|candidate| candidate.to == edge.to)
+                            .count();
+                        let outgoing = self
+                            .edges
+                            .iter()
+                            .filter(|candidate| candidate.from == edge.from)
+                            .count();
                         middle_points.push(Point {
-                            x: to.x,
+                            x: if incoming > outgoing { from.x } else { to.x },
                             y: from.y + (to.y - from.y) * 0.65,
                         });
                     }
@@ -2278,6 +2288,12 @@ impl Diagram {
                 }
             }
 
+            if let (Some(from_bounds), Some(to_bounds)) =
+                (node_bounds.get(&edge.from), node_bounds.get(&edge.to))
+            {
+                trim_route_endpoints(&mut path, from_bounds, to_bounds);
+            }
+
             let mut base_label_collision =
                 self.label_collides_with_nodes(edge, &path, &node_bounds);
             let base_node_collision = self.route_collides_with_nodes(edge, &path, &node_bounds);
@@ -2292,7 +2308,7 @@ impl Diagram {
             }
             let base_intersections = count_route_intersections(&path, &routes);
 
-            if middle_points.is_empty()
+            if (middle_points.is_empty() || base_label_collision)
                 && !has_override(edge_idx)
                 && (base_label_collision || base_node_collision || base_intersections > 0)
             {
@@ -2309,6 +2325,11 @@ impl Diagram {
                     base_intersections,
                 ) {
                     path = build_route(from, &adjusted, to);
+                    trim_route_endpoints(
+                        &mut path,
+                        &node_bounds[&edge.from],
+                        &node_bounds[&edge.to],
+                    );
                 }
             }
 
@@ -3078,7 +3099,8 @@ fn evaluate_candidate_route(
     best_metric: &mut (u8, u8, usize),
     best_points: &mut Option<Vec<Point>>,
 ) -> bool {
-    let route = build_route(from, &points, to);
+    let mut route = build_route(from, &points, to);
+    trim_route_endpoints(&mut route, &node_bounds[&edge.from], &node_bounds[&edge.to]);
     let node_collision = diagram.route_collides_with_nodes(edge, &route, node_bounds);
     let mut label_collision = diagram.label_collides_with_nodes(edge, &route, node_bounds);
     if route_intersects_label_rects(&route, existing_label_bounds) {
@@ -5970,7 +5992,7 @@ fn parse_node_line(
     nodes: &mut HashMap<String, Node>,
     order: &mut Vec<String>,
     node_membership: &mut HashMap<String, Vec<String>>,
-    subgraph_stack: &mut Vec<SubgraphBuilder>,
+    subgraph_stack: &mut [SubgraphBuilder],
 ) -> Result<bool> {
     if line.contains("-->") || line.contains("-.->") {
         return Ok(false);
@@ -5992,8 +6014,8 @@ fn parse_edge_line(
     nodes: &mut HashMap<String, Node>,
     order: &mut Vec<String>,
     node_membership: &mut HashMap<String, Vec<String>>,
-    subgraph_stack: &mut Vec<SubgraphBuilder>,
-) -> Result<Option<Edge>> {
+    subgraph_stack: &mut [SubgraphBuilder],
+) -> Result<Option<Vec<Edge>>> {
     const EDGE_PATTERNS: [(&str, EdgeKind, EdgeArrowDirection, Option<&str>); 4] = [
         ("-.->", EdgeKind::Dashed, EdgeArrowDirection::Forward, None),
         (
@@ -6011,55 +6033,111 @@ fn parse_edge_line(
         ("---", EdgeKind::Solid, EdgeArrowDirection::None, Some("--")),
     ];
 
-    let mut parts = None;
-    for (pattern, kind, arrow, inline_prefix) in EDGE_PATTERNS {
-        if let Some((lhs, rhs)) = line.split_once(pattern) {
-            parts = Some((lhs.trim(), rhs.trim(), kind, arrow, inline_prefix));
-            break;
-        }
-    }
-
-    let Some((lhs, rhs, kind, arrow, inline_prefix)) = parts else {
+    let Some(_) = find_edge_pattern(line, &EDGE_PATTERNS) else {
         return Ok(None);
     };
 
-    let mut label: Option<String> = None;
-    let mut from_buffer: Option<String> = None;
-    let mut from_segment = lhs;
-    let rhs_clean = if let Some(rest) = rhs.strip_prefix('|') {
-        let Some(end_idx) = rest.find('|') else {
-            bail!("edge label missing closing '|' in line: '{line}'");
+    let mut edges = Vec::new();
+    let mut remaining = line;
+    while let Some((connector_index, pattern, kind, arrow, inline_prefix)) =
+        find_edge_pattern(remaining, &EDGE_PATTERNS)
+    {
+        let mut from_segment = remaining[..connector_index].trim();
+        let mut label = None;
+        let from_buffer;
+        if let Some(prefix) = inline_prefix
+            && let Some((from, inline_label)) = extract_inline_label(from_segment, prefix)
+        {
+            from_buffer = from;
+            from_segment = &from_buffer;
+            label = Some(inline_label);
+        }
+
+        let rhs = remaining[connector_index + pattern.len()..].trim();
+        let rhs = if let Some(rest) = rhs.strip_prefix('|') {
+            let Some(end_idx) = rest.find('|') else {
+                bail!("edge label missing closing '|' in line: '{line}'");
+            };
+            label = Some(rest[..end_idx].trim().trim_matches('"').to_string());
+            rest[end_idx + 1..].trim()
+        } else {
+            rhs
         };
-        let label_text = rest[..end_idx].trim();
-        let target = rest[end_idx + 1..].trim();
-        label = Some(label_text.trim_matches('"').to_string());
-        target
-    } else {
-        if let Some(prefix) = inline_prefix {
-            if let Some((maybe_from, inline_label)) = extract_inline_label(from_segment, prefix) {
-                label = Some(inline_label);
-                from_buffer = Some(maybe_from);
+
+        let next = find_edge_pattern(rhs, &EDGE_PATTERNS);
+        let to_segment = match next {
+            Some((next_index, _, _, _, next_inline_prefix)) => {
+                let before_next = rhs[..next_index].trim();
+                next_inline_prefix
+                    .and_then(|prefix| extract_inline_label(before_next, prefix))
+                    .map(|(from, _)| from)
+                    .unwrap_or_else(|| before_next.to_string())
             }
+            None => rhs.to_string(),
+        };
+
+        let (from_id, _) = intern_node(from_segment, nodes, order)?;
+        record_node_membership(&from_id, subgraph_stack, node_membership);
+        let (to_id, _) = intern_node(&to_segment, nodes, order)?;
+        record_node_membership(&to_id, subgraph_stack, node_membership);
+        edges.push(Edge {
+            from: from_id,
+            to: to_id,
+            label,
+            kind,
+            arrow,
+        });
+
+        if next.is_none() {
+            break;
         }
-        if let Some(buffer) = &from_buffer {
-            from_segment = buffer.as_str();
+        remaining = rhs;
+    }
+
+    Ok(Some(edges))
+}
+
+fn find_edge_pattern<'a>(
+    line: &str,
+    patterns: &'a [(&'a str, EdgeKind, EdgeArrowDirection, Option<&'a str>)],
+) -> Option<(
+    usize,
+    &'a str,
+    EdgeKind,
+    EdgeArrowDirection,
+    Option<&'a str>,
+)> {
+    let (mut square, mut round, mut curly) = (0_usize, 0_usize, 0_usize);
+    let mut quoted = false;
+
+    for (index, ch) in line.char_indices() {
+        if ch == '"' {
+            quoted = !quoted;
         }
-        rhs
-    };
-
-    let (from_id, _) = intern_node(from_segment, nodes, order)?;
-    record_node_membership(&from_id, subgraph_stack, node_membership);
-
-    let (to_id, _) = intern_node(rhs_clean, nodes, order)?;
-    record_node_membership(&to_id, subgraph_stack, node_membership);
-
-    Ok(Some(Edge {
-        from: from_id,
-        to: to_id,
-        label,
-        kind,
-        arrow,
-    }))
+        if !quoted
+            && square == 0
+            && round == 0
+            && curly == 0
+            && let Some(&(pattern, kind, arrow, inline_prefix)) = patterns
+                .iter()
+                .find(|(pattern, ..)| line[index..].starts_with(pattern))
+        {
+            return Some((index, pattern, kind, arrow, inline_prefix));
+        }
+        if quoted {
+            continue;
+        }
+        match ch {
+            '[' => square += 1,
+            ']' => square = square.saturating_sub(1),
+            '(' => round += 1,
+            ')' => round = round.saturating_sub(1),
+            '{' => curly += 1,
+            '}' => curly = curly.saturating_sub(1),
+            _ => {}
+        }
+    }
+    None
 }
 
 fn extract_inline_label(segment: &str, prefix: &str) -> Option<(String, String)> {
@@ -6354,6 +6432,66 @@ graph TD
         assert_eq!(diagram.nodes["B"].label, "To");
         assert_eq!(diagram.edges[0].arrow, EdgeArrowDirection::Both);
         assert_eq!(diagram.edges[0].label.as_deref(), Some("sync"));
+    }
+
+    #[test]
+    fn parses_chained_edges_as_parallel_paths() {
+        let diagram = Diagram::parse(
+            "graph TD\nA -->|left| B[First] --> C --> Z\nA -->|right| D[Second] --> E --> Z",
+        )
+        .expect("diagram parse should succeed");
+
+        assert_eq!(diagram.nodes.len(), 6);
+        assert_eq!(diagram.edges.len(), 6);
+        assert_eq!(diagram.nodes["B"].label, "First");
+        assert_eq!(diagram.nodes["D"].label, "Second");
+        assert_eq!(
+            diagram.edges.iter().filter(|edge| edge.to == "Z").count(),
+            2
+        );
+    }
+
+    #[test]
+    fn separates_labels_on_branching_edges() {
+        let assert_clear = |source| {
+            let diagram = Diagram::parse(source).expect("diagram parse should succeed");
+            let routes = diagram
+                .layout(None)
+                .expect("layout should succeed")
+                .auto_routes;
+            let labels: Vec<_> = diagram
+                .edges
+                .iter()
+                .map(|edge| label_rect_for_route(edge, &routes[&edge_identifier(edge)]).unwrap())
+                .collect();
+
+            for (index, label) in labels.iter().enumerate() {
+                for other in &labels[index + 1..] {
+                    assert!(
+                        !label.intersects(other),
+                        "edge labels must not overlap: {label:?}, {other:?}"
+                    );
+                }
+            }
+            for (edge_index, edge) in diagram.edges.iter().enumerate() {
+                let route = &routes[&edge_identifier(edge)];
+                for (label_index, label) in labels.iter().enumerate() {
+                    if edge_index != label_index {
+                        assert!(
+                            !route_intersects_rect(route, *label),
+                            "edges must not cross other edge labels"
+                        );
+                    }
+                }
+            }
+        };
+
+        assert_clear(
+            "graph TD\nA[Left] -->|northbound signal| D{Merge}\nB[Middle] -->|central window| D\nC[Right] <-->|eastbound notice| D",
+        );
+        assert_clear(
+            "graph TD\nD{Split} -->|northbound signal| A[Left]\nD -->|central window| B[Middle]\nD <-->|eastbound notice| C[Right]",
+        );
     }
 
     #[test]
