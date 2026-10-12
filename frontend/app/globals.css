@@ -131,6 +131,44 @@ body > div:first-of-type {
   max-width: none;
 }
 
+.node-create-arrow {
+  position: fixed;
+  z-index: 20;
+  width: 34px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: #86efac;
+  opacity: 0.42;
+  cursor: pointer;
+}
+
+.node-create-arrow:hover {
+  opacity: 0.75;
+}
+
+.node-create-arrow.up,
+.node-create-arrow.down {
+  width: 22px;
+  height: 34px;
+}
+
+.node-create-arrow.right {
+  clip-path: polygon(0 36%, 65% 36%, 65% 0, 100% 50%, 65% 100%, 65% 64%, 0 64%);
+}
+
+.node-create-arrow.left {
+  clip-path: polygon(100% 36%, 35% 36%, 35% 0, 0 50%, 35% 100%, 35% 64%, 100% 64%);
+}
+
+.node-create-arrow.up {
+  clip-path: polygon(36% 100%, 36% 35%, 0 35%, 50% 0, 100% 35%, 64% 35%, 64% 100%);
+}
+
+.node-create-arrow.down {
+  clip-path: polygon(36% 0, 36% 65%, 0 65%, 50% 100%, 100% 65%, 64% 65%, 64% 0);
+}
+
 .placeholder {
   margin: auto;
   padding: 1rem 1.5rem;

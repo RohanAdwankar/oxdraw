@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { WheelEvent as ReactWheelEvent } from "react";
-import type { DiagramCanvasProps } from "./diagramCanvasTypes";
+import type { DiagramCanvasProps, NodeCreateDirection } from "./diagramCanvasTypes";
 import { createWasmEditor, type WasmEditorCore } from "../lib/wasmEditor";
 import type { LayoutUpdate, Point } from "../lib/types";
 
@@ -151,6 +151,7 @@ export default function WasmDiagramCanvas({
   selectedNodeId,
   onSelectNode,
   onSelectEdge,
+  onCreateNode,
   onDragStateChange,
 }: DiagramCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -159,6 +160,7 @@ export default function WasmDiagramCanvas({
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const coreRef = useRef<WasmEditorCore | null>(null);
   const dragRef = useRef<ActiveDrag | null>(null);
+  const [selectedBounds, setSelectedBounds] = useState<DOMRect | null>(null);
 
   const renderFromCore = useCallback(() => {
     if (!coreRef.current) {
@@ -210,6 +212,28 @@ export default function WasmDiagramCanvas({
   }, [diagram.background, diagram.source, onSvgMarkupChange]);
 
   useEffect(() => {
+    const svg = wrapperRef.current?.querySelector("svg");
+    if (!svg) {
+      return;
+    }
+    for (const group of svg.querySelectorAll<SVGGElement>("g.node[data-id]")) {
+      const id = group.getAttribute("data-id");
+      group.classList.toggle("selected", id === selectedNodeId);
+    }
+    if (!selectedNodeId || diagram.kind !== "flowchart") {
+      setSelectedBounds(null);
+      return;
+    }
+    const selected = Array.from(svg.querySelectorAll<SVGGElement>("g.node[data-id]"))
+      .find((group) => group.getAttribute("data-id") === selectedNodeId);
+    if (!selected) {
+      setSelectedBounds(null);
+      return;
+    }
+    setSelectedBounds(selected.getBoundingClientRect());
+  }, [diagram.kind, selectedNodeId, svgMarkup, transform]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!selectedNodeId || event.metaKey || event.ctrlKey || event.altKey) {
         return;
@@ -247,6 +271,9 @@ export default function WasmDiagramCanvas({
   }, [onEdgeMove, onLayoutUpdate, onNodeMove, renderFromCore, selectedNodeId]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
     const core = coreRef.current;
     if (!core) {
       return;
@@ -263,10 +290,22 @@ export default function WasmDiagramCanvas({
     }
 
     const target = event.target as Element;
+    const createArrow = target.closest(".node-create-arrow[data-node-id][data-direction]");
     const ganttTaskGroup = target.closest("g.gantt-task[data-task-id]");
     const subgraphGroup = target.closest("g.subgraph[data-id]");
     const nodeGroup = target.closest("g.node[data-id]");
     const edgeGroup = target.closest("g.edge[data-id]");
+
+    if (createArrow) {
+      const fromId = createArrow.getAttribute("data-node-id");
+      const direction = createArrow.getAttribute("data-direction") as NodeCreateDirection | null;
+      if (!fromId || !direction) {
+        return;
+      }
+      void onCreateNode(fromId, direction);
+      event.preventDefault();
+      return;
+    }
 
     if (ganttTaskGroup) {
       const taskId = ganttTaskGroup.getAttribute("data-task-id");
@@ -491,6 +530,33 @@ export default function WasmDiagramCanvas({
         }}
         dangerouslySetInnerHTML={{ __html: svgMarkup }}
       />
+      {selectedNodeId && selectedBounds && (
+        <>
+          {(["up", "right", "down", "left"] as NodeCreateDirection[]).map((direction) => {
+            const vertical = direction === "up" || direction === "down";
+            const style = vertical
+              ? {
+                  left: selectedBounds.left + selectedBounds.width / 2 - 11,
+                  top: direction === "up" ? selectedBounds.top - 42 : selectedBounds.bottom + 8,
+                }
+              : {
+                  left: direction === "left" ? selectedBounds.left - 42 : selectedBounds.right + 8,
+                  top: selectedBounds.top + selectedBounds.height / 2 - 11,
+                };
+            return (
+              <button
+                key={direction}
+                type="button"
+                className={`node-create-arrow ${direction}`}
+                data-node-id={selectedNodeId}
+                data-direction={direction}
+                style={style}
+                aria-label={`Create node ${direction}`}
+              />
+            );
+          })}
+        </>
+      )}
       <div className="zoom-controls">
         <button type="button" onClick={zoomOut} title="Zoom out">-</button>
         <button type="button" className="zoom-display" onClick={resetZoom} title="Reset zoom">
